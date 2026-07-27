@@ -1,0 +1,85 @@
+(* GUML v0.1 grammar.
+ *
+ * Layout is significant: INDENT/DEDENT are derived from leading-space counts rather than
+ * emitted as tokens (see crates/guml-syntax). Blank lines and `//` comments are removed
+ * before this grammar applies.
+ *
+ * This file must stay in sync with crates/guml-parser. It is also the artifact fed to
+ * grammar-prompting and to grammar-constrained decoding, so it is the normative surface,
+ * not documentation.
+ *)
+
+program      ::= ( directive | element )* ;
+
+(* ---------------- directives ---------------- *)
+
+directive    ::= page_decl | type_decl | state_decl | data_decl ;
+
+page_decl    ::= "page" IDENT NEWLINE ;
+
+type_decl    ::= "type" IDENT brace_group NEWLINE ;
+                 (* brace body: field ("," field)* ; field ::= IDENT [ ":" IDENT ] *)
+
+state_decl   ::= ( "state" | "store" ) IDENT "=" value ( "|" value )* NEWLINE ;
+                 (* two or more values form an enumerated domain; the first is the initial value *)
+
+data_decl    ::= "data" IDENT [ ":" TYPEREF ] METHOD ROUTE NEWLINE
+                 INDENT mutation+ DEDENT ;
+
+mutation     ::= IDENT METHOD ROUTE [ brace_group ]
+                 [ "optimistic" [ ":" IDENT ] ] NEWLINE ;
+
+METHOD       ::= "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" ;
+TYPEREF      ::= IDENT [ "[]" ] ;
+
+(* ---------------- elements ---------------- *)
+
+element      ::= TAG positional* attribute* [ action ] [ content ] NEWLINE
+                 [ INDENT ( element+ | text_line+ ) DEDENT ] ;
+                 (* text_line children only for tags in TEXT_CHILD_TAGS: tier, faq *)
+
+positional   ::= WORD | STRING | NUMBER | MODIFIER | binding | ROUTE | ANCHOR ;
+
+attribute    ::= IDENT "=" value ;
+
+action       ::= ">" REST_OF_LINE ;
+                 (* statements separated by ";" — must be the last thing on the line *)
+
+content      ::= "|" REST_OF_LINE
+               | REST_OF_LINE ;
+                 (* the unprefixed form applies only when TAG has TagKind::Text
+                    and the line contains no "=" *)
+
+text_line    ::= REST_OF_LINE ;
+                 (* optionally "question | answer" for faq *)
+
+value        ::= STRING | NUMBER | BOOL | WORD | binding ;
+binding      ::= "{" expr "}" ;
+brace_group  ::= "{" REST_UNTIL_BALANCED_BRACE "}" ;
+
+(* ---------------- expressions (Phase 2: currently pass-through) ---------------- *)
+
+expr         ::= or_expr ;
+or_expr      ::= and_expr ( "||" and_expr )* ;
+and_expr     ::= cmp_expr ( "&&" cmp_expr )* ;
+cmp_expr     ::= add_expr [ ( "==" | "!=" | "<" | "<=" | ">" | ">=" ) add_expr ] ;
+add_expr     ::= mul_expr ( ( "+" | "-" ) mul_expr )* ;
+mul_expr     ::= unary ( ( "*" | "/" | "%" ) unary )* ;
+unary        ::= [ "!" | "-" ] primary ;
+primary      ::= NUMBER | STRING | BOOL | path | "(" expr ")" ;
+path         ::= IDENT ( "." ( IDENT | aggregate ) )* ;
+aggregate    ::= "count" | "sum" | "where" "(" expr ")" ;
+
+(* ---------------- terminals ---------------- *)
+
+TAG          ::= IDENT ;                       (* must resolve in the component registry *)
+MODIFIER     ::= IDENT ;                       (* must be in the closed modifier vocabulary *)
+IDENT        ::= word_char+ ;
+WORD         ::= word_char+ ;                  (* permissive: allows $24/mo, text-sm, Task[] *)
+word_char    ::= any char except space, tab, '"', '{', '}', '|', '=', ':', ',', '>', '#' ;
+STRING       ::= '"' ( '\\"' | '\\\\' | any char except '"' )* '"' ;
+NUMBER       ::= digit+ [ "." digit+ ] ;
+BOOL         ::= "true" | "false" ;
+ANCHOR       ::= "#" word_char+ ;
+ROUTE        ::= "/" non_space* ;               (* only at token start, so $24/mo stays a word *)
+NEWLINE      ::= "\n" | "\r\n" ;

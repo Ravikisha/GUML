@@ -1,0 +1,11 @@
+page Counter
+state count=0
+
+card sm center
+  h Clicks
+  p Press the buttons to change the value.
+  metric {count}
+  row center
+    btn Decrement ghost disabled={!count} >count--
+    btn Increment primary >count++
+    btn Reset quiet >count=0

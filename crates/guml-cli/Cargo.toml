@@ -1,0 +1,20 @@
+[package]
+name = "guml-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "The `guml` command-line compiler"
+
+[[bin]]
+name = "guml"
+path = "src/main.rs"
+
+[dependencies]
+guml-compiler = { workspace = true }
+guml-diagnostics = { workspace = true }
+guml-registry = { workspace = true }
+guml-syntax = { workspace = true }
+clap = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }

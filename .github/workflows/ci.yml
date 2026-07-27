@@ -1,0 +1,43 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --workspace
+
+      # The fixtures back the token measurement in the research report, so a fixture that
+      # stops compiling is a broken claim, not just a broken test.
+      - name: Fixtures still compile
+        run: |
+          cargo run -q -p guml-cli -- check fixtures/a.guml
+          cargo run -q -p guml-cli -- check fixtures/b.guml
+          cargo run -q -p guml-cli -- check fixtures/c.guml
+          cargo run -q -p guml-cli -- build fixtures/a.guml > /dev/null
+        shell: bash

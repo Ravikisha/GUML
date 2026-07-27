@@ -1,0 +1,42 @@
+page Landing
+
+nav Northwind
+  link Features #features
+  link Pricing #pricing
+  link FAQ #faq
+  btn "Get started" primary /signup
+
+hero
+  h1 Build the interface, skip the boilerplate
+  p Northwind turns a short description into a working, accessible web app you actually own.
+  btn "Start free" primary /signup
+  btn "Watch demo" outline /demo
+
+section #features cols=3
+  card "Ship in minutes" | Describe the page, get a deployable build. No boilerplate to review.
+  card "Own your output" | Every project exports as plain framework code you can keep editing.
+  card "Accessible by default" | Focus states, labels and contrast are handled before you ask.
+
+section #pricing Pricing cols=3
+  tier Hobby $0/mo "For side projects" cta="Start free" /signup
+    3 projects
+    Community support
+    Deploy previews
+  tier Pro $24/mo "For working developers" cta="Go Pro" /signup featured
+    Unlimited projects
+    Custom domains
+    Email support
+  tier Team $96/mo "For small teams" cta="Contact sales" /signup
+    Shared workspaces
+    Roles and permissions
+    Priority support
+
+section #faq Questions
+  faq open=1
+    Can I export the code? | Yes. Every build is plain source you can download or push to a repository.
+    Do I need a credit card to try it? | No. The Hobby tier is free forever and needs no payment details.
+    What frameworks are supported? | React, Svelte and standards-based web components today, with more planned.
+
+footer "© 2026 Northwind Labs"
+  link Privacy /privacy
+  link Terms /terms

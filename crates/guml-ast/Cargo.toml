@@ -1,0 +1,11 @@
+[package]
+name = "guml-ast"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "GUML abstract syntax tree"
+
+[dependencies]
+guml-diagnostics = { workspace = true }
+serde = { workspace = true }

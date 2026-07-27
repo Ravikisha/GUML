@@ -1,0 +1,61 @@
+{
+  "page": "Tasks",
+  "types": {
+    "Task": { "id": "string", "title": "string", "done": "bool", "createdAt": "date" }
+  },
+  "data": {
+    "tasks": {
+      "type": "Task[]",
+      "list": { "method": "GET", "url": "/api/tasks" },
+      "add": { "method": "POST", "url": "/api/tasks", "body": ["title"], "optimistic": "prepend" },
+      "save": { "method": "PATCH", "url": "/api/tasks/{id}", "body": ["done"], "optimistic": true },
+      "drop": { "method": "DELETE", "url": "/api/tasks/{id}", "optimistic": true }
+    }
+  },
+  "state": {
+    "draft": "",
+    "filter": { "enum": ["all", "open", "done"], "default": "all" }
+  },
+  "children": [
+    {
+      "component": "Header",
+      "title": "Tasks",
+      "subtitle": "{tasks.open.count} open"
+    },
+    {
+      "component": "Form",
+      "onSubmit": [
+        { "action": "tasks.add", "body": { "title": "{draft}" } },
+        { "action": "set", "target": "draft", "value": "" }
+      ],
+      "children": [
+        { "component": "Input", "bind": "draft", "placeholder": "Add a task…" },
+        {
+          "component": "Button",
+          "label": "Add",
+          "variant": "primary",
+          "disabled": "{!draft.trim()}",
+          "busyLabel": "Adding…"
+        }
+      ]
+    },
+    { "component": "Tabs", "bind": "filter" },
+    {
+      "component": "List",
+      "source": "tasks",
+      "where": "{filter}",
+      "empty": "Nothing here yet.",
+      "item": [
+        { "component": "Checkbox", "bind": "done", "onChange": { "action": "tasks.save" } },
+        { "component": "Text", "value": "{title}", "strike": "{done}" },
+        {
+          "component": "Button",
+          "label": "Delete",
+          "variant": "quiet",
+          "aria": "Delete {title}",
+          "onClick": { "action": "tasks.drop" }
+        }
+      ]
+    }
+  ]
+}

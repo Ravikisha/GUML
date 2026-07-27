@@ -1,0 +1,46 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/guml-diagnostics",
+    "crates/guml-syntax",
+    "crates/guml-ast",
+    "crates/guml-parser",
+    "crates/guml-registry",
+    "crates/guml-codegen",
+    "crates/guml-compiler",
+    "crates/guml-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "Apache-2.0"
+repository = "https://github.com/guml-lang/guml"
+authors = ["GUML contributors"]
+
+[workspace.dependencies]
+guml-diagnostics = { path = "crates/guml-diagnostics" }
+guml-syntax = { path = "crates/guml-syntax" }
+guml-ast = { path = "crates/guml-ast" }
+guml-parser = { path = "crates/guml-parser" }
+guml-registry = { path = "crates/guml-registry" }
+guml-codegen = { path = "crates/guml-codegen" }
+guml-compiler = { path = "crates/guml-compiler" }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+clap = { version = "4", features = ["derive"] }
+thiserror = "2"
+anyhow = "1"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+
+# Compile times matter: the LLM repair loop calls the compiler in a hot path.
+[profile.dev]
+opt-level = 1
+debug = 1

@@ -1,0 +1,10 @@
+/target
+**/*.rs.bk
+*.pdb
+/out
+/dist
+node_modules/
+.DS_Store
+# benchmark + experiment artifacts are large and regenerable
+/bench/runs/
+/spec/phase0-raw/

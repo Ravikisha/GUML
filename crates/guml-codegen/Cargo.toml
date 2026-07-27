@@ -1,0 +1,12 @@
+[package]
+name = "guml-codegen"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Pluggable code generators for GUML (React first)"
+
+[dependencies]
+guml-ast = { workspace = true }
+guml-diagnostics = { workspace = true }
+guml-registry = { workspace = true }

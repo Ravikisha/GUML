@@ -1,0 +1,15 @@
+[package]
+name = "guml-compiler"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "GUML compiler driver: source -> diagnostics + emitted files"
+
+[dependencies]
+guml-ast = { workspace = true }
+guml-codegen = { workspace = true }
+guml-diagnostics = { workspace = true }
+guml-parser = { workspace = true }
+guml-registry = { workspace = true }
+guml-syntax = { workspace = true }

@@ -1,0 +1,218 @@
+/* `source(none)` disables automatic file detection so Tailwind does not scan
+   lib/fixtures.generated.ts — that file contains the React fixtures' class
+   strings, which would otherwise be compiled into this stylesheet (and produced
+   malformed candidates from the JSON samples). */
+@import "tailwindcss" source(none);
+
+@source "../app/**/*.{ts,tsx}";
+@source "../components/**/*.{ts,tsx}";
+@source "../lib/nav.ts";
+
+/* ==========================================================================
+   GUML docs — design tokens
+   --------------------------------------------------------------------------
+   Direction: "the meter". GUML's entire thesis is a falling number, so the
+   site is organised around counting. The accent pair marks before/after
+   (ember = the verbose source, iris = the compact representation) and mint is
+   reserved for exactly one job: showing what was saved.
+
+   Dark-only, deliberately: the subject is a compiler and its diagnostics, and
+   one committed surface keeps the accent pair legible on every page.
+   ========================================================================== */
+
+@theme {
+  /* base ----------------------------------------------------------------- */
+  --color-ink: #08080c;
+  --color-ink-raised: #0e0e15;
+  --color-ink-high: #15151f;
+  --color-chalk: #eceef3;
+  --color-fog: #8a90a6;
+  --color-fog-dim: #5c6178;
+
+  /* accents: a duo, not a lone acid accent ------------------------------- */
+  --color-ember: #ff5c2b;
+  --color-ember-dim: #7a2a14;
+  --color-iris: #6c4cff;
+  --color-iris-dim: #2f2270;
+  --color-mint: #3bf0a6;
+
+  /* syntax --------------------------------------------------------------- */
+  --color-syn-tag: #8b74ff;
+  --color-syn-mod: #ff7a4d;
+  --color-syn-bind: #3bf0a6;
+  --color-syn-str: #ffc86b;
+  --color-syn-num: #ff9ecd;
+  --color-syn-key: #7dd3fc;
+  --color-syn-comment: #4f5468;
+  --color-syn-punct: #757b93;
+
+  /* type ----------------------------------------------------------------- */
+  --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
+
+  --text-hero: clamp(2.6rem, 7.4vw, 6rem);
+  --text-display: clamp(1.9rem, 4vw, 3.1rem);
+
+  /* structure ------------------------------------------------------------ */
+  --radius-panel: 1rem;
+  --radius-card: 0.875rem;
+  --radius-chip: 0.5rem;
+
+  --animate-marquee: marquee 40s linear infinite;
+  --animate-blink: blink 1.05s steps(2, start) infinite;
+  --animate-drift: drift 22s ease-in-out infinite;
+  --animate-rise: rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(-2%, 3%, 0);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Base
+   -------------------------------------------------------------------------- */
+
+:root {
+  --line: rgb(255 255 255 / 0.08);
+  --line-strong: rgb(255 255 255 / 0.16);
+  color-scheme: dark;
+}
+
+* {
+  border-color: var(--line);
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 6rem;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background-color: var(--color-ink);
+  color: var(--color-chalk);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* One grain layer, so large ink fields have tooth instead of reading as
+   empty. No stacked gradients on top of it. */
+body::after {
+  content: "";
+  position: fixed;
+  inset: -50%;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: var(--animate-drift);
+}
+
+::selection {
+  background: var(--color-ember);
+  color: var(--color-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-iris);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+
+/* --------------------------------------------------------------------------
+   Utilities
+   -------------------------------------------------------------------------- */
+
+/* Structural label: mono, uppercase, wide. Used only where it carries a real
+   value (a token count, a phase, a diagnostic code) — never as decoration. */
+@utility label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  line-height: 1;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-fog-dim);
+}
+
+/* Bricolage Grotesque carries a width axis. The hero narrows it while the
+   token counter falls, so the type physically compresses along with the data.
+   This is the page's one bold move; everything around it stays quiet. */
+@utility display-wide {
+  font-family: var(--font-display);
+  font-variation-settings: "wdth" 100, "opsz" 48;
+}
+
+@utility display-narrow {
+  font-family: var(--font-display);
+  font-variation-settings: "wdth" 76, "opsz" 48;
+}
+
+@utility rule-y {
+  background-image: linear-gradient(to right, var(--line) 0 1px, transparent 1px 100%);
+  background-size: 1px 100%;
+}
+
+@supports selector(::-webkit-scrollbar) {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(255 255 255 / 0.1);
+    border-radius: 99px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(255 255 255 / 0.2);
+    background-clip: content-box;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

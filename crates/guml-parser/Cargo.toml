@@ -1,0 +1,13 @@
+[package]
+name = "guml-parser"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Error-recovering, registry-aware parser for GUML"
+
+[dependencies]
+guml-diagnostics = { workspace = true }
+guml-syntax = { workspace = true }
+guml-ast = { workspace = true }
+guml-registry = { workspace = true }

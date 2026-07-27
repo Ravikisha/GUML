@@ -10,3 +10,5 @@ description = "Pluggable code generators for GUML (React first)"
 guml-ast = { workspace = true }
 guml-diagnostics = { workspace = true }
 guml-registry = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

@@ -9,6 +9,7 @@ members = [
     "crates/guml-codegen",
     "crates/guml-compiler",
     "crates/guml-cli",
+    "crates/guml-wasm",
 ]
 
 [workspace.package]
@@ -27,6 +28,7 @@ guml-parser = { path = "crates/guml-parser" }
 guml-registry = { path = "crates/guml-registry" }
 guml-codegen = { path = "crates/guml-codegen" }
 guml-compiler = { path = "crates/guml-compiler" }
+guml-wasm = { path = "crates/guml-wasm" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

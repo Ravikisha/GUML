@@ -13,6 +13,7 @@
 use guml_ast::{Element, Positional, Program, Value};
 use guml_diagnostics::{Diagnostics, Severity, Span};
 
+pub mod json;
 pub mod react;
 
 #[derive(Debug, Clone)]
@@ -36,12 +37,13 @@ pub trait Backend {
 pub fn backend(name: &str) -> Option<Box<dyn Backend>> {
     match name {
         "react" => Some(Box::new(react::ReactBackend)),
+        "json" => Some(Box::new(json::JsonBackend)),
         _ => None,
     }
 }
 
 pub fn backend_names() -> &'static [&'static str] {
-    &["react"]
+    &["react", "json"]
 }
 
 // ------------------------------------------------------------------ shared helpers

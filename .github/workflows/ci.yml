@@ -41,3 +41,25 @@ jobs:
           cargo run -q -p guml-cli -- check fixtures/c.guml
           cargo run -q -p guml-cli -- build fixtures/a.guml > /dev/null
         shell: bash
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - run: pnpm install --frozen-lockfile
+
+      # The docs site regenerates its code samples from the real fixtures and the
+      # real compiler, so this step also proves the compiler still builds.
+      - run: pnpm --filter docs build
+
+      - run: pnpm --filter docs lint

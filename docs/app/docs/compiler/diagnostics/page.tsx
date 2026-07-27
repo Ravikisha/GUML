@@ -24,11 +24,11 @@ const CODES: Row[] = [
   ["GUML0030", "unknown tag", "error", "Resolution"],
   ["GUML0031", "unknown modifier", "warning", "Resolution"],
   ["GUML0032", "tag does not accept this attribute", "warning", "Resolution"],
-  ["GUML0033", "unknown state", "error", "Resolution"],
+  ["GUML0033", "binding or action refers to something undeclared", "error", "Resolution"],
   ["GUML0040", "state declared more than once", "error", "Semantics"],
   ["GUML0041", "file has no `page` directive", "warning", "Semantics"],
   ["GUML0050", "icon control without a label", "error", "Accessibility"],
-  ["GUML0051", "input without a label", "error", "Accessibility"],
+  ["GUML0051", "field with no accessible name (placeholder only: warning)", "error", "Accessibility"],
 ];
 
 export default function Page() {
@@ -151,6 +151,14 @@ export default function Page() {
 btn quiet icon=trash >tasks.drop                    // GUML0050
 btn quiet icon=trash aria="Delete {title}" >tasks.drop  // fine`}
       />
+      <P>
+        Severity is graded by how much the compiler can recover on the author&rsquo;s behalf. A
+        control inside a repeater row that renders a text binding is named from that binding — the
+        same call a person makes when labelling a row checkbox from the row&rsquo;s title — so it
+        passes. A field whose only hint is a <C>placeholder</C> is a <em>warning</em>: a placeholder
+        disappears on input and is not an accessible name, but it is not nothing either. A control
+        with nothing at all is an error.
+      </P>
       <P>
         This is where the &ldquo;convention as correctness&rdquo; claim stops being rhetorical. The
         benchmark asserts zero axe-core violations on emitted output, which is only achievable if the

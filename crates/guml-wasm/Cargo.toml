@@ -1,0 +1,27 @@
+[package]
+name = "guml-wasm"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "WebAssembly bindings for the GUML compiler"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+guml-compiler = { workspace = true }
+guml-codegen = { workspace = true }
+guml-diagnostics = { workspace = true }
+guml-registry = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+wasm-bindgen = "0.2"
+serde-wasm-bindgen = "0.6"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+# The wasm artifact ships to browsers, so size matters more than build time.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-Oz"]

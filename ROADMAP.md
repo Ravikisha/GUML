@@ -79,9 +79,12 @@ If the gate fails, stop and publish the negative result. That is a real contribu
 - [x] React backend vertical slice: containers, text, controls, state, actions, bindings
 - [x] Design-system table owned by the compiler (the token lever, report §1.5)
 - [x] Unsupported constructs *warn* rather than mis-lower
-- [ ] **Resolver**: bindings → state/resource/type; unknown field → `did you mean` with a suggestion
+- [x] **JSON UI-tree backend** — the render tree behind the browser runtime, playground and live previews
+- [x] **`guml` npm package**: wasm compiler + React runtime (`<Guml>`, `useGumlTree`, `useGumlRuntime`)
+- [x] Expression evaluator and action lowering in the runtime (no `eval`; mirrors the React backend)
+- [x] **Resolver (lite)**: bindings/actions → state, resources, repeater item fields; `GUML0033` with a suggestion
 - [ ] **Semantic analyser**: type check, exhaustiveness on enumerated state domains
-- [ ] **Accessibility lint as hard errors** (`GUML0050`, `GUML0051`) — this is the "convention as correctness" claim
+- [x] **Accessibility lint as hard errors** (`GUML0050`, `GUML0051`), with severity graded by what the compiler can recover
 - [ ] **Desugar pass**: the conventions that make the token saving real
   - [ ] Resource layer: fetch, cancellation, retry/backoff, cache
   - [ ] Loading skeleton / empty / error slots auto-filled
@@ -125,7 +128,7 @@ If the gate fails, stop and publish the negative result. That is a real contribu
 - [ ] Grammar-constrained decoding via `llguidance` for local/open models
   - [ ] Note honestly: hosted APIs expose no client-side CFG masking, so API arms use structured output + repair instead
 - [ ] Repair loop: compile → JSON diagnostics → patch → recompile, bounded at 3 rounds
-- [ ] Auto-apply `suggestion` fields without a model call where they are unambiguous
+- [x] Auto-apply `suggestion` fields without a model call (`applyAllSuggestions` in the JS package)
 - [ ] Telemetry: tokens in/out per attempt, cached vs uncached, repair rounds, time-to-valid
 
 **GATE**
@@ -160,7 +163,7 @@ If the gate fails, stop and publish the negative result. That is a real contribu
 - [ ] Web Components backend (portability / embeddable story)
 - [ ] A2UI + MCP-UI emitters (turns the strongest competitor into a distribution channel)
 - [ ] Static HTML/CSS/JS backend (best Lighthouse numbers for the benchmark)
-- [ ] WASM build of the compiler (`wasm-pack`) so it runs in-browser for AI builders
+- [x] WASM build of the compiler (`wasm-pack`, 216 KB) — `crates/guml-wasm`, shipped as the `guml` npm package
 - [ ] `tower-lsp` language server reusing the same diagnostics
 - [ ] Paper 1: *How Should LLMs Represent User Interfaces?* → EMNLP/ACL or NeurIPS D&B
 - [ ] Paper 2: *Convention as Compression* → ICSE/FSE

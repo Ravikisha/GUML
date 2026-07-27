@@ -8,3 +8,6 @@ node_modules/
 # benchmark + experiment artifacts are large and regenerable
 /bench/runs/
 /spec/phase0-raw/
+
+# The built wasm IS committed: the docs site needs it at build time and its host
+# has no Rust toolchain. Rebuild with `pnpm --filter guml build:wasm`.

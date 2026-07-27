@@ -11,6 +11,7 @@ import { CommandMenu } from "./command-menu";
 const TOP = [
   { title: "Docs", href: "/docs" },
   { title: "Examples", href: "/examples" },
+  { title: "Playground", href: "/playground" },
   { title: "Research", href: "/docs/research/measurements" },
 ];
 

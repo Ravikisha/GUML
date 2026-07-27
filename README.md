@@ -30,6 +30,9 @@ card sm center                                    const [count, setCount] = useS
 | Lexer, AST, parser, diagnostics | working, tested |
 | Component registry + typo suggestions | working, 27 primitives |
 | React backend | vertical slice: containers, text, controls, state, actions, bindings |
+| JSON UI-tree backend | working — powers the browser runtime and playground |
+| `guml` npm package (wasm + React runtime) | working — 216 KB wasm, live preview and playground |
+| Resolver-lite + accessibility errors | working — `GUML0033`, `GUML0050`, `GUML0051` |
 | Resources / repeaters / forms / optimistic mutations | **parsed but not lowered** — warns, does not miscompile |
 | Expression language | pass-through (Phase 2) |
 | Benchmark, LLM loop, second backend | not started |
@@ -84,6 +87,7 @@ experiment that tells us which side GUML lands on. Full analysis: `GUML-Research
 | `spec/grammar.ebnf` | Normative grammar |
 | `crates/` | The Rust compiler |
 | `fixtures/` | Paired GUML / React / JSON-IR artifacts behind the token measurement |
+| `packages/guml/` | npm package: the compiler as WebAssembly plus a React runtime |
 | `docs/` | The documentation site (Next.js). Its own git repo; gitignored here. Code samples are generated from `fixtures/` and from the compiler. |
 | `.claude/agents/` | Specialist subagents for this project |
 | `.claude/skills/` | Project skills: writing GUML, compiler dev, measurement, Phase 0 |

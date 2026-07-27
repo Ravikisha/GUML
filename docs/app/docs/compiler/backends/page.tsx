@@ -16,7 +16,7 @@ export default function Page() {
   return (
     <DocPage
       pathname="/docs/compiler/backends"
-      meter={{ label: "shipping", value: "1 of 6", tone: "ember" }}
+      meter={{ label: "shipping", value: "2 of 6", tone: "ember" }}
       title="Backends"
       lede="A backend turns the AST into source text. React is the one that works; the others are planned, and the gaps in the working one are reported rather than guessed."
       toc={[
@@ -126,6 +126,11 @@ warning[GUML0030]: v0.1 React backend does not yet lower resource \`tasks\`
         head={["target", "why it exists", "phase"]}
         rows={[
           ["React + TS + Tailwind", "ecosystem gravity; easiest hand-off to a human; benchmark baseline", "shipping"],
+          [
+            "JSON UI tree",
+            "what the browser runtime and the playground render; base for the A2UI emitter",
+            "shipping",
+          ],
           ["Static HTML/CSS/JS", "best Lighthouse numbers for the benchmark", "1.5"],
           ["Svelte", "the compile-away-the-framework and bundle-size story", "7"],
           ["Web Components", "portability and embedding", "7"],

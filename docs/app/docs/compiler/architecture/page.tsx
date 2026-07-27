@@ -12,7 +12,7 @@ export default function Page() {
   return (
     <DocPage
       pathname="/docs/compiler/architecture"
-      meter={{ label: "workspace", value: "8 crates · 49 tests" }}
+      meter={{ label: "workspace", value: "9 crates · 67 tests" }}
       title="Architecture"
       lede="A Rust workspace with one entry point, because the thing calling it is usually a repair loop that wants a single structured answer."
       toc={[
@@ -31,17 +31,20 @@ export default function Page() {
    ↓  Lexer          indentation-sensitive, line-oriented, error-recovering
    ↓  Parser         recursive descent, registry-aware
    ↓  AST            typed, span-annotated, serialisable
-   ↓  Resolver       bindings → state / resource / type          (Phase 3)
-   ↓  Semantic       type check, exhaustiveness, a11y lint       (Phase 3)
+   ↓  Resolver       bindings → state / resource / item fields   ✓
+   ↓  Semantic       accessible names, undeclared references     ✓
+   ↓                 type check, exhaustiveness                  (Phase 3)
    ↓  Desugar        conventions: states, rollback, effects, ARIA (Phase 3)
    ↓  Optimizer      dead state, binding CSE, registry tree-shake (Phase 3)
    ↓  Codegen        pluggable backend
    ↓  Emit           React + TS · Svelte · Web Components · static HTML`}
       />
       <P>
-        Phases 1 through 3 of that list are implemented and tested. The passes marked Phase 3 are
-        what turn a parsed resource into fetch code with rollback — until they land, those
-        constructs parse and then report themselves as unsupported.
+        Everything unmarked is implemented and tested, including the resolver-lite and accessibility
+        passes that emit `GUML0033`, `GUML0050` and `GUML0051`. The desugar pass marked Phase 3 is
+        what turns a parsed resource into fetch code with rollback — until it lands, those constructs
+        parse and then report themselves as unsupported in the React backend. The browser runtime
+        implements them directly instead, which is why the playground can render a task list.
       </P>
 
       <H2 id="crates">Crate graph</H2>
@@ -56,6 +59,7 @@ export default function Page() {
           ["guml-codegen", "Backend trait, React backend, design-system table", "ast, registry"],
           ["guml-compiler", "the driver: one structured result", "all of the above"],
           ["guml-cli", "the guml binary", "compiler, syntax, registry"],
+          ["guml-wasm", "WebAssembly bindings for browsers and Node", "compiler, codegen, registry"],
         ]}
       />
       <Note tone="info" title="One deliberate non-dependency">

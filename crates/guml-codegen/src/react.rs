@@ -171,7 +171,7 @@ fn initial(v: &Value) -> String {
 }
 
 /// GUML tag -> HTML element, plus any fixed attributes. `None` means "not lowered yet".
-fn html_tag(tag: &str, el: &Element) -> (Option<&'static str>, Vec<String>) {
+pub(crate) fn html_tag(tag: &str, el: &Element) -> (Option<&'static str>, Vec<String>) {
     match tag {
         "card" | "row" | "col" | "metric" => (Some("div"), vec![]),
         "section" => (Some("section"), vec![]),
@@ -198,13 +198,13 @@ fn html_tag(tag: &str, el: &Element) -> (Option<&'static str>, Vec<String>) {
     }
 }
 
-fn is_void(tag: &str) -> bool {
+pub(crate) fn is_void(tag: &str) -> bool {
     matches!(tag, "input" | "check")
 }
 
 /// The design system. Every string here is a token the model does not have to produce, and a
 /// presentational decision it cannot get wrong.
-fn classes(tag: &str, mods: &[&str]) -> String {
+pub(crate) fn classes(tag: &str, mods: &[&str]) -> String {
     let has = |m: &str| mods.contains(&m);
     let mut c: Vec<&str> = Vec::new();
 

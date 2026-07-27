@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { CodeCompare } from "@/components/code-compare";
+import { LivePreview } from "@/components/live-preview";
 import { NumberTicker, Reveal } from "@/components/motion-bits";
 import { Badge, ButtonLink, Meter, Section } from "@/components/ui";
 import { FIXTURES } from "@/lib/fixtures.generated";
@@ -158,6 +159,13 @@ export default function Page() {
                         ]
                       : []),
                   ]}
+                />
+              </div>
+
+              <div className="mt-6">
+                <LivePreview
+                  source={f.guml}
+                  label={`live · ${f.id}.guml compiled in your browser`}
                 />
               </div>
             </Reveal>

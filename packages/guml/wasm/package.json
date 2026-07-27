@@ -1,0 +1,17 @@
+{
+  "name": "guml-wasm",
+  "type": "module",
+  "description": "WebAssembly bindings for the GUML compiler",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "files": [
+    "guml_bg.wasm",
+    "guml.js",
+    "guml.d.ts"
+  ],
+  "main": "guml.js",
+  "types": "guml.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

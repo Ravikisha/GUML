@@ -9,6 +9,8 @@ use guml_codegen::{Backend, Emitted, OutFile};
 use guml_diagnostics::Diagnostics;
 use guml_registry::Registry;
 
+pub mod sema;
+
 pub use guml_codegen::backend_names;
 
 #[derive(Debug, Clone)]
@@ -63,11 +65,14 @@ pub fn approx_tokens(s: &str) -> usize {
     (s.len() as f64 / 3.6).ceil() as usize
 }
 
-/// Parse only — used by `guml check`, the LSP, and the repair loop's fast path.
+/// Parse and analyse — used by `guml check`, the LSP, and the repair loop's fast
+/// path. Both phases run unconditionally so a single call reports every problem.
 pub fn check(src: &str) -> (Program, Diagnostics) {
     let reg = Registry::builtin();
     let parsed = guml_parser::parse(src, &reg);
-    (parsed.program, parsed.diagnostics)
+    let mut diagnostics = parsed.diagnostics;
+    sema::analyse(&parsed.program, &reg, &mut diagnostics);
+    (parsed.program, diagnostics)
 }
 
 pub fn compile(src: &str, opts: &Options) -> CompileResult {

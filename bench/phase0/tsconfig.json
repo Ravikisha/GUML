@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    // React types live in the docs workspace; the references are standalone files
+    // with no package.json of their own, so they borrow them.
+    "paths": {
+      "react": ["../../docs/node_modules/@types/react"],
+      "react/*": ["../../docs/node_modules/@types/react/*"]
+    }
+  },
+  "include": ["references/*.tsx"]
+}

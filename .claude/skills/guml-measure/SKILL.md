@@ -33,11 +33,11 @@ The project's credibility is a function of these numbers. Bias toward understati
 | Fixture | React+TS+Tailwind | GUML | Reduction | Ratio |
 |---|---:|---:|---:|---:|
 | `a` counter card | 368 | 64 | 82.6% | 5.75× |
-| `b` task CRUD | 1,434 | 175 | 87.8% | 8.19× |
+| `b` task CRUD | 1,434 | 173 | 87.9% | 8.29× |
 | `c` landing page | 1,648 | 376 | 77.2% | 4.38× |
-| total | 3,450 | 615 | 82.2% | 5.6× |
+| total | 3,450 | 613 | 82.2% | 5.63× |
 
-- GUML vs **minified JSON UI IR** (fixture `b`): 175 vs 315 → 44% fewer tokens.
+- GUML vs **minified JSON UI IR** (fixture `b`): 173 vs 315 → 45% fewer tokens.
 - **Content floor**: 232 of `c`'s 376 GUML tokens are irreducible prose; structural overhead is
   144 vs React's ~1,416.
 - **Amortisation**: a 3,000-token spec read from cache (~$0.0015/request at Opus 5 rates) against

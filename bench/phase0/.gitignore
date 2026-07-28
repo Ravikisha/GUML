@@ -1,0 +1,6 @@
+# Generations and derived reports are data, not source. `spec/phase0-results.md`
+# is the deliverable that gets committed.
+results/raw/
+results/prompts/
+results/summary.md
+results/runs.csv

@@ -39,7 +39,7 @@ export default function HomePage() {
         <Spotlight />
         <div className="relative mx-auto grid max-w-7xl items-center gap-14 px-6 pt-16 pb-24 md:px-10 lg:grid-cols-[1.05fr_1fr] lg:pt-24">
           <div>
-            <Meter label="task crud · react → guml" value="1,434 → 175 tokens" tone="mint" />
+            <Meter label="task crud · react → guml" value="1,434 → 173 tokens" tone="mint" />
 
             <h1
               data-compress-headline
@@ -74,7 +74,7 @@ export default function HomePage() {
             </div>
 
             <p className="mt-6 font-mono text-xs text-fog-dim">
-              Rust compiler · 49 tests · React backend shipping, Svelte and Web Components planned
+              Rust compiler · 91 tests · React backend shipping, Svelte and Web Components planned
             </p>
           </div>
 
@@ -86,7 +86,7 @@ export default function HomePage() {
 
       {/* ------------------------------------------------------- the comparison */}
       <Section
-        meter={{ label: "same app, three representations", value: "one is 8.2× smaller", tone: "iris" }}
+        meter={{ label: "same app, three representations", value: "one is 8.3× smaller", tone: "iris" }}
       >
         <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
           <div className="lg:sticky lg:top-24">
@@ -99,7 +99,7 @@ export default function HomePage() {
               compile error instead of a runtime surprise.
             </p>
             <p className="mt-4 text-sm text-fog-dim">
-              The JSON tab is an A2UI-shaped UI spec: the same idea, 44% more tokens, because quotes,
+              The JSON tab is an A2UI-shaped UI spec: the same idea, 45% more tokens, because quotes,
               braces and repeated keys are not free.
             </p>
             <Link
@@ -152,7 +152,7 @@ export default function HomePage() {
           the tokens and the failure mode in the same move.
         </p>
 
-        <ul className="mt-12 grid gap-px overflow-hidden rounded-panel border border-white/8 bg-white/8 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="mt-12 grid gap-px overflow-hidden rounded-panel border border-line bg-chalk/8 sm:grid-cols-2 lg:grid-cols-3">
           {CONVENTIONS.map(([title, detail], i) => (
             <li key={title} className="bg-ink p-6">
               <Reveal delay={i * 0.04}>
@@ -178,10 +178,10 @@ export default function HomePage() {
           </p>
         </div>
 
-        <div className="mt-12 overflow-x-auto rounded-panel border border-white/8">
+        <div className="mt-12 overflow-x-auto rounded-panel border border-line">
           <table className="w-full min-w-[34rem] text-left">
             <thead>
-              <tr className="border-b border-white/8 bg-white/[0.02]">
+              <tr className="border-b border-line bg-chalk/[0.02]">
                 {["fixture", "React", "GUML", "reduction"].map((h) => (
                   <th key={h} className="label px-5 py-3 font-normal">
                     {h}
@@ -191,7 +191,7 @@ export default function HomePage() {
             </thead>
             <tbody className="font-mono text-sm">
               {FIXTURES.map((f) => (
-                <tr key={f.id} className="border-b border-white/8 last:border-0">
+                <tr key={f.id} className="border-b border-line last:border-0">
                   <td className="px-5 py-4">
                     <span className="text-chalk">{f.title}</span>
                     <Badge className="ml-3" tone={f.category === "structure" ? "iris" : "neutral"}>
@@ -267,12 +267,12 @@ export default function HomePage() {
       </Section>
 
       {/* ---------------------------------------------------- diagnostics ribbon */}
-      <div className="border-t border-white/8 py-6">
+      <div className="border-t border-line py-6">
         <Marquee>
           {DIAGNOSTICS.map((d) => (
             <span
               key={d}
-              className="rounded-full border border-white/8 px-4 py-1.5 font-mono text-[0.72rem] whitespace-nowrap text-fog-dim"
+              className="rounded-full border border-line px-4 py-1.5 font-mono text-[0.72rem] whitespace-nowrap text-fog-dim"
             >
               {d}
             </span>

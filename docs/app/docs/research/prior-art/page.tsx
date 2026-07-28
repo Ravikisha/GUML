@@ -62,7 +62,7 @@ export default function Page() {
       <H3>What those four share, and GUML does not</H3>
       <UL>
         <LI>
-          <strong className="text-chalk">They are JSON.</strong> Measured on the same app, GUML is 44%
+          <strong className="text-chalk">They are JSON.</strong> Measured on the same app, GUML is 45%
           smaller than the minified JSON equivalent. They claim LLM-friendliness without publishing a
           token figure.
         </LI>

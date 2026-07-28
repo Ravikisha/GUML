@@ -138,7 +138,7 @@ README, count with the target model's own tokenizer.`}
       />
       <Note tone="warn" title="Estimates, and labelled as such">
         <p>
-          The heuristic reads a little high against the measured cl100k_base figures (64 / 175 / 376).
+          The heuristic reads a little high against the measured cl100k_base figures (64 / 173 / 376).
           It is a dev-loop convenience, never a published number.
         </p>
       </Note>

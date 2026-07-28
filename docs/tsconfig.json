@@ -4,6 +4,10 @@
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
+    // `lib/highlight.ts` imports the generated vocabulary by its real extension so the
+    // parity script can load the same file under plain Node. Next supports this (see the
+    // tsconfig in next/dist/docs/01-app/02-guides/migrating/from-vite.md).
+    "allowImportingTsExtensions": true,
     "strict": true,
     "noEmit": true,
     "esModuleInterop": true,

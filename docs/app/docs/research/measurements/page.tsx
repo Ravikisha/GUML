@@ -28,10 +28,10 @@ export default function Page() {
       ]}
     >
       <H2 id="headline">The headline</H2>
-      <div className="mt-7 overflow-x-auto rounded-card border border-white/8">
+      <div className="mt-7 overflow-x-auto rounded-card border border-line">
         <table className="w-full min-w-[32rem] text-left text-sm">
           <thead>
-            <tr className="border-b border-white/8 bg-white/[0.02]">
+            <tr className="border-b border-line bg-chalk/[0.02]">
               {["fixture", "React + TS + Tailwind", "GUML", "reduction", "ratio"].map((h) => (
                 <th key={h} className="label px-4 py-2.5 font-normal">
                   {h}
@@ -41,7 +41,7 @@ export default function Page() {
           </thead>
           <tbody className="font-mono">
             {FIXTURES.map((f) => (
-              <tr key={f.id} className="border-b border-white/8 last:border-0">
+              <tr key={f.id} className="border-b border-line last:border-0">
                 <td className="px-4 py-3 text-chalk">{f.title}</td>
                 <td className="px-4 py-3 tabular-nums text-ember">{commas(f.tokens.react)}</td>
                 <td className="px-4 py-3 tabular-nums text-iris">{commas(f.tokens.guml)}</td>
@@ -53,10 +53,10 @@ export default function Page() {
                 </td>
               </tr>
             ))}
-            <tr className="bg-white/[0.02]">
+            <tr className="bg-chalk/[0.02]">
               <td className="px-4 py-3 font-mono text-chalk">total</td>
               <td className="px-4 py-3 font-mono tabular-nums text-ember">3,450</td>
-              <td className="px-4 py-3 font-mono tabular-nums text-iris">615</td>
+              <td className="px-4 py-3 font-mono tabular-nums text-iris">613</td>
               <td className="px-4 py-3 font-mono tabular-nums text-mint">82%</td>
               <td className="px-4 py-3 font-mono tabular-nums text-fog">5.6×</td>
             </tr>
@@ -77,14 +77,14 @@ export default function Page() {
       <Table
         head={["representation", "tokens", "vs GUML"]}
         rows={[
-          ["GUML", "175", "—"],
+          ["GUML", "173", "—"],
           ["JSON UI IR, minified", "315", "+80%"],
           ["JSON UI IR, pretty-printed", "533", "+205%"],
           ["React + TS + Tailwind", "1,434", "+719%"],
         ]}
       />
       <P>
-        Quotes, braces and repeated keys are not free. GUML is 44% smaller than the minified JSON for
+        Quotes, braces and repeated keys are not free. GUML is 45% smaller than the minified JSON for
         identical semantics — which matters because the agent-UI protocols shipping today are all
         JSON and all claim to be LLM-friendly without publishing a token figure.
       </P>
@@ -124,7 +124,7 @@ export default function Page() {
         rows={[
           ["spec + registry + examples (cached input)", "~3,000", "≈ $0.0015 per request"],
           ["React generation (output)", "1,434", "$0.0359"],
-          ["GUML generation (output)", "175", "$0.0044"],
+          ["GUML generation (output)", "173", "$0.0043"],
           ["saving per generation", "—", "≈ $0.0315"],
         ]}
       />

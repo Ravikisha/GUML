@@ -81,6 +81,35 @@ pub enum Code {
     // Accessibility (hard errors by design — see report §6.4)
     IconControlWithoutLabel,
     InputWithoutLabel,
+
+    // ---- Static validation -------------------------------------------------
+    // Codes are append-only because the repair loop keys on them, so these open
+    // new decades rather than filling gaps above.
+
+    // References and types (0060). `0060` is deliberately unallocated: an unknown field
+    // inside a repeater row is already `GUML0033`, because the resolver puts the row's
+    // fields in scope. Shipping a code with no emit site is how a diagnostic surface
+    // starts lying about what it can detect.
+    UnknownMutation,
+    UnknownTypeName,
+    UnknownBodyField,
+    AssignToNonState,
+    TypeMismatch,
+
+    // Structure (0070)
+    DuplicateAnchor,
+    DanglingAnchor,
+    EmptyRepeater,
+    MultipleH1,
+    UnusedState,
+    UnusedResource,
+
+    // Domains, attributes, requests (0080)
+    NotEnumerated,
+    BadAttrValue,
+    DuplicateAttr,
+    BadMethod,
+    BadUrl,
 }
 
 impl Code {
@@ -104,6 +133,25 @@ impl Code {
             Code::MissingPageDirective => "GUML0041",
             Code::IconControlWithoutLabel => "GUML0050",
             Code::InputWithoutLabel => "GUML0051",
+
+            Code::UnknownMutation => "GUML0061",
+            Code::UnknownTypeName => "GUML0062",
+            Code::UnknownBodyField => "GUML0063",
+            Code::AssignToNonState => "GUML0064",
+            Code::TypeMismatch => "GUML0065",
+
+            Code::DuplicateAnchor => "GUML0070",
+            Code::DanglingAnchor => "GUML0071",
+            Code::EmptyRepeater => "GUML0072",
+            Code::MultipleH1 => "GUML0073",
+            Code::UnusedState => "GUML0074",
+            Code::UnusedResource => "GUML0075",
+
+            Code::NotEnumerated => "GUML0080",
+            Code::BadAttrValue => "GUML0081",
+            Code::DuplicateAttr => "GUML0082",
+            Code::BadMethod => "GUML0083",
+            Code::BadUrl => "GUML0084",
         }
     }
 }
@@ -245,6 +293,22 @@ mod tests {
             Code::MissingPageDirective,
             Code::IconControlWithoutLabel,
             Code::InputWithoutLabel,
+            Code::UnknownMutation,
+            Code::UnknownTypeName,
+            Code::UnknownBodyField,
+            Code::AssignToNonState,
+            Code::TypeMismatch,
+            Code::DuplicateAnchor,
+            Code::DanglingAnchor,
+            Code::EmptyRepeater,
+            Code::MultipleH1,
+            Code::UnusedState,
+            Code::UnusedResource,
+            Code::NotEnumerated,
+            Code::BadAttrValue,
+            Code::DuplicateAttr,
+            Code::BadMethod,
+            Code::BadUrl,
         ];
         let mut ids: Vec<&str> = codes.iter().map(|c| c.id()).collect();
         let total = ids.len();

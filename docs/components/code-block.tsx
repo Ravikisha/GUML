@@ -1,4 +1,4 @@
-import { highlight, type Lang } from "@/lib/highlight";
+import { CLASS_STYLE, highlight, type Lang } from "@/lib/highlight";
 import { cn } from "@/lib/utils";
 import { CopyButton } from "./copy-button";
 
@@ -26,12 +26,12 @@ export function CodeBlock({
   return (
     <figure
       className={cn(
-        "group relative overflow-hidden rounded-card border border-white/8 bg-[#06060a]",
+        "group relative overflow-hidden rounded-card border border-line bg-code code-surface",
         className,
       )}
     >
       {(filename || meter) && (
-        <figcaption className="flex items-center justify-between gap-4 border-b border-white/8 bg-white/[0.02] px-4 py-2.5">
+        <figcaption className="flex items-center justify-between gap-4 border-b border-line bg-chalk/[0.02] px-4 py-2.5">
           <span className="font-mono text-xs text-fog">{filename}</span>
           <span className="flex items-center gap-3">
             {meter ? <span className="label">{meter}</span> : null}
@@ -62,7 +62,9 @@ export function CodeBlock({
                   <span> </span>
                 ) : (
                   row.map((tok, j) => (
-                    <span key={j} className={tok.cls}>
+                    // `tok.cls` is the compiler's class name; colour is looked up here so
+                    // the classifier and its parity check never deal in CSS.
+                    <span key={j} className={CLASS_STYLE[tok.cls]}>
                       {tok.text}
                     </span>
                   ))

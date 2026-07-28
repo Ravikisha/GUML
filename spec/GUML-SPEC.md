@@ -180,7 +180,7 @@ list tasks where={filter}
   empty Nothing here yet.
 ```
 
-175 tokens. The equivalent hand-written React+TS+Tailwind is 1,434.
+173 tokens. The equivalent hand-written React+TS+Tailwind is 1,434.
 
 ## Rules a generator should follow
 

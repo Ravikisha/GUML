@@ -35,6 +35,39 @@ export function compile(source, backend) {
 }
 
 /**
+ * Format source. `canonical` strips comments, blank lines and declaration order so that
+ * two semantically identical documents produce identical bytes.
+ * @param {string} source
+ * @param {boolean | null} [canonical]
+ * @returns {any}
+ */
+export function format(source, canonical) {
+    const ptr0 = passStringToWasm0(source, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.format(ptr0, len0, isLikeNone(canonical) ? 0xFFFFFF : canonical ? 1 : 0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Syntax classification from the real lexer and registry, so a browser highlighter cannot
+ * drift from the compiler. Returns one entry per coloured span, in source order.
+ * @param {string} source
+ * @returns {any}
+ */
+export function highlight(source) {
+    const ptr0 = passStringToWasm0(source, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.highlight(ptr0, len0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
  * The component vocabulary. `tags` narrows it to a prompt-sized slice.
  * @param {string | null} [tags]
  * @returns {any}

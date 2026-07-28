@@ -3,7 +3,7 @@ import { NAV } from "@/lib/nav";
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-white/8 px-6 py-14 md:px-10">
+    <footer className="border-t border-line px-6 py-14 md:px-10">
       <div className="mx-auto grid max-w-7xl gap-10 md:grid-cols-[1.4fr_repeat(4,1fr)]">
         <div>
           <p className="display-narrow text-2xl font-extrabold text-chalk">GUML</p>
@@ -32,7 +32,7 @@ export function SiteFooter() {
         ))}
       </div>
 
-      <div className="mx-auto mt-12 flex max-w-7xl flex-wrap items-center justify-between gap-3 border-t border-white/8 pt-6">
+      <div className="mx-auto mt-12 flex max-w-7xl flex-wrap items-center justify-between gap-3 border-t border-line pt-6">
         <p className="font-mono text-[0.7rem] text-fog-dim">
           Token figures measured with cl100k_base on hand-authored fixtures. Both sides written by
           the same author.

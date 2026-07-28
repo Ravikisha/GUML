@@ -2,9 +2,9 @@ page Tasks
 
 type Task {id, title, done:bool, createdAt:date}
 data tasks:Task[] GET /api/tasks
-  add  POST   /api/tasks         {title}  optimistic:prepend
-  save PATCH  /api/tasks/{id}    {done}   optimistic
-  drop DELETE /api/tasks/{id}             optimistic
+  add  POST   /api/tasks      {title} optimistic:prepend
+  save PATCH  /api/tasks/{id} {done}  optimistic
+  drop DELETE /api/tasks/{id}         optimistic
 
 state draft=""
 state filter=all|open|done

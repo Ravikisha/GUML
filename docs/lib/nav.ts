@@ -14,6 +14,7 @@ export const NAV: NavGroup[] = [
       { title: "Install", href: "/docs/install" },
       { title: "Quickstart", href: "/docs/quickstart" },
       { title: "Playground", href: "/playground", note: "live" },
+      { title: "Chat", href: "/chat", note: "ai" },
       { title: "React library", href: "/docs/library", note: "wasm" },
     ],
   },

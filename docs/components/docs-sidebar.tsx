@@ -13,7 +13,7 @@ export function DocsSidebar() {
       {NAV.map((group) => (
         <div key={group.title}>
           <p className="label mb-3">{group.title}</p>
-          <ul className="space-y-0.5 border-l border-white/8">
+          <ul className="space-y-0.5 border-l border-line">
             {group.items.map((item) => {
               const active = pathname === item.href;
               return (
@@ -25,7 +25,7 @@ export function DocsSidebar() {
                       "-ml-px flex items-center gap-2 border-l py-1.5 pl-4 text-sm transition-colors",
                       active
                         ? "border-ember font-medium text-chalk"
-                        : "border-transparent text-fog hover:border-white/25 hover:text-chalk",
+                        : "border-transparent text-fog hover:border-chalk/30 hover:text-chalk",
                     )}
                   >
                     {item.title}

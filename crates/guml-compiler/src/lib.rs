@@ -10,6 +10,7 @@ use guml_diagnostics::Diagnostics;
 use guml_registry::Registry;
 
 pub mod sema;
+pub mod validate;
 
 pub use guml_codegen::backend_names;
 
@@ -72,6 +73,9 @@ pub fn check(src: &str) -> (Program, Diagnostics) {
     let parsed = guml_parser::parse(src, &reg);
     let mut diagnostics = parsed.diagnostics;
     sema::analyse(&parsed.program, &reg, &mut diagnostics);
+    // Validation runs unconditionally in the same pass: the repair loop should see every
+    // problem at once, and a second command it might forget to call is not a validator.
+    validate::validate(&parsed.program, &mut diagnostics);
     (parsed.program, diagnostics)
 }
 

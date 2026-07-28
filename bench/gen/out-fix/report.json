@@ -1,0 +1,215 @@
+{
+  "model": "meta/llama-3.1-8b-instruct",
+  "rows": [
+    {
+      "file": "bmi.guml",
+      "app": "bmi",
+      "parses": false,
+      "errors": [
+        "GUML0030 line 1: unknown tag `This`"
+      ],
+      "warnings": [
+        "GUML0031",
+        "GUML0031",
+        "GUML0031",
+        "GUML0031",
+        "GUML0031",
+        "GUML0031",
+        "GUML0031",
+        "GUML0031",
+        "GUML0031",
+        "GUML0031",
+        "GUML0031",
+        "GUML0041"
+      ],
+      "checks": [
+        {
+          "label": "declares numeric state for both inputs",
+          "ok": false
+        },
+        {
+          "label": "has two fields",
+          "ok": false
+        },
+        {
+          "label": "shows a computed result",
+          "ok": false
+        },
+        {
+          "label": "displays the number prominently",
+          "ok": false
+        },
+        {
+          "label": "has a reset action",
+          "ok": false
+        },
+        {
+          "label": "declares no API resource",
+          "ok": true
+        }
+      ],
+      "met": 1,
+      "total": 6
+    },
+    {
+      "file": "dashboard.guml",
+      "app": "dashboard",
+      "parses": true,
+      "errors": [],
+      "warnings": [
+        "GUML0074"
+      ],
+      "checks": [
+        {
+          "label": "declares the resource and type",
+          "ok": true
+        },
+        {
+          "label": "four KPI tiles",
+          "ok": true
+        },
+        {
+          "label": "KPIs are derived, not hard-coded",
+          "ok": false
+        },
+        {
+          "label": "renders a table",
+          "ok": true
+        },
+        {
+          "label": "filters with a segmented control",
+          "ok": true
+        },
+        {
+          "label": "the filter state is enumerated",
+          "ok": true
+        }
+      ],
+      "met": 5,
+      "total": 6
+    },
+    {
+      "file": "expenses.guml",
+      "app": "expenses",
+      "parses": false,
+      "errors": [
+        "GUML0030 line 18: unknown tag `option`",
+        "GUML0030 line 19: unknown tag `option`",
+        "GUML0030 line 20: unknown tag `option`",
+        "GUML0051 line 17: `select` has no accessible name"
+      ],
+      "warnings": [
+        "GUML0051",
+        "GUML0051"
+      ],
+      "checks": [
+        {
+          "label": "declares the resource and its type",
+          "ok": true
+        },
+        {
+          "label": "renders a table or list",
+          "ok": true
+        },
+        {
+          "label": "shows an aggregate total",
+          "ok": true
+        },
+        {
+          "label": "has an add form",
+          "ok": true
+        },
+        {
+          "label": "deletes an expense",
+          "ok": true
+        },
+        {
+          "label": "filters by an enumerated state",
+          "ok": true
+        }
+      ],
+      "met": 6,
+      "total": 6
+    },
+    {
+      "file": "signup.guml",
+      "app": "signup",
+      "parses": false,
+      "errors": [
+        "GUML0030 line 1: unknown tag `This`"
+      ],
+      "warnings": [
+        "GUML0031",
+        "GUML0031",
+        "GUML0031",
+        "GUML0031",
+        "GUML0031",
+        "GUML0031",
+        "GUML0041"
+      ],
+      "checks": [
+        {
+          "label": "has a form",
+          "ok": false
+        },
+        {
+          "label": "three or more text fields",
+          "ok": false
+        },
+        {
+          "label": "a dropdown over an enumerated state",
+          "ok": false
+        },
+        {
+          "label": "a checkbox or toggle for the terms",
+          "ok": false
+        },
+        {
+          "label": "the submit button is conditionally disabled",
+          "ok": false
+        },
+        {
+          "label": "submits somewhere",
+          "ok": false
+        }
+      ],
+      "met": 0,
+      "total": 6
+    },
+    {
+      "file": "tip.guml",
+      "app": "tip",
+      "parses": false,
+      "errors": [
+        "GUML0084 line 4: this request has no path",
+        "GUML0061 line 13: `tip` has no mutation `update`",
+        "GUML0061 line 17: `tip` has no mutation `update`"
+      ],
+      "warnings": [],
+      "checks": [
+        {
+          "label": "three numeric states",
+          "ok": true
+        },
+        {
+          "label": "three fields",
+          "ok": true
+        },
+        {
+          "label": "computes from the inputs",
+          "ok": true
+        },
+        {
+          "label": "shows more than one derived figure",
+          "ok": false
+        },
+        {
+          "label": "declares no API resource",
+          "ok": false
+        }
+      ],
+      "met": 3,
+      "total": 5
+    }
+  ]
+}

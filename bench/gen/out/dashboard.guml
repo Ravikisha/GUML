@@ -1,0 +1,21 @@
+page Orders
+
+type Order {id, customer, amount:number, status:new|shipped|refunded}
+data orders:Order[] GET /api/orders
+
+state filter=new|shipped|refunded|all
+
+row wrap
+  metric {orders.count}            // Order count
+  metric {orders.amount.sum}       // Total revenue
+  metric {orders.where(status=new).count}  // New orders
+  metric {orders.where(status=refunded).count}  // Refunded orders
+
+tabs filter
+
+table orders where={filter}
+  text {id}
+  text {customer}
+  text {amount}
+  text {status}
+  empty No orders match this filter.

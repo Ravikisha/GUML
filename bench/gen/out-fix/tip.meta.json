@@ -1,0 +1,14 @@
+{
+  "model": "meta/llama-3.1-8b-instruct",
+  "latencyMs": 4063,
+  "usage": {
+    "prompt_tokens": 2825,
+    "completion_tokens": 379,
+    "total_tokens": 3204,
+    "prompt_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 16
+    }
+  },
+  "repeat": 1
+}

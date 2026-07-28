@@ -1,7 +1,7 @@
 "use client";
 
 import * as Tabs from "@radix-ui/react-tabs";
-import { highlight, type Lang } from "@/lib/highlight";
+import { highlight, type Lang, CLASS_STYLE } from "@/lib/highlight";
 import { cn, commas, reduction } from "@/lib/utils";
 import { CopyButton } from "./copy-button";
 
@@ -37,9 +37,9 @@ export function CodeCompare({
   return (
     <Tabs.Root
       defaultValue={panes[0].id}
-      className={cn("overflow-hidden rounded-panel border border-white/8 bg-[#06060a]", className)}
+      className={cn("overflow-hidden rounded-panel border border-line bg-code code-surface", className)}
     >
-      <Tabs.List className="flex flex-wrap items-center gap-1 border-b border-white/8 bg-white/[0.02] p-1.5">
+      <Tabs.List className="flex flex-wrap items-center gap-1 border-b border-line bg-chalk/[0.02] p-1.5">
         {panes.map((pane) => {
           const cut =
             pane.tokens && base.tokens && pane.id !== base.id
@@ -51,7 +51,7 @@ export function CodeCompare({
               value={pane.id}
               className={cn(
                 "group flex items-center gap-2 rounded-chip px-3 py-2 font-mono text-xs text-fog transition-colors",
-                "hover:text-chalk data-[state=active]:bg-white/8 data-[state=active]:text-chalk",
+                "hover:text-chalk data-[state=active]:bg-chalk/8 data-[state=active]:text-chalk",
               )}
             >
               <span>{pane.label}</span>
@@ -70,7 +70,7 @@ export function CodeCompare({
         const rows = highlight(pane.code, pane.lang);
         return (
           <Tabs.Content key={pane.id} value={pane.id} className="relative outline-none">
-            <div className="flex items-center justify-between gap-4 border-b border-white/8 px-4 py-2">
+            <div className="flex items-center justify-between gap-4 border-b border-line px-4 py-2">
               <span className="label">
                 {rows.length} lines
                 {pane.note ? <span className="ml-3 normal-case tracking-normal">{pane.note}</span> : null}
@@ -86,7 +86,7 @@ export function CodeCompare({
                         <span> </span>
                       ) : (
                         row.map((tok, j) => (
-                          <span key={j} className={tok.cls}>
+                          <span key={j} className={CLASS_STYLE[tok.cls]}>
                             {tok.text}
                           </span>
                         ))

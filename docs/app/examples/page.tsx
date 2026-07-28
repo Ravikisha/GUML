@@ -20,7 +20,7 @@ export default function Page() {
 
   return (
     <>
-      <div className="border-b border-white/8 px-6 py-16 md:px-10">
+      <div className="border-b border-line px-6 py-16 md:px-10">
         <div className="mx-auto max-w-6xl">
           <Meter
             label="fixtures"
@@ -74,16 +74,16 @@ export default function Page() {
                   <p className="mt-4 leading-relaxed text-fog">{f.blurb}</p>
 
                   <dl className="mt-7 space-y-3 font-mono text-sm">
-                    <div className="flex items-baseline justify-between border-b border-white/8 pb-2">
+                    <div className="flex items-baseline justify-between border-b border-line pb-2">
                       <dt className="text-fog-dim">React</dt>
                       <dd className="tabular-nums text-ember">{commas(f.tokens.react)}</dd>
                     </div>
-                    <div className="flex items-baseline justify-between border-b border-white/8 pb-2">
+                    <div className="flex items-baseline justify-between border-b border-line pb-2">
                       <dt className="text-fog-dim">GUML</dt>
                       <dd className="tabular-nums text-iris">{commas(f.tokens.guml)}</dd>
                     </div>
                     {f.tokens.json ? (
-                      <div className="flex items-baseline justify-between border-b border-white/8 pb-2">
+                      <div className="flex items-baseline justify-between border-b border-line pb-2">
                         <dt className="text-fog-dim">JSON IR</dt>
                         <dd className="tabular-nums text-fog">{commas(f.tokens.json)}</dd>
                       </div>
@@ -97,7 +97,7 @@ export default function Page() {
                   </dl>
 
                   {f.category === "content" ? (
-                    <p className="mt-6 rounded-card border border-white/8 p-4 text-sm leading-relaxed text-fog-dim">
+                    <p className="mt-6 rounded-card border border-line p-4 text-sm leading-relaxed text-fog-dim">
                       232 of this page&rsquo;s 376 GUML tokens are the copy itself. Structural overhead
                       is 144 tokens against React&rsquo;s ~1,416 — the compression floor is the prose,
                       not the language.
@@ -181,7 +181,7 @@ export default function Page() {
           Every fixture is checked by CI on Linux and Windows, so a fixture that stops compiling is a
           broken claim rather than just a broken test.
         </p>
-        <div className="mx-auto mt-8 max-w-md rounded-card border border-white/8 bg-[#06060a] p-4 text-left font-mono text-sm text-fog">
+        <div className="mx-auto mt-8 max-w-md rounded-card border border-line bg-code code-surface p-4 text-left font-mono text-sm text-fog">
           <span className="text-fog-dim">$ </span>cargo run -q -p guml-cli -- build fixtures/a.guml
         </div>
         <div className="mt-8">

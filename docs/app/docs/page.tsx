@@ -98,13 +98,18 @@ export default function Page() {
         rows={[
           ["Lexer, AST, parser, diagnostics", "working, tested"],
           ["Component registry, typo suggestions", "working · 27 primitives"],
-          ["React backend", "vertical slice: containers, text, controls, state, actions, bindings"],
+          ["React backend", "containers, text, controls, state, actions, bindings, layout"],
           [
-            "Resources, repeaters, forms, optimistic mutations",
-            "parsed but not lowered — warns, never miscompiles",
+            "Resources, repeaters, forms, tabs, optimistic mutations",
+            "lowered: fetch and cancel, loading, empty, error, optimistic apply, snapshot rollback",
           ],
-          ["Expression language", "pass-through (Phase 2)"],
-          ["Benchmark, LLM loop, second backend", "not started"],
+          [
+            "Expression lowering",
+            "GUML expressions → JS, mirrored in the runtime with a parity test",
+          ],
+          ["Expression parsing", "still pass-through (Phase 2)"],
+          ["Phase 0 harness", "built and self-tested · needs an API key and a grader"],
+          ["GUML-Bench, LLM repair loop, second backend", "not started"],
         ]}
       />
       <Note tone="warn" title="Read the status honestly">

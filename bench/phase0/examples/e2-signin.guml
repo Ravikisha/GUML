@@ -1,0 +1,18 @@
+page SignIn
+
+type Session {token, email}
+data session:Session[] GET /api/session
+  login POST /api/session {email,password}
+
+state email=""
+state password=""
+state remember=false
+
+card "Sign in" sm center
+  p Use the address you registered with.
+  form >session.login{email:email,password:password}
+    input email kind=email aria="Email address" placeholder="you@example.com" required
+    input password kind=password aria="Password" placeholder="Your password" required
+    toggle {remember} aria="Keep me signed in" >remember=!remember
+    btn "Sign in" primary full disabled={!email.trim()} busy="Signing in…"
+  link "Forgot your password?" /reset

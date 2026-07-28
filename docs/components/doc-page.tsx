@@ -41,11 +41,11 @@ export function DocPage({
         <div className="mt-12">{children}</div>
 
         {(prev || next) && (
-          <nav className="mt-20 grid gap-3 border-t border-white/8 pt-8 sm:grid-cols-2">
+          <nav className="mt-20 grid gap-3 border-t border-line pt-8 sm:grid-cols-2">
             {prev ? (
               <Link
                 href={prev.href}
-                className="group rounded-card border border-white/8 p-4 transition-colors hover:border-white/20"
+                className="group rounded-card border border-line p-4 transition-colors hover:border-chalk/30"
               >
                 <span className="label flex items-center gap-1.5">
                   <ArrowLeft className="size-3" /> previous
@@ -60,7 +60,7 @@ export function DocPage({
             {next ? (
               <Link
                 href={next.href}
-                className="group rounded-card border border-white/8 p-4 text-right transition-colors hover:border-white/20"
+                className="group rounded-card border border-line p-4 text-right transition-colors hover:border-chalk/30"
               >
                 <span className="label flex items-center justify-end gap-1.5">
                   next <ArrowRight className="size-3" />
@@ -77,12 +77,12 @@ export function DocPage({
       {toc && toc.length > 0 ? (
         <aside className="sticky top-24 hidden h-fit w-52 shrink-0 xl:block">
           <p className="label mb-3">on this page</p>
-          <ul className="space-y-2 border-l border-white/8">
+          <ul className="space-y-2 border-l border-line">
             {toc.map((item) => (
               <li key={item.id}>
                 <a
                   href={`#${item.id}`}
-                  className="-ml-px block border-l border-transparent pl-4 text-sm text-fog transition-colors hover:border-white/25 hover:text-chalk"
+                  className="-ml-px block border-l border-transparent pl-4 text-sm text-fog transition-colors hover:border-chalk/30 hover:text-chalk"
                 >
                   {item.title}
                 </a>

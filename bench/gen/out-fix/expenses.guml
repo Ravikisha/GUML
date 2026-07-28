@@ -1,0 +1,33 @@
+page Expenses
+
+type Expense {id, label, amount:number, category}
+data expenses:Expense[] GET /api/expenses
+  add  POST   /api/expenses         {label, amount, category}  optimistic:prepend
+  drop DELETE /api/expenses/{id}             optimistic
+
+state filter=all|food|travel|other
+state draft=""
+
+head Expenses — {expenses.amount.sum} total
+
+form >expenses.add{label:draft, amount:0, category:other}; draft=""
+
+  input label placeholder="What was it for?"
+  input amount kind=number placeholder="How much?"
+  select category
+    option food
+    option travel
+    option other
+  btn Add primary disabled={!draft.trim()} busy="Adding…"
+
+tabs filter
+
+list expenses where={filter}
+  text {label}
+  text {amount} strike={amount < 0}
+  btn Delete quiet aria="Delete {label}" >expenses.drop
+  empty No expenses match this filter.
+
+card "Running total" sm center
+  metric {expenses.amount.sum}
+  p Total expenses: {expenses.amount.sum}

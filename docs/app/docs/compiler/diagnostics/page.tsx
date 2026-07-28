@@ -121,16 +121,16 @@ export default function Page() {
       </Note>
 
       <H2 id="codes">Every code</H2>
-      <div className="mt-7 overflow-hidden rounded-card border border-white/8">
+      <div className="mt-7 overflow-hidden rounded-card border border-line">
         {CODES.map(([id, message, severity, group], i) => {
           const prev = CODES[i - 1];
           const newGroup = !prev || prev[3] !== group;
           return (
             <div key={id}>
               {newGroup && (
-                <p className="label border-b border-white/8 bg-white/[0.02] px-4 py-2">{group}</p>
+                <p className="label border-b border-line bg-chalk/[0.02] px-4 py-2">{group}</p>
               )}
-              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-white/8 px-4 py-3 last:border-0">
+              <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-line px-4 py-3 last:border-0">
                 <code className="font-mono text-sm text-chalk">{id}</code>
                 <Badge tone={severity === "error" ? "ember" : "neutral"}>{severity}</Badge>
                 <p className="min-w-[14rem] flex-1 text-sm text-fog">{message}</p>

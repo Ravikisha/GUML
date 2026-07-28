@@ -1,0 +1,12 @@
+[package]
+name = "guml-fmt"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Source-level GUML tooling below the parser: formatter, canonicaliser, syntax classifier"
+
+[dependencies]
+guml-diagnostics = { workspace = true }
+guml-registry = { workspace = true }
+guml-syntax = { workspace = true }

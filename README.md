@@ -21,21 +21,27 @@ card sm center                                    const [count, setCount] = useS
 
 ## Status
 
-**Pre-Phase-0.** The compiler front end and a React vertical slice work end to end and are tested
-(49 tests). The research question the project exists to answer is **not yet answered** — see
-`spec/PHASE0.md`.
+**Pre-Phase-0.** The compiler front end, the desugar pass and a React vertical slice work end to end
+and are tested (91 Rust tests, 29 runtime tests, and the emitted TSX typechecks under `--strict`).
+The Phase 0 harness is built and self-tested; the generations it needs have not been run, so the
+research question the project exists to answer is **still open** — see `spec/PHASE0.md`.
 
 | Component | State |
 |---|---|
 | Lexer, AST, parser, diagnostics | working, tested |
 | Component registry + typo suggestions | working, 27 primitives |
-| React backend | vertical slice: containers, text, controls, state, actions, bindings |
+| React backend | containers, text, controls, state, actions, bindings, layout |
 | JSON UI-tree backend | working — powers the browser runtime and playground |
-| `guml` npm package (wasm + React runtime) | working — 216 KB wasm, live preview and playground |
+| `guml` npm package (wasm + React runtime) | working — 298 KB wasm, live preview and playground |
 | Resolver-lite + accessibility errors | working — `GUML0033`, `GUML0050`, `GUML0051` |
-| Resources / repeaters / forms / optimistic mutations | **parsed but not lowered** — warns, does not miscompile |
-| Expression language | pass-through (Phase 2) |
-| Benchmark, LLM loop, second backend | not started |
+| Formatter / canonicaliser (`guml fmt`) | working — formats invalid input, AST-preserving, `--check` in CI |
+| Syntax classification (`guml highlight`) | working — one classifier for CLI, wasm, docs and the LSP |
+| Static validator (`guml validate`) | working — 17 semantic codes, batch mode, `--strict` for CI |
+| Resources / repeaters / forms / tabs / optimistic mutations | lowered: fetch + cancel, loading, empty, error, optimistic apply and snapshot rollback |
+| Expression lowering | GUML expressions → JS, mirrored in the TS runtime with a parity test |
+| Expression *parsing* | still pass-through; the lowering reads paths and aggregates, not arbitrary syntax (Phase 2) |
+| Phase 0 harness | built and self-tested — needs an API key to run and a human to grade |
+| GUML-Bench, LLM repair loop, second backend | not started |
 
 ## Try it
 
@@ -53,7 +59,7 @@ cargo run -q -p guml-cli -- registry
 | Fixture | React+TS+Tailwind | GUML | Reduction |
 |---|---:|---:|---:|
 | counter card | 368 | 64 | 82.6% |
-| task CRUD | 1,434 | 175 | 87.8% |
+| task CRUD | 1,434 | 173 | 87.9% |
 | landing page | 1,648 | 376 | 77.2% |
 
 Also measured: GUML is **44% smaller than a minified JSON UI IR** for the same app; and
@@ -83,11 +89,14 @@ experiment that tells us which side GUML lands on. Full analysis: `GUML-Research
 | `ROADMAP.md` | Phased build plan with gates |
 | `spec/PHASE0.md` | The kill-or-continue experiment |
 | `spec/TECH-STACK.md` | Stack choices and rejected alternatives |
+| `spec/TOOLING.md` | Formatter, syntax classification, and the developer-tool plan |
 | `spec/GUML-SPEC.md` | The language spec — also the artifact fed to the model |
 | `spec/grammar.ebnf` | Normative grammar |
 | `crates/` | The Rust compiler |
 | `fixtures/` | Paired GUML / React / JSON-IR artifacts behind the token measurement |
 | `packages/guml/` | npm package: the compiler as WebAssembly plus a React runtime |
+| `bench/phase0/` | The Phase 0 harness: ten tasks, paired references, prompt assembly, scoring, blind rubric |
+| `bench/gen/` | Generation test: six applications through a live model, scored on parse, validation and requirements |
 | `docs/` | The documentation site (Next.js). Its own git repo; gitignored here. Code samples are generated from `fixtures/` and from the compiler. |
 | `.claude/agents/` | Specialist subagents for this project |
 | `.claude/skills/` | Project skills: writing GUML, compiler dev, measurement, Phase 0 |

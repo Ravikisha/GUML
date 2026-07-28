@@ -40,8 +40,8 @@ export function LivePreview({
   const errors = diagnostics.filter((d) => d.severity === "error");
 
   return (
-    <div className={cn("overflow-hidden rounded-card border border-white/8", className)}>
-      <div className="flex items-center justify-between gap-3 border-b border-white/8 bg-white/[0.02] px-4 py-2">
+    <div className={cn("overflow-hidden rounded-card border border-line", className)}>
+      <div className="flex items-center justify-between gap-3 border-b border-line bg-chalk/[0.02] px-4 py-2">
         <span className="label">{label}</span>
         {errors.length > 0 ? (
           <span className="font-mono text-[0.7rem] text-ember">

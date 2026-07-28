@@ -55,9 +55,9 @@ card sm center
 export default function Page() {
   return (
     <>
-      <div className="border-b border-white/8 px-6 pt-14 pb-10 md:px-10">
+      <div className="border-b border-line px-6 pt-14 pb-10 md:px-10">
         <div className="mx-auto max-w-7xl">
-          <Meter label="compiler" value="rust → wasm · 216 KB" tone="iris" />
+          <Meter label="compiler" value="rust → wasm · 298 KB" tone="iris" />
           <h1 className="display-narrow mt-6 text-4xl font-extrabold tracking-[-0.02em] text-chalk md:text-5xl">
             Playground
           </h1>

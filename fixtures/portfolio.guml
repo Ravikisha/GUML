@@ -1,0 +1,75 @@
+page Portfolio
+
+type Project {id, name, blurb, stack, area, year:number, live:bool}
+data projects:Project[] GET /api/projects
+
+type Message {id, name, email, body}
+data messages:Message[] GET /api/messages
+  send POST /api/messages {name,email,body} optimistic:append
+
+state area=all|compilers|web|research
+state name=""
+state email=""
+state body=""
+state newsletter=false
+
+nav Ravi Kishan
+  link Work #work
+  link About #about
+  link Archive #archive
+  link Contact #contact
+  btn "Download CV" outline /cv.pdf
+
+hero
+  h1 I build compilers, and the interfaces that sit on top of them
+  p Systems engineer working on developer tooling — language design, code generation, and the parts of a product people actually touch.
+  btn "Get in touch" primary /contact
+  link "Read the work" #work
+
+section #work Selected work cols=3
+  card "GUML" | An intermediate representation and compiler for LLM-generated interfaces. Rust, WebAssembly, 162 tests. Emits React that typechecks under strict mode.
+  card "Zimyo platform" | HR platform serving payroll and attendance at scale. Owned the reporting pipeline and cut month-end close from hours to minutes.
+  card "Ledger" | Double-entry accounting core with an append-only journal. Postgres, Rust, and property tests instead of hope.
+
+section #about About
+  h2 Twelve years of shipping things that other engineers depend on
+  p I like the layer where correctness is checkable — parsers, compilers, schedulers, anything where a test can tell you the truth. Most of my work is in Rust and TypeScript, and most of it exists to make somebody else's job smaller.
+  p Before tooling I spent six years on product teams, which is why I care whether the thing renders. A compiler that emits inaccessible markup has not finished its job.
+  row between
+    metric {projects.count}
+    metric {projects.live.count}
+
+section #stack How I work cols=3
+  card "Measured, not asserted" | Every number in a README is traceable to a command you can run. If it is an estimate, it says so.
+  card "Errors are a product surface" | Diagnostics get spans, stable codes, and a suggested fix. The best error message is one a machine can apply.
+  card "Tests before trust" | Two bugs in the last scaffold were caught by tests written before the code was believed.
+
+section #archive Everything else
+  p Filter by area. The list, its loading skeleton, its empty state and its error banner are generated — none of it is written here.
+  tabs area
+  table projects where={area} sort=year
+    text {name}
+    text {stack}
+    text {year}
+    check {live} aria="Live"
+    empty Nothing in this area yet.
+
+section #contact Contact
+  h2 Tell me what you are building
+  p The fastest way to reach me is this form. I reply to everything that is not a recruiter template.
+  form >messages.send{name:name,email:email,body:body}; name=""; email=""; body=""
+    input name aria="Your name" placeholder="Your name" required
+    input email kind=email aria="Email address" placeholder="you@example.com" required
+    input body aria="What you are building" placeholder="A sentence or two" required
+    toggle {newsletter} aria="Send me occasional notes about compilers"
+    btn "Send message" primary disabled={!email.trim()} busy="Sending…"
+
+faq open=1
+  Are you available for contract work? | Yes, for short engagements on compilers, developer tooling or data-heavy back ends.
+  What do you not take on? | Ad tech, and anything that needs a fresh design system built from nothing in under a month.
+  Do you mentor? | Yes, one or two people at a time, free, usually engineers moving into systems work.
+
+footer "© 2026 Ravi Kishan"
+  link Email /contact
+  link GitHub /github
+  link LinkedIn /linkedin

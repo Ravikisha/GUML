@@ -7,6 +7,7 @@ members = [
     "crates/guml-parser",
     "crates/guml-registry",
     "crates/guml-codegen",
+    "crates/guml-fmt",
     "crates/guml-compiler",
     "crates/guml-cli",
     "crates/guml-wasm",
@@ -27,6 +28,7 @@ guml-ast = { path = "crates/guml-ast" }
 guml-parser = { path = "crates/guml-parser" }
 guml-registry = { path = "crates/guml-registry" }
 guml-codegen = { path = "crates/guml-codegen" }
+guml-fmt = { path = "crates/guml-fmt" }
 guml-compiler = { path = "crates/guml-compiler" }
 guml-wasm = { path = "crates/guml-wasm" }
 

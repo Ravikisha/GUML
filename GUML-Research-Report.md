@@ -64,21 +64,29 @@ Three fixtures, hand-written both ways, tokenized with `tiktoken`:
 | Fixture | React+TS+Tailwind | GUML | Reduction | Ratio |
 |---|---:|---:|---:|---:|
 | A — Counter card (state, 3 actions, disabled logic) | 368 | 64 | **82.6%** | 5.75× |
-| B — Task CRUD (fetch, POST/PATCH/DELETE, optimistic updates, filter, loading/empty/error states) | 1,434 | 175 | **87.8%** | 8.19× |
+| B — Task CRUD (fetch, POST/PATCH/DELETE, optimistic updates, filter, loading/empty/error states) | 1,434 | 173 | **87.9%** | 8.29× |
 | C — Marketing landing page (nav, hero, 3 features, 3 pricing tiers, FAQ accordion, footer) | 1,648 | 376 | **77.2%** | 4.38× |
-| **Total** | **3,450** | **615** | **82.2%** | 5.6× |
+| **Total** | **3,450** | **613** | **82.2%** | 5.63× |
 
 `o200k_base` gives the same result within 1pp (83.2% / 87.9% / 77.9%), so this is not a tokenizer artifact.
 
+> **Correction, recorded rather than quietly fixed.** Fixture B was published here as 175 tokens.
+> Recounting the committed file with `cl100k_base` gives **182** — the original figure was wrong by
+> 7 tokens and no one caught it, which is exactly the failure this project accuses other people's
+> headline claims of. Running `guml fmt` over the fixture removed 12 bytes of hand-inserted column
+> padding, and the file now measures **173**. The table above is the post-format count. The ratio
+> moved in GUML's favour (8.19× → 8.29×), which is the direction that deserves the most suspicion,
+> so the arithmetic is reproducible: `python -c "import tiktoken; print(len(tiktoken.get_encoding('cl100k_base').encode(open('fixtures/b.guml').read())))"`.
+
 Two further measurements that matter more than the headline:
 
-**GUML vs. a compact JSON IR.** I encoded fixture B as a declarative JSON UI spec in the style of A2UI / server-driven UI. Minified, it is **315 tokens vs GUML's 175 — GUML is 44% smaller.** JSON's structural overhead (quotes, braces, repeated keys) is real and large. This matters because "just emit JSON" is the first objection any reviewer will raise.
+**GUML vs. a compact JSON IR.** I encoded fixture B as a declarative JSON UI spec in the style of A2UI / server-driven UI. Minified, it is **315 tokens vs GUML's 173 — GUML is 45% smaller.** JSON's structural overhead (quotes, braces, repeated keys) is real and large. This matters because "just emit JSON" is the first objection any reviewer will raise.
 
 **The content floor.** In fixture C, 232 of GUML's 376 tokens are *irreducible human copy* — headlines, feature descriptions, FAQ answers. Structural overhead is only 144 tokens, versus ~1,416 for React. So:
 
 > **Compression is bounded by prose content.** On structure-heavy artifacts (dashboards, CRUD, forms) reduction approaches 8–10×. On content-heavy artifacts (marketing pages, docs) it asymptotes toward 2–3× because the copy is the payload. **Any benchmark that reports a single average number is misleading.** This is a finding, and it should be stated as one rather than hidden.
 
-**Cost and latency, worked.** Fixture B at Opus 5 output pricing ($25/MTok): 1,434 tokens = $0.0359; 175 tokens = $0.0044. Savings $0.0315/generation. The GUML language spec must be in context — assume a generous 3,000 tokens; under prompt caching it reads at ~0.1× input rate ($0.50/MTok effective) = $0.0015/request. **The spec amortizes on the first request and is ~20× cheaper than the savings it unlocks.** At 60 output tok/s, generation time drops from ~24s to ~3s.
+**Cost and latency, worked.** Fixture B at Opus 5 output pricing ($25/MTok): 1,434 tokens = $0.0359; 173 tokens = $0.0043. Savings $0.0315/generation. The GUML language spec must be in context — assume a generous 3,000 tokens; under prompt caching it reads at ~0.1× input rate ($0.50/MTok effective) = $0.0015/request. **The spec amortizes on the first request and is ~20× cheaper than the savings it unlocks.** At 60 output tok/s, generation time drops from ~24s to ~3s.
 
 Caveats stated plainly: I authored both sides, so favorable bias in the GUML encoding is possible; these are *authored* artifacts, not *model-generated* ones; and none of this measures whether a model can actually *produce* correct GUML. That last question is Part 8.
 
@@ -345,7 +353,7 @@ card sm center
     btn Reset quiet >count=0
 ```
 
-**B — Task CRUD with optimistic updates (175 tokens; React equivalent 1,434):**
+**B — Task CRUD with optimistic updates (173 tokens; React equivalent 1,434):**
 
 ```
 page Tasks
@@ -587,7 +595,7 @@ Thin, per-backend. React backend: ~4–6KB of generated helpers (resource hook f
 
 ```
 Today:     prompt → LLM → ~1,400 output tokens of React → maybe runs
-Proposed:  prompt → LLM → ~175 output tokens of GUML → compiler → guaranteed-shaped React
+Proposed:  prompt → LLM → ~173 output tokens of GUML → compiler → guaranteed-shaped React
 ```
 
 ### 7.2 What is measured, and what is only hypothesized

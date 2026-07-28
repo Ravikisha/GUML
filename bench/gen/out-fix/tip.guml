@@ -1,0 +1,23 @@
+page TipSplitter
+
+type Tip {bill, tipPercent, people}
+data tip:Tip {bill, tipPercent, people} = {bill:0, tipPercent:0, people:1}
+
+state bill=0
+state tipPercent=0
+state people=1
+
+card "Tip Splitter" sm center
+  h Tip Splitter
+  p Split the bill fairly among your friends.
+  form >tip.update{bill:bill,tipPercent:tipPercent,people:people}
+    input bill placeholder="Bill total" kind=number aria="Bill total" required
+    input tipPercent placeholder="Tip percentage" kind=number aria="Tip percentage" required
+    input people placeholder="Number of people" kind=number aria="Number of people" required
+    btn "Split Bill" primary >tip.update
+  text "Tip: {tipPercent}%"
+  text "Bill: {bill}"
+  text "People: {people}"
+  text "Tip Amount: {tip.bill * tip.tipPercent / 100}"
+  text "Total with Tip: {tip.bill + tip.bill * tip.tipPercent / 100}"
+  text "Amount per Person: {tip.bill * tip.tipPercent / (100 * tip.people)}"

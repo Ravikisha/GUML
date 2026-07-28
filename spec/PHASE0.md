@@ -13,11 +13,20 @@ reports no token accounting.
 
 Two weeks answers it. Nine months of building does not make the answer better.
 
+## The harness
+
+`bench/phase0/` implements everything below. `just phase0-verify` runs the parts that
+need no API key: harness preflight (task set, examples, registry slices, prompt budget,
+references typecheck), a scoring self-test over synthetic generations, and prompt
+assembly. `just phase0-run` needs `ANTHROPIC_API_KEY` and is resumable.
+
 ## Setup
 
 - 10 tasks: 2 structure-heavy (CRUD, dashboard), 2 content-heavy (landing, docs), 6 mixed
   (settings screen, checkout step, data-viz filter panel, team management, pricing page, form
-  wizard). Reuse `fixtures/` for 3 of them so the results connect to the report's numbers.
+  wizard). Two of them reuse `fixtures/` (`b` → CRUD, `c` → landing) so the results connect
+  to the report's numbers. `fixtures/a` is *not* a task: it serves as an in-context example,
+  and a document cannot be both the example and the answer.
 - Per task: a natural-language prompt, a functional-requirements checklist, and a hand-written
   React+TS+Tailwind reference implementation.
 - Prompt = `spec/GUML-SPEC.md` + a registry slice (`guml registry --tags …`) + N examples.

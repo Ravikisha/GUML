@@ -17,7 +17,7 @@ export default function Page() {
   return (
     <DocPage
       pathname="/docs/library"
-      meter={{ label: "package", value: "guml · 216 KB wasm", tone: "iris" }}
+      meter={{ label: "package", value: "guml · 298 KB wasm", tone: "iris" }}
       title="React library"
       lede="The compiler compiled: the same Rust that powers the CLI, built to WebAssembly, with a React runtime that renders its output. No build step in your app, no server."
       toc={[
@@ -42,7 +42,7 @@ export default function Page() {
         <p>
           A re-implementation in TypeScript would drift from the Rust one, and the moment a preview
           disagrees with <C>guml build</C> the preview is worse than nothing. Compiling the real
-          thing to wasm32 costs 216 KB and removes that class of bug entirely.
+          thing to wasm32 costs 298 KB and removes that class of bug entirely.
         </p>
       </Note>
 

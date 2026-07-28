@@ -1,0 +1,20 @@
+page Invoices
+
+type Invoice {id, client, amount:number, paid:bool, due:date}
+data invoices:Invoice[] GET /api/invoices
+  settle PATCH /api/invoices/{id} {paid} optimistic
+
+state view=all|open|paid
+
+head Invoices — {invoices.open.count} awaiting payment
+
+row between
+  metric {invoices.amount.sum}
+  tabs view
+
+table invoices where={view} sort=due
+  text {client}
+  text {amount}
+  text {due}
+  check {paid} aria="Mark {client} paid" >invoices.settle
+  empty No invoices match this view.

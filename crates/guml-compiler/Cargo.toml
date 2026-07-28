@@ -13,3 +13,7 @@ guml-diagnostics = { workspace = true }
 guml-parser = { workspace = true }
 guml-registry = { workspace = true }
 guml-syntax = { workspace = true }
+
+[dev-dependencies]
+guml-fmt = { workspace = true }
+serde_json = { workspace = true }

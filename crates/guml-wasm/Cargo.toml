@@ -11,6 +11,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 guml-compiler = { workspace = true }
+guml-fmt = { workspace = true }
 guml-codegen = { workspace = true }
 guml-diagnostics = { workspace = true }
 guml-registry = { workspace = true }

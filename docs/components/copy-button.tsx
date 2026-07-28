@@ -24,7 +24,7 @@ export function CopyButton({ text, className }: { text: string; className?: stri
       onClick={copy}
       aria-label={copied ? "Copied" : "Copy code"}
       className={cn(
-        "inline-flex size-7 items-center justify-center rounded-md border border-white/10 text-fog-dim transition-colors hover:border-white/25 hover:text-chalk",
+        "inline-flex size-7 items-center justify-center rounded-md border border-line-strong text-fog-dim transition-colors hover:border-chalk/30 hover:text-chalk",
         copied && "border-mint/40 text-mint",
         className,
       )}

@@ -37,7 +37,7 @@ export function CommandMenu() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="hidden items-center gap-2 rounded-full border border-white/12 px-3 py-1.5 text-sm text-fog transition-colors hover:border-white/30 hover:text-chalk sm:inline-flex"
+        className="hidden items-center gap-2 rounded-full border border-line-strong px-3 py-1.5 text-sm text-fog transition-colors hover:border-chalk/30 hover:text-chalk sm:inline-flex"
       >
         <span>Search docs</span>
         <Kbd>⌘K</Kbd>
@@ -49,10 +49,10 @@ export function CommandMenu() {
         label="Search documentation"
         className="fixed inset-0 z-100 grid place-items-start justify-center bg-ink/80 pt-[12vh] backdrop-blur-sm"
       >
-        <div className="w-[min(92vw,34rem)] overflow-hidden rounded-panel border border-white/12 bg-ink-raised shadow-[0_30px_80px_-40px_rgb(0_0_0/0.9)]">
+        <div className="w-[min(92vw,34rem)] overflow-hidden rounded-panel border border-line-strong bg-ink-raised shadow-[0_30px_80px_-40px_rgb(0_0_0/0.9)]">
           <Command.Input
             placeholder="Jump to a page…"
-            className="w-full border-b border-white/8 bg-transparent px-4 py-3.5 font-mono text-sm text-chalk outline-none placeholder:text-fog-dim"
+            className="w-full border-b border-line bg-transparent px-4 py-3.5 font-mono text-sm text-chalk outline-none placeholder:text-fog-dim"
           />
           <Command.List className="max-h-[52vh] overflow-y-auto p-2">
             <Command.Empty className="px-3 py-6 text-center font-mono text-xs text-fog-dim">
@@ -70,7 +70,7 @@ export function CommandMenu() {
                     key={item.href}
                     value={`${group.title} ${item.title}`}
                     onSelect={() => go(item.href)}
-                    className="flex cursor-pointer items-center gap-2.5 rounded-chip px-3 py-2 text-sm text-fog data-[selected=true]:bg-white/8 data-[selected=true]:text-chalk"
+                    className="flex cursor-pointer items-center gap-2.5 rounded-chip px-3 py-2 text-sm text-fog data-[selected=true]:bg-chalk/8 data-[selected=true]:text-chalk"
                   >
                     <Hash className="size-3.5 text-fog-dim" />
                     <span>{item.title}</span>
@@ -89,7 +89,7 @@ export function CommandMenu() {
                   key={href}
                   value={title}
                   onSelect={() => go(href)}
-                  className="flex cursor-pointer items-center gap-2.5 rounded-chip px-3 py-2 text-sm text-fog data-[selected=true]:bg-white/8 data-[selected=true]:text-chalk"
+                  className="flex cursor-pointer items-center gap-2.5 rounded-chip px-3 py-2 text-sm text-fog data-[selected=true]:bg-chalk/8 data-[selected=true]:text-chalk"
                 >
                   <Icon className="size-3.5 text-fog-dim" />
                   {title}

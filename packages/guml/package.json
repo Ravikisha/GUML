@@ -3,10 +3,21 @@
   "version": "0.1.0",
   "description": "Compile GUML — a token-efficient UI representation — in the browser, and render it in React.",
   "license": "Apache-2.0",
-  "keywords": ["guml", "generative-ui", "llm", "compiler", "wasm", "react"],
+  "keywords": [
+    "guml",
+    "generative-ui",
+    "llm",
+    "compiler",
+    "wasm",
+    "react"
+  ],
   "type": "module",
   "sideEffects": false,
-  "files": ["src", "wasm", "README.md"],
+  "files": [
+    "src",
+    "wasm",
+    "README.md"
+  ],
   "exports": {
     ".": "./src/index.ts",
     "./react": "./src/react.tsx",
@@ -14,15 +25,19 @@
   },
   "scripts": {
     "build:wasm": "cd ../../crates/guml-wasm && wasm-pack build --target web --out-dir ../../packages/guml/wasm --out-name guml",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test src/*.test.ts"
   },
   "peerDependencies": {
     "react": ">=18"
   },
   "peerDependenciesMeta": {
-    "react": { "optional": true }
+    "react": {
+      "optional": true
+    }
   },
   "devDependencies": {
+    "@types/node": "^20.19.43",
     "@types/react": "^19",
     "typescript": "^5"
   }

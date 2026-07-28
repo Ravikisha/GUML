@@ -9,7 +9,10 @@
     "noEmit": true,
     "skipLibCheck": true,
     "allowJs": true,
-    "types": ["react"]
+    // The test file is run by `node --test` straight from source, so it imports
+    // `./eval.ts` by its real extension.
+    "allowImportingTsExtensions": true,
+    "types": ["react", "node"]
   },
   "include": ["src", "wasm/*.d.ts"]
 }

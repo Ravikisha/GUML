@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
 import { SiteFooter } from "@/components/site-footer";
+import { themeScript } from "@/components/theme-toggle";
 import { SiteNav } from "@/components/site-nav";
 import "./globals.css";
 
@@ -35,7 +36,7 @@ export const metadata: Metadata = {
     template: "%s · GUML",
   },
   description:
-    "GUML is a token-efficient intermediate representation and compiler for LLM-generated web applications: 175 tokens of markup in place of 1,434 tokens of React.",
+    "GUML is a token-efficient intermediate representation and compiler for LLM-generated web applications: 173 tokens of markup in place of 1,434 tokens of React.",
   keywords: [
     "GUML",
     "generative UI",
@@ -48,14 +49,17 @@ export const metadata: Metadata = {
   openGraph: {
     title: "GUML — Generative UI Markup Language",
     description:
-      "An intermediate representation and compiler for LLM-generated interfaces. Measured 4.4–8.2× fewer output tokens than hand-written React.",
+      "An intermediate representation and compiler for LLM-generated interfaces. Measured 4.4–8.3× fewer output tokens than hand-written React.",
     type: "website",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#08080c",
-  colorScheme: "dark",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f6f7f9" },
+    { media: "(prefers-color-scheme: dark)", color: "#08080c" },
+  ],
+  colorScheme: "dark light",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -67,7 +71,13 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       lang="en"
       data-scroll-behavior="smooth"
       className={`${geistSans.variable} ${geistMono.variable} ${bricolage.variable}`}
+      suppressHydrationWarning
     >
+      <head>
+        {/* Applies the stored theme before first paint; a deferred script would
+            let a dark frame flash for a reader who chose light. */}
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body className="flex min-h-dvh flex-col antialiased">
         <a
           href="#content"

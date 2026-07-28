@@ -49,11 +49,11 @@ export default function Page() {
               <Badge tone={KIND_TONE[kind]}>{kind}</Badge>
               <span className="label">{items.length} tags</span>
             </div>
-            <div className="overflow-hidden rounded-card border border-white/8">
+            <div className="overflow-hidden rounded-card border border-line">
               {items.map((c) => (
                 <div
                   key={c.name}
-                  className="grid gap-1 border-b border-white/8 px-4 py-3 last:border-0 sm:grid-cols-[7rem_1fr] sm:gap-4"
+                  className="grid gap-1 border-b border-line px-4 py-3 last:border-0 sm:grid-cols-[7rem_1fr] sm:gap-4"
                 >
                   <code className="font-mono text-sm text-chalk">{c.name}</code>
                   <p className="text-sm leading-relaxed text-fog">{c.doc}</p>

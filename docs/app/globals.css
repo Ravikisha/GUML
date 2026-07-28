@@ -11,41 +11,142 @@
 /* ==========================================================================
    GUML docs — design tokens
    --------------------------------------------------------------------------
-   Direction: "the meter". GUML's entire thesis is a falling number, so the
-   site is organised around counting. The accent pair marks before/after
-   (ember = the verbose source, iris = the compact representation) and mint is
-   reserved for exactly one job: showing what was saved.
+   Direction: "the meter". GUML's entire thesis is a falling number, so the site
+   is organised around counting. The accent pair marks before/after (ember = the
+   verbose source, iris = the compact representation) and mint is reserved for
+   exactly one job: showing what was saved.
 
-   Dark-only, deliberately: the subject is a compiler and its diagnostics, and
-   one committed surface keeps the accent pair legible on every page.
+   Both themes are real designs rather than an inversion. Dark is the default —
+   the subject is a compiler and its diagnostics — and light is tuned for long
+   reading, with the accents darkened to hold contrast on a pale surface (mint at
+   #3bf0a6 is unreadable on white, so light mode uses a deeper green).
+
+   Runtime values live on `:root` and the theme scale references them with
+   `@theme inline`, which is what lets a class like `text-chalk` follow the
+   theme instead of being frozen at build time.
    ========================================================================== */
 
+:root {
+  color-scheme: dark;
+
+  --c-bg: #08080c;
+  --c-raised: #0e0e15;
+  --c-high: #15151f;
+  --c-text: #eceef3;
+  --c-muted: #8a90a6;
+  --c-faint: #5c6178;
+
+  --c-ember: #ff5c2b;
+  --c-ember-dim: #7a2a14;
+  --c-iris: #8b74ff;
+  --c-iris-dim: #2f2270;
+  --c-mint: #3bf0a6;
+
+  /* Code keeps its own surface in *both* themes: the highlighter's contrast is
+     tuned against it, and `code-surface` re-pins the text tokens to match. */
+  --c-code-bg: #06060a;
+  --c-syn-tag: #8b74ff;
+  --c-syn-mod: #ff7a4d;
+  --c-syn-bind: #3bf0a6;
+  --c-syn-str: #ffc86b;
+  --c-syn-num: #ff9ecd;
+  --c-syn-key: #7dd3fc;
+  /* 4.9:1 on the code surface. The old #4f5468 was 2.7:1, which was survivable
+     for a trailing note and not for the bash samples, where the comment *is* the
+     content. */
+  --c-syn-comment: #767c95;
+  --c-syn-punct: #757b93;
+
+  --line: rgb(255 255 255 / 0.08);
+  --line-strong: rgb(255 255 255 / 0.16);
+  --grain: 0.03;
+  --spotlight: rgb(108 76 255 / 0.16);
+  --scrollbar: rgb(255 255 255 / 0.1);
+  --scrollbar-hover: rgb(255 255 255 / 0.2);
+}
+
+/* Light. Applied when the reader asks for it, or when the system does and the
+   reader has not overridden it. */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --c-bg: #f6f7f9;
+  --c-raised: #ffffff;
+  --c-high: #eceef3;
+  --c-text: #12131a;
+  --c-muted: #55596b;
+  --c-faint: #696e7e;
+
+  --c-ember: #cc3d16;
+  --c-ember-dim: #f6d8cf;
+  --c-iris: #4f32e6;
+  --c-iris-dim: #ded6ff;
+  --c-mint: #0d7f51;
+
+  --line: rgb(10 12 24 / 0.1);
+  --line-strong: rgb(10 12 24 / 0.2);
+  --grain: 0.015;
+  --spotlight: rgb(79 50 230 / 0.1);
+  --scrollbar: rgb(10 12 24 / 0.15);
+  --scrollbar-hover: rgb(10 12 24 / 0.3);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]):not([data-theme="light"]) {
+    color-scheme: light;
+
+    --c-bg: #f6f7f9;
+    --c-raised: #ffffff;
+    --c-high: #eceef3;
+    --c-text: #12131a;
+    --c-muted: #55596b;
+    --c-faint: #696e7e;
+
+    --c-ember: #cc3d16;
+    --c-ember-dim: #f6d8cf;
+    --c-iris: #4f32e6;
+    --c-iris-dim: #ded6ff;
+    --c-mint: #0d7f51;
+
+    --line: rgb(10 12 24 / 0.1);
+    --line-strong: rgb(10 12 24 / 0.2);
+    --grain: 0.015;
+    --spotlight: rgb(79 50 230 / 0.1);
+    --scrollbar: rgb(10 12 24 / 0.15);
+    --scrollbar-hover: rgb(10 12 24 / 0.3);
+  }
+}
+
+/* `inline` so utilities compile to `var(--c-*)` and follow the theme at runtime. */
+@theme inline {
+  --color-ink: var(--c-bg);
+  --color-ink-raised: var(--c-raised);
+  --color-ink-high: var(--c-high);
+  --color-chalk: var(--c-text);
+  --color-fog: var(--c-muted);
+  --color-fog-dim: var(--c-faint);
+
+  --color-ember: var(--c-ember);
+  --color-ember-dim: var(--c-ember-dim);
+  --color-iris: var(--c-iris);
+  --color-iris-dim: var(--c-iris-dim);
+  --color-mint: var(--c-mint);
+
+  --color-code: var(--c-code-bg);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-syn-tag: var(--c-syn-tag);
+  --color-syn-mod: var(--c-syn-mod);
+  --color-syn-bind: var(--c-syn-bind);
+  --color-syn-str: var(--c-syn-str);
+  --color-syn-num: var(--c-syn-num);
+  --color-syn-key: var(--c-syn-key);
+  --color-syn-comment: var(--c-syn-comment);
+  --color-syn-punct: var(--c-syn-punct);
+}
+
 @theme {
-  /* base ----------------------------------------------------------------- */
-  --color-ink: #08080c;
-  --color-ink-raised: #0e0e15;
-  --color-ink-high: #15151f;
-  --color-chalk: #eceef3;
-  --color-fog: #8a90a6;
-  --color-fog-dim: #5c6178;
-
-  /* accents: a duo, not a lone acid accent ------------------------------- */
-  --color-ember: #ff5c2b;
-  --color-ember-dim: #7a2a14;
-  --color-iris: #6c4cff;
-  --color-iris-dim: #2f2270;
-  --color-mint: #3bf0a6;
-
-  /* syntax --------------------------------------------------------------- */
-  --color-syn-tag: #8b74ff;
-  --color-syn-mod: #ff7a4d;
-  --color-syn-bind: #3bf0a6;
-  --color-syn-str: #ffc86b;
-  --color-syn-num: #ff9ecd;
-  --color-syn-key: #7dd3fc;
-  --color-syn-comment: #4f5468;
-  --color-syn-punct: #757b93;
-
   /* type ----------------------------------------------------------------- */
   --font-display: var(--font-bricolage), ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
@@ -105,12 +206,6 @@
    Base
    -------------------------------------------------------------------------- */
 
-:root {
-  --line: rgb(255 255 255 / 0.08);
-  --line-strong: rgb(255 255 255 / 0.16);
-  color-scheme: dark;
-}
-
 * {
   border-color: var(--line);
 }
@@ -122,8 +217,11 @@ html {
 }
 
 body {
-  background-color: var(--color-ink);
-  color: var(--color-chalk);
+  background-color: var(--c-bg);
+  color: var(--c-text);
+  /* Theme changes should not animate on every element, only on the surfaces the
+     eye actually tracks. */
+  transition: background-color 0.2s ease, color 0.2s ease;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -137,7 +235,7 @@ body::after {
   inset: -50%;
   z-index: 60;
   pointer-events: none;
-  opacity: 0.03;
+  opacity: var(--grain);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
   animation: var(--animate-drift);
 }
@@ -168,6 +266,26 @@ body::after {
   color: var(--color-fog-dim);
 }
 
+/* A code surface keeps its dark background in both themes — the highlighter's
+   contrast is tuned against it, and the compiler's own output is what a terminal
+   shows. So the *text* tokens inside it must not follow the theme either: in light
+   mode `text-chalk` resolved to near-black on near-black and the samples vanished.
+   Re-pinning the variables on the container fixes every descendant at once, which
+   is why this is one rule rather than a `dark:` prefix on each child. */
+@utility code-surface {
+  --c-text: #eceef3;
+  --c-muted: #8a90a6;
+  --c-faint: #767c95;
+  --c-ember: #ff5c2b;
+  --c-iris: #8b74ff;
+  --c-mint: #3bf0a6;
+  --line: rgb(255 255 255 / 0.08);
+  --line-strong: rgb(255 255 255 / 0.16);
+  --scrollbar: rgb(255 255 255 / 0.1);
+  --scrollbar-hover: rgb(255 255 255 / 0.2);
+  color-scheme: dark;
+}
+
 /* Bricolage Grotesque carries a width axis. The hero narrows it while the
    token counter falls, so the type physically compresses along with the data.
    This is the page's one bold move; everything around it stays quiet. */
@@ -195,13 +313,13 @@ body::after {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: rgb(255 255 255 / 0.1);
+    background: var(--scrollbar);
     border-radius: 99px;
     border: 3px solid transparent;
     background-clip: content-box;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgb(255 255 255 / 0.2);
+    background: var(--scrollbar-hover);
     background-clip: content-box;
   }
 }

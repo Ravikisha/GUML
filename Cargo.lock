@@ -195,8 +195,10 @@ dependencies = [
  "clap",
  "guml-compiler",
  "guml-diagnostics",
+ "guml-fmt",
  "guml-registry",
  "guml-syntax",
+ "serde",
  "serde_json",
 ]
 
@@ -218,9 +220,11 @@ dependencies = [
  "guml-ast",
  "guml-codegen",
  "guml-diagnostics",
+ "guml-fmt",
  "guml-parser",
  "guml-registry",
  "guml-syntax",
+ "serde_json",
 ]
 
 [[package]]
@@ -229,6 +233,15 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "guml-fmt"
+version = "0.1.0"
+dependencies = [
+ "guml-diagnostics",
+ "guml-registry",
+ "guml-syntax",
 ]
 
 [[package]]
@@ -264,6 +277,7 @@ dependencies = [
  "guml-codegen",
  "guml-compiler",
  "guml-diagnostics",
+ "guml-fmt",
  "guml-registry",
  "serde",
  "serde-wasm-bindgen",

@@ -1,11 +1,11 @@
 "use client";
 
 import type { Diagnostic } from "guml";
-import { applyAllSuggestions, check, compile } from "guml";
+import { applyAllSuggestions, check, compile, format } from "guml";
 import { Guml } from "guml/react";
-import { Check, Loader2, Play, RotateCcw, Wand2 } from "lucide-react";
+import { AlignLeft, Check, Loader2, Play, RotateCcw, Wand2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { highlight } from "@/lib/highlight";
+import { highlight, CLASS_STYLE } from "@/lib/highlight";
 import { cn, commas } from "@/lib/utils";
 import { CopyButton } from "./copy-button";
 import { MOCK_DATA } from "./live-preview";
@@ -87,8 +87,8 @@ export function Playground({ samples }: { samples: Sample[] }) {
               className={cn(
                 "rounded-full border px-3 py-1.5 font-mono text-xs transition-colors",
                 active === s.id
-                  ? "border-white/25 bg-white/10 text-chalk"
-                  : "border-white/8 text-fog hover:border-white/20 hover:text-chalk",
+                  ? "border-chalk/25 bg-chalk/10 text-chalk"
+                  : "border-line text-fog hover:border-chalk/30 hover:text-chalk",
               )}
             >
               {s.label}
@@ -96,15 +96,25 @@ export function Playground({ samples }: { samples: Sample[] }) {
           ))}
           <button
             type="button"
+            // The formatter runs in the same wasm module as the compiler, so what it does
+            // here is what `guml fmt` does at the terminal — including on input that does
+            // not parse yet.
+            onClick={async () => setSource((await format(source)).text)}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 font-mono text-xs text-fog transition-colors hover:border-chalk/30 hover:text-chalk"
+          >
+            <AlignLeft className="size-3" /> format
+          </button>
+          <button
+            type="button"
             onClick={() => load(samples.find((s) => s.id === active) ?? samples[0])}
-            className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-white/8 px-3 py-1.5 font-mono text-xs text-fog transition-colors hover:border-white/20 hover:text-chalk"
+            className="inline-flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 font-mono text-xs text-fog transition-colors hover:border-chalk/30 hover:text-chalk"
           >
             <RotateCcw className="size-3" /> reset
           </button>
         </div>
 
-        <div className="relative overflow-hidden rounded-panel border border-white/8 bg-[#06060a]">
-          <div className="flex items-center justify-between border-b border-white/8 px-4 py-2">
+        <div className="relative overflow-hidden rounded-panel border border-line bg-code code-surface">
+          <div className="flex items-center justify-between border-b border-line px-4 py-2">
             <span className="label">
               {source.split("\n").length} lines · ~{commas(Math.ceil(source.length / 3.6))} tokens
             </span>
@@ -125,7 +135,7 @@ export function Playground({ samples }: { samples: Sample[] }) {
                       <span> </span>
                     ) : (
                       row.map((tok, j) => (
-                        <span key={j} className={tok.cls}>
+                        <span key={j} className={CLASS_STYLE[tok.cls]}>
                           {tok.text}
                         </span>
                       ))
@@ -146,8 +156,8 @@ export function Playground({ samples }: { samples: Sample[] }) {
         </div>
 
         {/* ------------------------------------------------------ diagnostics */}
-        <div className="rounded-card border border-white/8">
-          <div className="flex items-center justify-between border-b border-white/8 px-4 py-2">
+        <div className="rounded-card border border-line">
+          <div className="flex items-center justify-between border-b border-line px-4 py-2">
             <span className="label">diagnostics</span>
             <div className="flex items-center gap-2">
               {errors.length === 0 && warnings.length === 0 && !pending ? (
@@ -180,7 +190,7 @@ export function Playground({ samples }: { samples: Sample[] }) {
                     <button
                       type="button"
                       onClick={() => goTo(d)}
-                      className="w-full rounded-chip px-2 py-1.5 text-left transition-colors hover:bg-white/5"
+                      className="w-full rounded-chip px-2 py-1.5 text-left transition-colors hover:bg-chalk/5"
                     >
                       <span className="font-mono text-xs">
                         <span className={d.severity === "error" ? "text-ember" : "text-fog-dim"}>
@@ -222,8 +232,8 @@ export function Playground({ samples }: { samples: Sample[] }) {
               className={cn(
                 "rounded-full border px-3 py-1.5 font-mono text-xs transition-colors",
                 pane === id
-                  ? "border-white/25 bg-white/10 text-chalk"
-                  : "border-white/8 text-fog hover:border-white/20 hover:text-chalk",
+                  ? "border-chalk/25 bg-chalk/10 text-chalk"
+                  : "border-line text-fog hover:border-chalk/30 hover:text-chalk",
               )}
             >
               {label}
@@ -237,8 +247,8 @@ export function Playground({ samples }: { samples: Sample[] }) {
         </div>
 
         {pane === "preview" ? (
-          <div className="overflow-hidden rounded-panel border border-white/8">
-            <div className="border-b border-white/8 px-4 py-2">
+          <div className="overflow-hidden rounded-panel border border-line">
+            <div className="border-b border-line px-4 py-2">
               <span className="label">rendered from the compiler&rsquo;s UI tree</span>
             </div>
             <div className="min-h-[26rem] overflow-auto bg-white p-6">
@@ -260,8 +270,8 @@ export function Playground({ samples }: { samples: Sample[] }) {
             </div>
           </div>
         ) : (
-          <div className="overflow-hidden rounded-panel border border-white/8 bg-[#06060a]">
-            <div className="flex items-center justify-between border-b border-white/8 px-4 py-2">
+          <div className="overflow-hidden rounded-panel border border-line bg-code code-surface">
+            <div className="flex items-center justify-between border-b border-line px-4 py-2">
               <span className="label">
                 {pane === "react" ? "Counter.tsx — real compiler output" : "ui.json"}
               </span>

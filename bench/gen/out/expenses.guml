@@ -1,0 +1,32 @@
+page Expenses
+
+type Expense {id, label, amount:number, category:food|travel|other}
+data expenses:Expense[] GET /api/expenses
+  add  POST   /api/expenses {label, amount, category} optimistic:prepend
+  drop DELETE /api/expenses/{id} optimistic
+
+state draftLabel=""
+state draftAmount=0
+state draftCategory=other
+state filter=food|travel|other
+
+head Expenses — Total: {expenses.amount.sum}
+
+form >expenses.add{label:draftLabel, amount:draftAmount, category:draftCategory}; draftLabel=""; draftAmount=0
+  input draftLabel placeholder="Label"
+  input draftAmount kind=number placeholder="Amount" required
+  select draftCategory
+    option food
+    option travel
+    option other
+  btn "Add expense" primary disabled={!draftLabel.trim() || !draftAmount} busy="Adding…"
+  link "Clear" quiet >draftLabel=""; draftAmount=0; draftCategory=other
+
+tabs filter
+
+table expenses where={filter}
+  text {label}
+  text {amount}
+  text {category}
+  btn "Delete" quiet aria="Remove {label}" >expenses.drop
+  empty No expenses in this category.

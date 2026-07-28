@@ -155,6 +155,47 @@ pub fn registry(tags: Option<String>) -> Result<JsValue, JsValue> {
     })
 }
 
+/// Format source. `canonical` strips comments, blank lines and declaration order so that
+/// two semantically identical documents produce identical bytes.
+#[wasm_bindgen]
+pub fn format(source: &str, canonical: Option<bool>) -> Result<JsValue, JsValue> {
+    let out = guml_fmt::format(source, guml_fmt::Options { canonical: canonical.unwrap_or(false) });
+    to_js(&FormatResult { text: out.text, changed: out.changed })
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FormatResult {
+    text: String,
+    changed: bool,
+}
+
+/// Syntax classification from the real lexer and registry, so a browser highlighter cannot
+/// drift from the compiler. Returns one entry per coloured span, in source order.
+#[wasm_bindgen]
+pub fn highlight(source: &str) -> Result<JsValue, JsValue> {
+    let spans: Vec<HighlightSpan> = guml_fmt::highlight::classify(source)
+        .into_iter()
+        .map(|s| HighlightSpan {
+            start: s.start,
+            end: s.end,
+            line: s.line,
+            class: s.class.name().to_string(),
+            lsp: s.class.lsp_type().to_string(),
+        })
+        .collect();
+    to_js(&spans)
+}
+
+#[derive(Serialize)]
+struct HighlightSpan {
+    start: usize,
+    end: usize,
+    line: u32,
+    class: String,
+    lsp: String,
+}
+
 /// Compiler version, so a host can report which build produced a result.
 #[wasm_bindgen]
 pub fn version() -> String {

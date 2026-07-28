@@ -13,6 +13,18 @@ export function check(source: string): any;
 export function compile(source: string, backend?: string | null): any;
 
 /**
+ * Format source. `canonical` strips comments, blank lines and declaration order so that
+ * two semantically identical documents produce identical bytes.
+ */
+export function format(source: string, canonical?: boolean | null): any;
+
+/**
+ * Syntax classification from the real lexer and registry, so a browser highlighter cannot
+ * drift from the compiler. Returns one entry per coloured span, in source order.
+ */
+export function highlight(source: string): any;
+
+/**
  * The component vocabulary. `tags` narrows it to a prompt-sized slice.
  */
 export function registry(tags?: string | null): any;
@@ -34,6 +46,8 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly check: (a: number, b: number) => [number, number, number];
     readonly compile: (a: number, b: number, c: number, d: number) => [number, number, number];
+    readonly format: (a: number, b: number, c: number) => [number, number, number];
+    readonly highlight: (a: number, b: number) => [number, number, number];
     readonly registry: (a: number, b: number) => [number, number, number];
     readonly tree: (a: number, b: number) => [number, number, number];
     readonly version: () => [number, number];

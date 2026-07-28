@@ -1,0 +1,211 @@
+{
+  "model": "meta/llama-3.1-8b-instruct",
+  "rows": [
+    {
+      "file": "bmi.guml",
+      "app": "bmi",
+      "parses": false,
+      "errors": [
+        "GUML0003 line 17: unterminated `{` group",
+        "GUML0004 line 20: unexpected character `}`",
+        "GUML0020 line 17: expected a tag name at the start of the line",
+        "GUML0020 line 18: expected a tag name at the start of the line",
+        "GUML0020 line 19: expected a tag name at the start of the line",
+        "GUML0020 line 20: expected a tag name at the start of the line",
+        "GUML0065 line 12: `height` holds a number",
+        "GUML0065 line 12: `weight` holds a number"
+      ],
+      "warnings": [],
+      "checks": [
+        {
+          "label": "declares numeric state for both inputs",
+          "ok": true
+        },
+        {
+          "label": "has two fields",
+          "ok": true
+        },
+        {
+          "label": "shows a computed result",
+          "ok": true
+        },
+        {
+          "label": "displays the number prominently",
+          "ok": true
+        },
+        {
+          "label": "has a reset action",
+          "ok": true
+        },
+        {
+          "label": "declares no API resource",
+          "ok": true
+        }
+      ],
+      "met": 6,
+      "total": 6
+    },
+    {
+      "file": "dashboard.guml",
+      "app": "dashboard",
+      "parses": true,
+      "errors": [],
+      "warnings": [],
+      "checks": [
+        {
+          "label": "declares the resource and type",
+          "ok": true
+        },
+        {
+          "label": "four KPI tiles",
+          "ok": true
+        },
+        {
+          "label": "KPIs are derived, not hard-coded",
+          "ok": false
+        },
+        {
+          "label": "renders a table",
+          "ok": true
+        },
+        {
+          "label": "filters with a segmented control",
+          "ok": true
+        },
+        {
+          "label": "the filter state is enumerated",
+          "ok": true
+        }
+      ],
+      "met": 5,
+      "total": 6
+    },
+    {
+      "file": "expenses.guml",
+      "app": "expenses",
+      "parses": false,
+      "errors": [
+        "GUML0030 line 19: unknown tag `option`",
+        "GUML0030 line 20: unknown tag `option`",
+        "GUML0030 line 21: unknown tag `option`",
+        "GUML0051 line 18: `select` has no accessible name",
+        "GUML0080 line 18: `select` needs an enumerated state; `draftCategory` has no domain"
+      ],
+      "warnings": [
+        "GUML0051",
+        "GUML0051"
+      ],
+      "checks": [
+        {
+          "label": "declares the resource and its type",
+          "ok": true
+        },
+        {
+          "label": "renders a table or list",
+          "ok": true
+        },
+        {
+          "label": "shows an aggregate total",
+          "ok": true
+        },
+        {
+          "label": "has an add form",
+          "ok": true
+        },
+        {
+          "label": "deletes an expense",
+          "ok": true
+        },
+        {
+          "label": "filters by an enumerated state",
+          "ok": true
+        }
+      ],
+      "met": 6,
+      "total": 6
+    },
+    {
+      "file": "signup.guml",
+      "app": "signup",
+      "parses": false,
+      "errors": [
+        "GUML0030 line 19: unknown tag `option`",
+        "GUML0030 line 20: unknown tag `option`",
+        "GUML0030 line 21: unknown tag `option`",
+        "GUML0080 line 18: `select` needs an enumerated state; `country` has no domain"
+      ],
+      "warnings": [
+        "GUML0051"
+      ],
+      "checks": [
+        {
+          "label": "has a form",
+          "ok": true
+        },
+        {
+          "label": "three or more text fields",
+          "ok": true
+        },
+        {
+          "label": "a dropdown over an enumerated state",
+          "ok": false
+        },
+        {
+          "label": "a checkbox or toggle for the terms",
+          "ok": true
+        },
+        {
+          "label": "the submit button is conditionally disabled",
+          "ok": true
+        },
+        {
+          "label": "submits somewhere",
+          "ok": true
+        }
+      ],
+      "met": 5,
+      "total": 6
+    },
+    {
+      "file": "tip.guml",
+      "app": "tip",
+      "parses": false,
+      "errors": [
+        "GUML0030 line 20: unknown tag `This`"
+      ],
+      "warnings": [
+        "GUML0032",
+        "GUML0032",
+        "GUML0032",
+        "GUML0032",
+        "GUML0031",
+        "GUML0031",
+        "GUML0031"
+      ],
+      "checks": [
+        {
+          "label": "three numeric states",
+          "ok": true
+        },
+        {
+          "label": "three fields",
+          "ok": true
+        },
+        {
+          "label": "computes from the inputs",
+          "ok": true
+        },
+        {
+          "label": "shows more than one derived figure",
+          "ok": true
+        },
+        {
+          "label": "declares no API resource",
+          "ok": true
+        }
+      ],
+      "met": 5,
+      "total": 5
+    }
+  ]
+}

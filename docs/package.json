@@ -7,7 +7,9 @@
     "build": "node scripts/gen-fixtures.mjs && next build",
     "start": "next start",
     "lint": "eslint",
-    "gen:fixtures": "node scripts/gen-fixtures.mjs"
+    "gen:fixtures": "node scripts/gen-fixtures.mjs",
+    "check:highlight": "node --experimental-strip-types --no-warnings scripts/check-highlight-parity.mjs",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@radix-ui/react-tabs": "^1.1.21",

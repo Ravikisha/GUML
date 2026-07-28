@@ -64,7 +64,7 @@ export function LI({ children }: { children: ReactNode }) {
 /** Inline code. Deliberately not a full block: no scroll, no copy button. */
 export function C({ children }: { children: ReactNode }) {
   return (
-    <code className="rounded-[4px] border border-white/8 bg-white/[0.04] px-1.5 py-0.5 font-mono text-[0.85em] text-chalk">
+    <code className="rounded-[4px] border border-line bg-chalk/[0.04] px-1.5 py-0.5 font-mono text-[0.85em] text-chalk">
       {children}
     </code>
   );
@@ -120,10 +120,10 @@ export function Table({
   className?: string;
 }) {
   return (
-    <div className={cn("mt-7 overflow-x-auto rounded-card border border-white/8", className)}>
+    <div className={cn("mt-7 overflow-x-auto rounded-card border border-line", className)}>
       <table className="w-full min-w-[30rem] text-left text-sm">
         <thead>
-          <tr className="border-b border-white/8 bg-white/[0.02]">
+          <tr className="border-b border-line bg-chalk/[0.02]">
             {head.map((h) => (
               <th key={h} className="label px-4 py-2.5 font-normal">
                 {h}
@@ -133,7 +133,7 @@ export function Table({
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={i} className="border-b border-white/8 align-top last:border-0">
+            <tr key={i} className="border-b border-line align-top last:border-0">
               {row.map((cell, j) => (
                 <td key={j} className="px-4 py-3 leading-relaxed text-fog first:text-chalk">
                   {cell}
@@ -149,13 +149,13 @@ export function Table({
 
 /** Numbered steps. Used only where order genuinely matters. */
 export function Steps({ children }: { children: ReactNode }) {
-  return <ol className="mt-8 space-y-8 border-l border-white/8 pl-7">{children}</ol>;
+  return <ol className="mt-8 space-y-8 border-l border-line pl-7">{children}</ol>;
 }
 
 export function Step({ n, title, children }: { n: number; title: string; children: ReactNode }) {
   return (
     <li className="relative">
-      <span className="absolute -left-[2.32rem] flex size-6 items-center justify-center rounded-full border border-white/12 bg-ink font-mono text-[0.7rem] text-fog">
+      <span className="absolute -left-[2.32rem] flex size-6 items-center justify-center rounded-full border border-line-strong bg-ink font-mono text-[0.7rem] text-fog">
         {n}
       </span>
       <p className="font-mono text-sm text-chalk">{title}</p>

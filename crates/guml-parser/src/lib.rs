@@ -205,6 +205,21 @@ impl<'r> Parser<'r> {
         while idx < toks.len() {
             match &toks[idx].tok {
                 Tok::Word(w) if is_http_method(w) => method = w.clone(),
+                // An all-caps word in method position that is not a method was previously
+                // skipped, so `data rows:T[] FETCH /api/rows` silently became a GET. Silent
+                // mis-lowering is the one thing the compiler must never do (invariant 3).
+                Tok::Word(w)
+                    if w.chars().all(|c| c.is_ascii_uppercase()) && w.len() >= 3 =>
+                {
+                    self.diagnostics.push(
+                        Diagnostic::error(
+                            Code::BadMethod,
+                            format!("`{w}` is not an HTTP method"),
+                            toks[idx].span,
+                        )
+                        .with_help("one of: GET, POST, PUT, PATCH, DELETE, HEAD"),
+                    );
+                }
                 Tok::Route(r) => url = r.clone(),
                 _ => {}
             }

@@ -3,7 +3,7 @@
 Compile [GUML](https://github.com/guml-lang/guml) in the browser and render it in React.
 
 This package ships the **actual Rust compiler** built to WebAssembly — not a re-implementation —
-so diagnostics and generated classes are identical to what the `guml` CLI produces. 216 KB of
+so diagnostics and generated classes are identical to what the `guml` CLI produces. 298 KB of
 wasm, loaded lazily on first use.
 
 ```sh

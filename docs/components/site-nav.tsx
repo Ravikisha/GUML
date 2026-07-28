@@ -7,11 +7,13 @@ import { useState } from "react";
 import { NAV } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { CommandMenu } from "./command-menu";
+import { ThemeToggle } from "./theme-toggle";
 
 const TOP = [
   { title: "Docs", href: "/docs" },
   { title: "Examples", href: "/examples" },
   { title: "Playground", href: "/playground" },
+  { title: "Chat", href: "/chat" },
   { title: "Research", href: "/docs/research/measurements" },
 ];
 
@@ -24,7 +26,7 @@ export function SiteNav() {
   const open = openedAt === pathname;
 
   return (
-    <header className="sticky top-0 z-50 border-b border-white/8 bg-ink/80 backdrop-blur-xl">
+    <header className="sticky top-0 z-50 border-b border-line bg-ink/80 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-6 px-6 md:px-10">
         <Link href="/" className="group flex items-baseline gap-2">
           <span className="display-narrow text-xl font-extrabold tracking-tight text-chalk">
@@ -55,9 +57,10 @@ export function SiteNav() {
 
         <div className="ml-auto flex items-center gap-3">
           <CommandMenu />
+          <ThemeToggle />
           <Link
             href="/docs/quickstart"
-            className="hidden rounded-full bg-chalk px-4 py-1.5 text-sm font-medium text-ink transition-colors hover:bg-white md:inline-flex"
+            className="hidden rounded-full bg-chalk px-4 py-1.5 text-sm font-medium text-ink transition-colors hover:opacity-90 md:inline-flex"
           >
             Get started
           </Link>
@@ -66,7 +69,7 @@ export function SiteNav() {
             onClick={() => setOpenedAt(open ? null : pathname)}
             aria-label={open ? "Close menu" : "Open menu"}
             aria-expanded={open}
-            className="inline-flex size-9 items-center justify-center rounded-full border border-white/12 text-fog md:hidden"
+            className="inline-flex size-9 items-center justify-center rounded-full border border-line-strong text-fog md:hidden"
           >
             {open ? <X className="size-4" /> : <Menu className="size-4" />}
           </button>
@@ -74,7 +77,7 @@ export function SiteNav() {
       </div>
 
       {open && (
-        <div className="border-t border-white/8 bg-ink px-6 pb-8 pt-4 md:hidden">
+        <div className="border-t border-line bg-ink px-6 pb-8 pt-4 md:hidden">
           {NAV.map((group) => (
             <div key={group.title} className="mb-6">
               <p className="label mb-2">{group.title}</p>
@@ -85,7 +88,7 @@ export function SiteNav() {
                       href={item.href}
                       className={cn(
                         "block rounded-chip px-2 py-1.5 text-sm",
-                        pathname === item.href ? "bg-white/8 text-chalk" : "text-fog",
+                        pathname === item.href ? "bg-chalk/8 text-chalk" : "text-fog",
                       )}
                     >
                       {item.title}

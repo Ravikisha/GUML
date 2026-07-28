@@ -10,7 +10,7 @@ import { cn, commas } from "@/lib/utils";
  *
  * Every cell is 8 real tokens of the task-CRUD fixture. The React
  * implementation is 1,434 tokens, so it starts as 180 ember cells; the GUML
- * representation is 175, so 158 of them burn off and 22 iris cells remain.
+ * representation is 173, so 158 of them burn off and 22 iris cells remain.
  * The counter falls with them, and the headline's variable width axis narrows
  * from 100 to 76 on the same timeline — the type compresses with the data.
  *
@@ -20,7 +20,7 @@ import { cn, commas } from "@/lib/utils";
 
 const TOKENS_PER_CELL = 8;
 const REACT_TOKENS = 1434;
-const GUML_TOKENS = 175;
+const GUML_TOKENS = 173;
 
 const TOTAL_CELLS = Math.round(REACT_TOKENS / TOKENS_PER_CELL); // 179
 const KEPT_CELLS = Math.round(GUML_TOKENS / TOKENS_PER_CELL); // 22
@@ -99,7 +99,7 @@ export function Compressor({ className }: { className?: string }) {
         <button
           type="button"
           onClick={() => run(false)}
-          className="inline-flex items-center gap-1.5 rounded-full border border-white/12 px-3 py-1.5 font-mono text-[0.7rem] text-fog transition-colors hover:border-white/30 hover:text-chalk"
+          className="inline-flex items-center gap-1.5 rounded-full border border-line-strong px-3 py-1.5 font-mono text-[0.7rem] text-fog transition-colors hover:border-chalk/30 hover:text-chalk"
         >
           <RotateCcw className="size-3" />
           replay
@@ -110,7 +110,7 @@ export function Compressor({ className }: { className?: string }) {
           directly beneath it — this is the visual, not the record. */}
       <div
         aria-hidden
-        className="grid gap-[3px] rounded-card border border-white/8 bg-[#06060a] p-3"
+        className="grid gap-[3px] rounded-card border border-line bg-code code-surface p-3"
         style={{ gridTemplateColumns: "repeat(auto-fill, minmax(11px, 1fr))" }}
       >
         {Array.from({ length: TOTAL_CELLS }, (_, i) => (
@@ -140,7 +140,7 @@ export function Compressor({ className }: { className?: string }) {
               ran ? "opacity-100" : "opacity-40",
             )}
           >
-            88% · 8.2× fewer
+            88% · 8.3× fewer
           </dd>
         </div>
       </dl>

@@ -10,9 +10,10 @@
 //! optimistic mutations are *reported as unsupported* rather than silently mis-lowered — an
 //! honest partial compiler is useful; a quietly wrong one is not.
 
-use guml_ast::{Element, Positional, Program, Value};
+use guml_ast::{Element, Positional, Program};
 use guml_diagnostics::{Diagnostics, Severity, Span};
 
+pub mod expr;
 pub mod json;
 pub mod react;
 
@@ -80,46 +81,6 @@ pub(crate) fn component_name(raw: &str) -> String {
     }
 }
 
-/// Lower a GUML action body to a JS statement list.
-///
-/// Supported in v0.1: `x++`, `x--`, `x=expr`, and `;`-sequencing. Resource mutations
-/// (`tasks.add{…}`) are recognised and reported as unsupported rather than mangled.
-pub(crate) fn lower_action(
-    action: &str,
-    states: &[String],
-    diags: &mut Diagnostics,
-    span: Span,
-) -> String {
-    let mut stmts = Vec::new();
-    for raw in action.split(';') {
-        let s = raw.trim();
-        if s.is_empty() {
-            continue;
-        }
-        if let Some(name) = s.strip_suffix("++") {
-            let name = name.trim();
-            stmts.push(format!("{}({} + 1)", setter(name), name));
-        } else if let Some(name) = s.strip_suffix("--") {
-            let name = name.trim();
-            stmts.push(format!("{}({} - 1)", setter(name), name));
-        } else if let Some((lhs, rhs)) = s.split_once('=') {
-            let lhs = lhs.trim();
-            let rhs = rhs.trim();
-            if lhs.contains('.') || lhs.contains('(') {
-                unsupported(diags, span, format!("action target `{lhs}`"));
-                continue;
-            }
-            stmts.push(format!("{}({})", setter(lhs), rhs));
-        } else if s.contains('.') {
-            // e.g. `tasks.add{title:draft}` — needs the resource layer (Phase 3).
-            unsupported(diags, span, format!("resource mutation `{s}`"));
-        } else {
-            unsupported(diags, span, format!("action `{s}`"));
-        }
-    }
-    let _ = states; // reserved: unknown-state checking moves here with the resolver
-    stmts.join("; ")
-}
 
 pub(crate) fn unsupported(diags: &mut Diagnostics, span: Span, what: impl AsRef<str>) {
     let mut d = guml_diagnostics::Diagnostic::warning(
@@ -133,26 +94,8 @@ pub(crate) fn unsupported(diags: &mut Diagnostics, span: Span, what: impl AsRef<
     diags.push(d);
 }
 
-/// JSX attribute rendering for a GUML attribute value.
-pub(crate) fn jsx_attr(name: &str, v: &Value) -> String {
-    match v {
-        Value::Str(s) => format!("{name}={:?}", s),
-        Value::Word(w) => format!("{name}={:?}", w),
-        Value::Num(_) | Value::Bool(_) => format!("{name}={{{}}}", v.to_js()),
-        Value::Binding(b) => format!("{name}={{{b}}}"),
-        Value::Flag => name.to_string(),
-    }
-}
 
-/// Content may embed `{expr}` bindings. JSX treats those as expressions natively, so v0.1
-/// passes them through; a real expression lowering pass lands with the resolver.
-pub(crate) fn jsx_text(content: &str) -> String {
-    content.to_string()
-}
 
-pub(crate) fn state_names(p: &Program) -> Vec<String> {
-    p.states.iter().map(|s| s.name.clone()).collect()
-}
 
 pub(crate) fn modifiers_of(el: &Element) -> Vec<&str> {
     el.positionals
@@ -167,7 +110,6 @@ pub(crate) fn modifiers_of(el: &Element) -> Vec<&str> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use guml_diagnostics::Diagnostics;
 
     #[test]
     fn setter_naming() {
@@ -182,23 +124,5 @@ mod tests {
         assert_eq!(component_name("landing-page"), "LandingPage");
     }
 
-    #[test]
-    fn action_lowering() {
-        let mut d = Diagnostics::new();
-        let span = Span::point(0, 1, 1);
-        let states = vec!["count".to_string()];
-        assert_eq!(lower_action("count++", &states, &mut d, span), "setCount(count + 1)");
-        assert_eq!(lower_action("count--", &states, &mut d, span), "setCount(count - 1)");
-        assert_eq!(lower_action("count=0", &states, &mut d, span), "setCount(0)");
-        assert!(!d.has_errors());
-    }
 
-    #[test]
-    fn unsupported_actions_warn_instead_of_mangling() {
-        let mut d = Diagnostics::new();
-        let out = lower_action("tasks.add{title:draft}", &[], &mut d, Span::point(0, 1, 1));
-        assert!(out.is_empty());
-        assert_eq!(d.len(), 1);
-        assert!(!d.has_errors(), "unsupported features are warnings, not errors");
-    }
 }

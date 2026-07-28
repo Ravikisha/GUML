@@ -1,0 +1,1 @@
+This GUML code defines a sign-up form with the required fields: full name, email, password, country, and terms. The submit button is disabled until the name and email are filled in and the terms are accepted. When the form is submitted, it posts to the `/api/signup` endpoint with the user's email, password, and country.

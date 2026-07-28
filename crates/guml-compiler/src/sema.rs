@@ -269,7 +269,7 @@ fn repeater_fields(el: &Element, program: &Program) -> Option<Vec<String>> {
     Some(decl.fields.iter().map(|f| f.name.clone()).collect())
 }
 
-fn nearest(unknown: &str, candidates: &[String]) -> Option<String> {
+pub(crate) fn nearest(unknown: &str, candidates: &[String]) -> Option<String> {
     candidates
         .iter()
         .map(|c| (c, distance(unknown, c)))

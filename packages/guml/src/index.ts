@@ -9,6 +9,8 @@
 import initWasm, {
   check as wasmCheck,
   compile as wasmCompile,
+  format as wasmFormat,
+  highlight as wasmHighlight,
   registry as wasmRegistry,
   tree as wasmTree,
   version as wasmVersion,
@@ -121,6 +123,38 @@ export type RegistryResult = {
 
 export type Backend = "react" | "json";
 
+export type FormatResult = { text: string; changed: boolean };
+
+/**
+ * Syntax classes, produced by the compiler's own lexer and registry. A regex highlighter
+ * cannot produce these: whether a line's remainder is structure or prose depends on the
+ * tag, which only the registry knows.
+ */
+export type HighlightClass =
+  | "tag"
+  | "directive"
+  | "modifier"
+  | "binding"
+  | "string"
+  | "number"
+  | "attr"
+  | "action"
+  | "prose"
+  | "comment"
+  | "route"
+  | "anchor"
+  | "punct"
+  | "text";
+
+export type HighlightSpan = {
+  start: number;
+  end: number;
+  line: number;
+  class: HighlightClass;
+  /** The LSP `SemanticTokenType` this maps onto, for editor integrations. */
+  lsp: string;
+};
+
 // ---------------------------------------------------------------- loading
 
 let ready: Promise<void> | null = null;
@@ -175,6 +209,24 @@ export async function tree(source: string): Promise<TreeResult> {
 export async function registry(tags?: string[]): Promise<RegistryResult> {
   await load();
   return wasmRegistry(tags?.join(",")) as RegistryResult;
+}
+
+/**
+ * Format source.
+ *
+ * `canonical` strips comments, blank lines and declaration order, so two documents that
+ * mean the same thing produce the same bytes — what dedup and inter-run comparison need.
+ * Formatting never changes the AST; that is enforced by a test in the compiler.
+ */
+export async function format(source: string, canonical = false): Promise<FormatResult> {
+  await load();
+  return wasmFormat(source, canonical) as FormatResult;
+}
+
+/** Classify every byte for highlighting, using the compiler's lexer and registry. */
+export async function highlight(source: string): Promise<HighlightSpan[]> {
+  await load();
+  return wasmHighlight(source) as HighlightSpan[];
 }
 
 /** Version of the compiler that produced a result. */

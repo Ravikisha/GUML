@@ -1,0 +1,16 @@
+{
+  "name": "guml-phase0",
+  "private": true,
+  "type": "module",
+  "description": "Phase 0 kill-or-continue harness: generation, scoring and the blind scoresheet.",
+  "scripts": {
+    "preflight": "node preflight.mjs",
+    "selftest": "node selftest.mjs",
+    "dry-run": "node run.mjs --dry-run",
+    "run": "node run.mjs",
+    "score": "node score.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.0"
+  }
+}

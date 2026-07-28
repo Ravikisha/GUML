@@ -300,8 +300,14 @@ export function runAction(action: string, scope: Scope): ActionEffect[] {
     const assign = stmt.indexOf("=");
     if (assign > 0 && !"=!<>".includes(stmt[assign - 1])) {
       const name = stmt.slice(0, assign).trim();
-      effects.push({ kind: "set", name, value: safeEval(stmt.slice(assign + 1).trim(), scope) });
-      continue;
+      // Only a bare state name is assignable. `crates/guml-codegen` enforces the
+      // same rule, and the divergence was caught by a test: without this, an
+      // action like `window.location = "…"` produced a nonsense `set` effect
+      // instead of being rejected.
+      if (!name.includes(".") && !name.includes("(")) {
+        effects.push({ kind: "set", name, value: safeEval(stmt.slice(assign + 1).trim(), scope) });
+        continue;
+      }
     }
 
     throw new ExprError(`unsupported action \`${stmt}\``);

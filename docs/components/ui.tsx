@@ -13,9 +13,9 @@ const BUTTON_BASE =
   "active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40 whitespace-nowrap";
 
 const BUTTON_VARIANT = {
-  primary: "bg-chalk text-ink hover:bg-white",
+  primary: "bg-chalk text-ink hover:opacity-90",
   ember: "bg-ember text-ink hover:brightness-110",
-  outline: "border border-white/20 text-chalk hover:border-white/40 hover:bg-white/5",
+  outline: "border border-chalk/25 text-chalk hover:border-chalk/30 hover:bg-chalk/5",
   quiet: "text-fog hover:text-chalk",
 } as const;
 
@@ -78,7 +78,7 @@ export function Badge({
   className?: string;
 }) {
   const tones = {
-    neutral: "border-white/15 text-fog",
+    neutral: "border-line-strong text-fog",
     ember: "border-ember/40 text-ember bg-ember/10",
     iris: "border-iris/50 text-iris bg-iris/10",
     mint: "border-mint/40 text-mint bg-mint/10",
@@ -108,7 +108,7 @@ export function Panel({
   return (
     <As
       className={cn(
-        "rounded-panel border border-white/8 bg-ink-raised/70 backdrop-blur-[2px]",
+        "rounded-panel border border-line bg-ink-raised/70 backdrop-blur-[2px]",
         className,
       )}
     >
@@ -148,7 +148,7 @@ export function Meter({
 
 export function Kbd({ children }: { children: ReactNode }) {
   return (
-    <kbd className="rounded-md border border-white/15 bg-white/5 px-1.5 py-0.5 font-mono text-[0.7rem] text-fog">
+    <kbd className="rounded-md border border-line-strong bg-chalk/5 px-1.5 py-0.5 font-mono text-[0.7rem] text-fog">
       {children}
     </kbd>
   );
@@ -167,12 +167,12 @@ export function Section({
   id?: string;
 }) {
   return (
-    <section id={id} className={cn("relative border-t border-white/8 px-6 py-20 md:px-10", className)}>
+    <section id={id} className={cn("relative border-t border-line px-6 py-20 md:px-10", className)}>
       <div className="mx-auto max-w-6xl">
         {meter ? (
           <div className="mb-10 flex items-center justify-between">
             <Meter label={meter.label} value={meter.value} tone={meter.tone} />
-            <span className="h-px w-24 bg-white/10 md:w-48" aria-hidden />
+            <span className="h-px w-24 bg-chalk/10 md:w-48" aria-hidden />
           </div>
         ) : null}
         {children}

@@ -12,13 +12,14 @@ export default function Page() {
   return (
     <DocPage
       pathname="/docs/research/phase0"
-      meter={{ label: "status", value: "not yet run", tone: "ember" }}
+      meter={{ label: "status", value: "harness built · not yet run", tone: "ember" }}
       title="Phase 0 gate"
       lede="One question, two weeks, three pass criteria. If it fails, the project stops and the negative result gets published."
       toc={[
         { id: "question", title: "The question" },
         { id: "tension", title: "Why it is genuinely open" },
         { id: "setup", title: "Setup" },
+        { id: "harness", title: "The harness" },
         { id: "gate", title: "The gate" },
         { id: "outcomes", title: "Reading the outcomes" },
         { id: "discipline", title: "Discipline" },
@@ -72,25 +73,67 @@ export default function Page() {
         <Step n={1} title="Ten tasks">
           <P>
             Two structure-heavy (CRUD, dashboard), two content-heavy (landing, docs), six mixed
-            (settings, checkout step, filter panel, team management, pricing, form wizard). Three reuse
+            (settings, checkout step, filter panel, team management, pricing, form wizard). Two reuse
             the existing fixtures so results connect to the{" "}
-            <A href="/docs/research/measurements">measured numbers</A>.
+            <A href="/docs/research/measurements">measured numbers</A>. The counter fixture is not a
+            task — it is an in-context example, and one document cannot be both the example and the
+            answer.
           </P>
         </Step>
         <Step n={2} title="A reference implementation each">
           <P>
-            Hand-written React + TS + Tailwind, plus a functional-requirements checklist per task.
+            Hand-written React + TS + Tailwind, plus a 12-to-14 item functional-requirements checklist
+            that is the scoring instrument rather than documentation. All ten references typecheck
+            under <C>--strict</C>.
           </P>
         </Step>
-        <Step n={3} title="A prompt harness">
+        <Step n={3} title="One prompt, two output rules">
           <P>
-            Spec, a registry slice from <C>guml registry --tags …</C>, and N in-context examples.
+            The task text is identical in both arms and never mentions GUML or React; only the output
+            rules differ. Asking the baseline for less is the easiest way to fake this result, so
+            preflight fails if a task prompt names the language.
           </P>
         </Step>
-        <Step n={4} title="Thirty runs per representation">
-          <P>Ten tasks × three model tiers × two example counts, for GUML and for the React baseline.</P>
+        <Step n={4} title="Ninety runs">
+          <P>
+            Sixty GUML (ten tasks × three model tiers × two example counts) plus thirty React. The
+            example-count variable does not apply to the baseline, which sees no spec and no examples.
+          </P>
         </Step>
       </Steps>
+
+      <H2 id="harness">The harness</H2>
+      <P>
+        It is built and tested. What it cannot do is call the models or grade the results, so the
+        answer to Phase 0 is still unknown rather than pending.
+      </P>
+      <Table
+        head={["stage", "state"]}
+        rows={[
+          ["Ten task specs with checklists", "done"],
+          ["Ten React references, typechecked", "done"],
+          ["Prompt assembly, stable prefix cached", "done"],
+          ["Preflight: budget, leakage, registry slices", "done"],
+          ["Mechanical scoring and gate check", "done"],
+          ["Blind scoresheet and rubric", "done"],
+          ["Scoring self-test on synthetic generations", "done"],
+          ["Ninety generations", "needs an API key"],
+          ["Blind correctness scoring", "needs a human grader"],
+        ]}
+      />
+      <P>
+        Everything that needs no API key runs from one command: <C>just phase0-verify</C>. That
+        covers harness integrity, prompt assembly, and a self-test that scores synthetic generations
+        of known shape — a scoring bug would otherwise produce a plausible, wrong answer to the only
+        question this phase exists to ask.
+      </P>
+      <Note tone="tip" title="The prompt fits the budget it promised">
+        <p>
+          The largest assembled prompt — the landing task with three examples — is about 2,831
+          estimated tokens against the 3,000 the spec commits to. Preflight fails if any prompt goes
+          over, so the budget cannot quietly drift as the spec grows.
+        </p>
+      </Note>
 
       <H2 id="gate">The gate</H2>
       <P>Continue only if all three hold:</P>
@@ -102,9 +145,9 @@ export default function Page() {
         ].map((criterion, i) => (
           <div
             key={i}
-            className="flex items-start gap-4 rounded-card border border-white/8 bg-ink-raised/60 p-4"
+            className="flex items-start gap-4 rounded-card border border-line bg-ink-raised/60 p-4"
           >
-            <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded border border-white/15 font-mono text-[0.65rem] text-fog-dim">
+            <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded border border-line-strong font-mono text-[0.65rem] text-fog-dim">
               {i + 1}
             </span>
             <p className="text-sm leading-relaxed text-fog">{criterion}</p>
@@ -162,8 +205,8 @@ export default function Page() {
         </LI>
       </UL>
       <P>
-        The protocol lives at <C>spec/PHASE0.md</C> in the repository; results will land at{" "}
-        <C>spec/phase0-results.md</C>.
+        The protocol lives at <C>spec/PHASE0.md</C>, the harness at <C>bench/phase0/</C> with its
+        scoring rubric alongside it, and results will land at <C>spec/phase0-results.md</C>.
       </P>
     </DocPage>
   );

@@ -12,16 +12,20 @@ Legend: `[ ]` todo · `[x]` done · **GATE** = hard stop.
 The whole 12-month program rests on one unproven assumption: *a model can produce valid,
 semantically correct GUML from a spec in context, and the token saving survives real
 generation.* Two weeks buys that answer. Protocol: `spec/PHASE0.md`.
+Harness: `bench/phase0/` — `just phase0-verify` runs everything that needs no API key.
 
-- [ ] Freeze a v0.1 spec small enough to fit in context (`spec/GUML-SPEC.md`, target ≤3,000 tokens)
-- [ ] Write 10 GUML specs by hand across the 6 benchmark categories (2 structure-heavy, 2 content-heavy, 6 mixed)
-- [ ] Write the paired React+TS+Tailwind reference for each of the 10
-- [ ] Count tokens with the **target model's own tokenizer** (not `tiktoken` — it undercounts Claude by 15–20%)
-- [ ] Prompt harness: spec + registry slice + 3 examples, no compiler in the loop
-- [ ] Run all 10 × {Haiku 4.5, Sonnet 5, Opus 5} × {0, 3 in-context examples}
-- [ ] Score: parse validity (by eye against the grammar), semantic correctness vs the checklist, output tokens
+- [x] Freeze a v0.1 spec small enough to fit in context (`spec/GUML-SPEC.md`; largest assembled prompt ~2,831 est. tokens, budget enforced by `preflight.mjs`)
+- [x] Write 10 task specs by hand across the 6 benchmark categories (2 structure-heavy, 2 content-heavy, 6 mixed) — `bench/phase0/tasks/index.mjs`
+- [x] Write the paired React+TS+Tailwind reference for each of the 10 — all typecheck under `--strict`
+- [x] Prompt harness: spec + registry slice + 3 examples, no compiler in the loop, stable prefix cached
+- [x] Scoring harness: parse validity via `guml check --format json`, escape hatches, tokens, latency, gate check
+- [x] Blind human scoresheet (arm and model stripped, deterministic shuffle) + rubric — `bench/phase0/rubric.md`
+- [x] Scoring self-test over synthetic generations, so a miscount surfaces before the API spend
+- [ ] Count tokens with the **target model's own tokenizer** (wired to `count_tokens` and `usage`; needs a run — never `tiktoken`)
+- [ ] Run all 10 × {Haiku 4.5, Sonnet 5, Opus 5} × {0, 3 in-context examples} — 90 generations, needs an API key
+- [ ] Score semantic correctness against each checklist, blind — needs a human grader
 - [ ] Record the **escape-hatch rate**: how many of the 10 needed a construct the spec cannot express
-- [ ] Write up results including negative findings
+- [ ] Write up `spec/phase0-results.md` including negative findings first
 
 **GATE** — continue only if *all three* hold:
 - [ ] ≥80% of generations are parseable GUML at 3 in-context examples on Sonnet 5
@@ -57,7 +61,7 @@ If the gate fails, stop and publish the negative result. That is a real contribu
 - [x] `guml-parser`: recursive descent, registry-aware, collects all errors in one pass
 - [x] Directives: `page`, `type`, `state`/`store`, `data` + mutations
 - [x] Elements: positionals, modifiers, attributes, actions, `|` content, text-child blocks
-- [x] 49 unit + integration tests green
+- [x] 91 unit + integration tests green
 - [ ] Expression language: real parser for bindings (`{tasks.open.count}`, `{!draft.trim()}`) instead of pass-through
 - [ ] `raw` / `js` escape-hatch blocks (report §12.1 risk 5 — measure how often they are needed)
 - [ ] `route`, `auth` directives
@@ -83,15 +87,38 @@ If the gate fails, stop and publish the negative result. That is a real contribu
 - [x] **`guml` npm package**: wasm compiler + React runtime (`<Guml>`, `useGumlTree`, `useGumlRuntime`)
 - [x] Expression evaluator and action lowering in the runtime (no `eval`; mirrors the React backend)
 - [x] **Resolver (lite)**: bindings/actions → state, resources, repeater item fields; `GUML0033` with a suggestion
-- [ ] **Semantic analyser**: type check, exhaustiveness on enumerated state domains
+- [x] **Static validator** (`guml validate`, always run by `check`): unknown mutations and
+      types, illegal assignment targets, enum-domain violations, dangling/duplicate anchors,
+      empty repeaters, unused declarations, attribute types, method and path sanity — 17 new
+      codes in the 0061–0084 range, 19 tests
+  - [x] Found two silent mis-lowerings in the parser: an unknown HTTP method became `GET`, and
+        a non-route path became an empty URL
+  - [ ] Full type inference over expressions (needs the expression parser, Phase 2)
+  - [ ] Exhaustiveness on enumerated domains beyond `tabs`/`select`
 - [x] **Accessibility lint as hard errors** (`GUML0050`, `GUML0051`), with severity graded by what the compiler can recover
-- [ ] **Desugar pass**: the conventions that make the token saving real
-  - [ ] Resource layer: fetch, cancellation, retry/backoff, cache
-  - [ ] Loading skeleton / empty / error slots auto-filled
-  - [ ] Optimistic apply + snapshot rollback from `optimistic:`
-  - [ ] `list where=` filtering, derived counts (`tasks.open.count`)
-  - [ ] Declared effects (`on mount`, `on {filter}`)
-  - [ ] `form` submit wiring, `tabs` from an enumerated domain
+- [x] **Desugar pass**: the conventions that make the token saving real
+  - [x] Resource layer: fetch on mount with `AbortController` cancellation
+  - [ ] Resource layer: retry with backoff, response cache
+  - [x] Loading skeleton / empty / error slots auto-filled (`role="alert"`, `animate-pulse`)
+  - [x] Optimistic apply + snapshot rollback from `optimistic:` (prepend / replace / drop)
+  - [x] `list where=` filtering via `useMemo` with a derived dep list, aggregates (`tasks.open.count`)
+  - [x] `form` submit wiring with a threaded pending flag, `tabs` from an enumerated domain, `faq` as `<details>`
+  - [x] Expression lowering to JS, mirrored in the TS runtime and pinned by a parity test
+  - [x] Emitted TSX typechecks under `tsc --strict` (`scripts/typecheck-emitted.sh`) — found two real bugs
+  - [ ] Declared effects (`on mount`, `on {expr}`) as explicit syntax
+- [x] **Formatter and canonicaliser** (`guml-fmt`, `guml fmt`): line-stream rewriter below the
+      parser, so it formats input that does not parse yet
+  - [x] Comments and blank lines survive (the lexer drops them; the formatter recovers them)
+  - [x] `--canonical`: same meaning → same bytes, for dedup and inter-run comparison
+  - [x] `ast(fmt(x)) == ast(x)` enforced by test over ugly inputs and every fixture
+  - [x] `--check` in CI, `--stdin` for editors, `--write` in place
+  - [ ] Format before parse in the repair loop, to fix whitespace errors with no model call
+- [x] **Syntax classification** (`guml_fmt::highlight`, `guml highlight`): the compiler's own
+      lexer and registry answer "what colour is this byte"; a regex grammar cannot, because
+      prose-vs-structure depends on the tag
+  - [x] Consumed by the CLI, the wasm build, the docs site and the playground
+  - [x] Docs vocabulary generated from the compiler; parity checked span-for-span in CI
+  - [ ] Generated TextMate grammar for pre-LSP colour
 - [ ] Optimizer: dead-state elimination, binding CSE, static hoisting, registry tree-shaking
 - [ ] Source maps GUML → TSX (report §12.2 challenge 2 — absence of this kills adoption)
 - [ ] Snapshot tests with `insta` over every fixture
@@ -163,7 +190,7 @@ If the gate fails, stop and publish the negative result. That is a real contribu
 - [ ] Web Components backend (portability / embeddable story)
 - [ ] A2UI + MCP-UI emitters (turns the strongest competitor into a distribution channel)
 - [ ] Static HTML/CSS/JS backend (best Lighthouse numbers for the benchmark)
-- [x] WASM build of the compiler (`wasm-pack`, 216 KB) — `crates/guml-wasm`, shipped as the `guml` npm package
+- [x] WASM build of the compiler (`wasm-pack`, 298 KB) — `crates/guml-wasm`, shipped as the `guml` npm package
 - [ ] `tower-lsp` language server reusing the same diagnostics
 - [ ] Paper 1: *How Should LLMs Represent User Interfaces?* → EMNLP/ACL or NeurIPS D&B
 - [ ] Paper 2: *Convention as Compression* → ICSE/FSE

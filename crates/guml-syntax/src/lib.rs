@@ -20,6 +20,9 @@
 //! Layout (nesting) is derived from the `indent` field by the parser's indent stack, not by
 //! synthesised INDENT/DEDENT tokens. Blank lines and `//` comments never affect layout.
 
+pub mod expr;
+
+pub use guml_diagnostics::{Code as DiagCode, Diagnostic as Diag};
 use guml_diagnostics::{Code, Diagnostic, Diagnostics, Span};
 use serde::Serialize;
 
@@ -121,6 +124,11 @@ pub fn lex(src: &str) -> Lexed {
     let mut out = Lexed::default();
     let mut offset = 0usize;
     let mut line_no = 0u32;
+    // Indent of the `js`/`raw` header whose body we are inside. Nothing below it is GUML: not the
+    // tokens, not `//` (a JavaScript comment), not a tab (legal indentation in most other
+    // languages). Lexing a body as GUML reported errors against code the compiler had just
+    // promised not to look at, and silently deleted every `//` line in it.
+    let mut escape_indent: Option<usize> = None;
 
     for raw in src.split('\n') {
         line_no += 1;
@@ -129,9 +137,14 @@ pub fn lex(src: &str) -> Lexed {
 
         let raw = raw.strip_suffix('\r').unwrap_or(raw);
 
-        // Indent, with tab detection.
+        // Indent, and whether a tab was used for it. Measured before the escape test, because the
+        // test needs the indent — but the tab is only *reported* once we know the line is GUML, so
+        // the positions are recovered by re-walking the prefix below rather than collected here:
+        // this loop runs for every line of every compile, and a `Vec` per line cost ~4x on the
+        // 200-line `check` budget.
         let mut indent = 0usize;
         let mut byte_idx = 0usize;
+        let mut has_tab = false;
         for ch in raw.chars() {
             match ch {
                 ' ' => {
@@ -139,20 +152,7 @@ pub fn lex(src: &str) -> Lexed {
                     byte_idx += 1;
                 }
                 '\t' => {
-                    out.diagnostics.push(
-                        Diagnostic::error(
-                            Code::TabIndent,
-                            "tabs are not allowed for indentation",
-                            Span::new(
-                                line_start + byte_idx,
-                                line_start + byte_idx + 1,
-                                line_no,
-                                (byte_idx + 1) as u32,
-                            ),
-                        )
-                        .with_help("GUML indentation is spaces only, 2 per level")
-                        .with_suggestion("  "),
-                    );
+                    has_tab = true;
                     indent += 2; // recover: keep parsing this line at a plausible level
                     byte_idx += 1;
                 }
@@ -162,12 +162,45 @@ pub fn lex(src: &str) -> Lexed {
 
         let text = &raw[byte_idx..];
         let trimmed_end = text.trim_end();
-        if trimmed_end.is_empty() || trimmed_end.starts_with("//") {
-            continue; // blank lines and comments never affect layout
+
+        // A blank line neither opens nor closes a block, so it must not clear the escape state.
+        // It is still dropped, as everywhere else — the one content this does not preserve, which
+        // matters only inside a multi-line string literal.
+        if trimmed_end.is_empty() {
+            continue;
+        }
+
+        let in_escape = escape_indent.is_some_and(|base| indent > base);
+        if !in_escape {
+            escape_indent = None;
+            if trimmed_end.starts_with("//") {
+                continue; // comments never affect layout
+            }
+            for t in tab_positions(&raw[..byte_idx], has_tab) {
+                out.diagnostics.push(
+                    Diagnostic::error(
+                        Code::TabIndent,
+                        "tabs are not allowed for indentation",
+                        Span::new(line_start + t, line_start + t + 1, line_no, (t + 1) as u32),
+                    )
+                    .with_help("GUML indentation is spaces only, 2 per level")
+                    .with_suggestion("  "),
+                );
+            }
         }
 
         let text_start = line_start + byte_idx;
-        let tokens = lex_line(trimmed_end, text_start, indent, line_no, &mut out.diagnostics);
+        // A body line carries no tokens at all: the parser takes its text verbatim, and giving it
+        // tokens would let a later pass mistake it for structure.
+        let tokens = if in_escape {
+            Vec::new()
+        } else {
+            lex_line(trimmed_end, text_start, indent, line_no, &mut out.diagnostics)
+        };
+        if !in_escape && matches!(tokens.first().and_then(|t| t.tok.as_word()), Some("js" | "raw"))
+        {
+            escape_indent = Some(indent);
+        }
 
         out.lines.push(Line {
             indent,
@@ -180,6 +213,13 @@ pub fn lex(src: &str) -> Lexed {
     }
 
     out
+}
+
+/// Byte offsets of the tabs in an indent prefix. `has_tab` short-circuits the common case so the
+/// prefix is not re-walked for the overwhelming majority of lines that are indented with spaces.
+fn tab_positions(prefix: &str, has_tab: bool) -> impl Iterator<Item = usize> + '_ {
+    let prefix = if has_tab { prefix } else { "" };
+    prefix.bytes().enumerate().filter(|(_, b)| *b == b'\t').map(|(i, _)| i)
 }
 
 fn lex_line(

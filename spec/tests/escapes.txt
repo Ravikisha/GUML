@@ -1,0 +1,112 @@
+Escape hatches: `js` and `raw`.
+
+Every construct needs a way out, or the expressiveness cliff becomes an adoption wall. The contract is
+narrow and worth stating exactly: the body is emitted verbatim, is never lexed or checked, keeps its own
+indentation, and is reported as `GUML0090` so the escape-hatch rate stays a measurable number rather
+than an impression.
+
+:::: a block body is not lexed as GUML
+Each of these is an error, a dropped line or a rewrite if the body is treated as GUML: `}` is
+`GUML0004`, `//` is a comment (silently deleted), a tab is `GUML0001`.
+--- guml
+page P
+js
+  // keep me
+  if (a) { b(); }
+--- ast
+page=P
+js line="// keep me" line="if (a) { b(); }"
+--- diagnostics
+GUML0090 2
+::::
+
+:::: indentation inside a block is preserved relative to its first line
+Unlike `tier`/`faq` content, which the parser flattens. A block body is another language, and
+flattening it would change the value of a template literal.
+--- guml
+page P
+js
+    const f = () => {
+      return 1;
+    }
+--- ast
+page=P
+js line="const f = () => {" line="  return 1;" line="}"
+--- diagnostics
+GUML0090 2
+::::
+
+:::: a block ends at the first line that dedents
+A blank line inside a body must not end it, but a real dedent must — otherwise the rest of the document
+would be swallowed into unchecked code.
+--- guml
+page P
+js
+  const a = 1;
+
+  const b = 2;
+card Hi
+--- ast
+page=P
+js line="const a = 1;" line="const b = 2;"
+card text="Hi"
+--- diagnostics
+GUML0090 2
+::::
+
+:::: raw names its target backend
+--- guml
+page P
+raw html
+  <hr />
+raw react
+  <Chart />
+--- ast
+page=P
+raw text="html" line="<hr />"
+raw text="react" line="<Chart />"
+--- html
+<hr />
+--- diagnostics
+GUML0090 2 GUML0090 4
+::::
+
+:::: a block for another backend is skipped, not an error
+A document can carry blocks for several targets. Emitting a Svelte block into an HTML file would be a
+syntax error in the output; failing the build would make multi-target documents impossible.
+--- guml
+page P
+raw svelte
+  {#if x}<p>y</p>{/if}
+p Body.
+--- html
+>Body.</p>
+--- diagnostics
+GUML0090 2
+::::
+
+:::: a reference from inside a block counts as a use
+A body is another language, so a use need not look like a binding. Reporting `month` as dead here would
+be wrong on its own terms, and dangerous once anything elides dead declarations.
+--- guml
+page P
+state month=all|q1
+js
+  const isQ1 = month === "q1";
+--- diagnostics
+GUML0090 3
+::::
+
+:::: js is not in the component vocabulary
+`js` and `raw` are matched before the registry lookup, because they are the way *out* of the
+vocabulary rather than part of it. So they take no modifiers and no attributes.
+--- guml
+page P
+js
+  const x = 1;
+--- ast
+page=P
+js line="const x = 1;"
+--- diagnostics
+GUML0090 2
+::::

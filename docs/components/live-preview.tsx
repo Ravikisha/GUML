@@ -22,8 +22,14 @@ export const MOCK_DATA = {
  * byte-identical to what `guml build` writes — a preview that could drift from the
  * emitted code would be the most misleading thing this site could show.
  *
- * The surface is white on purpose: the compiler's default design system targets a
- * light app, and showing it on the site's dark ink would misrepresent the output.
+ * The surface follows the reader's theme, because the compiled output genuinely does. The shipped
+ * theme emits `dark:` variants, and `app/globals.css` redefines Tailwind's `dark:` to follow this
+ * site's toggle — so a preview in dark mode is not a recolouring of a light app, it is what the
+ * document actually renders as.
+ *
+ * It was a fixed white box before, and that was the honest choice at the time: the theme was
+ * light-only, so showing it on dark ink would have misrepresented the output. Making the preview
+ * theme-aware meant making the *theme* dark-capable first.
  */
 export function LivePreview({
   source,
@@ -54,20 +60,22 @@ export function LivePreview({
         ) : null}
       </div>
 
-      <div className="bg-white p-5">
+      {/* The same page chrome the static HTML backend emits, so the preview is the document's own
+          surface rather than a panel the site chose. */}
+      <div className="bg-slate-50 p-5 dark:bg-slate-950">
         <Guml
           source={source}
           data={data}
           onDiagnostics={setDiagnostics}
           fallback={
-            <div className="flex items-center gap-2 py-8 text-sm text-slate-400">
+            <div className="flex items-center gap-2 py-8 text-sm text-slate-500 dark:text-slate-400">
               <Loader2 className="size-3.5 animate-spin" />
               loading the compiler…
             </div>
           }
         />
         {errors.length > 0 && (
-          <ul className="space-y-1 font-mono text-xs text-red-600">
+          <ul className="space-y-1 font-mono text-xs text-red-600 dark:text-red-400">
             {errors.map((d, i) => (
               <li key={i}>
                 {d.id} line {d.span.line}: {d.message}

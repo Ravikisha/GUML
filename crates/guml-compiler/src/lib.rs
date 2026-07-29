@@ -9,7 +9,10 @@ use guml_codegen::{Backend, Emitted, OutFile};
 use guml_diagnostics::Diagnostics;
 use guml_registry::Registry;
 
-pub mod sema;
+pub mod expand;
+pub mod fix;
+mod sema;
+pub mod types;
 pub mod validate;
 
 pub use guml_codegen::backend_names;
@@ -17,11 +20,14 @@ pub use guml_codegen::backend_names;
 #[derive(Debug, Clone)]
 pub struct Options {
     pub backend: String,
+    /// The vocabulary to compile against. `Registry::core()` is the safety mode; a host that loaded
+    /// its own registry passes it here.
+    pub registry: Registry,
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Self { backend: "react".to_string() }
+        Self { backend: "react".to_string(), registry: Registry::builtin() }
     }
 }
 
@@ -69,18 +75,36 @@ pub fn approx_tokens(s: &str) -> usize {
 /// Parse and analyse — used by `guml check`, the LSP, and the repair loop's fast
 /// path. Both phases run unconditionally so a single call reports every problem.
 pub fn check(src: &str) -> (Program, Diagnostics) {
-    let reg = Registry::builtin();
-    let parsed = guml_parser::parse(src, &reg);
+    check_with(src, &Registry::builtin())
+}
+
+/// `check`, against a specific vocabulary.
+///
+/// The registry carries the conformance level, so a core-only host passes `Registry::core()` here and
+/// every app-level construct in the document is reported — rather than the level being a second flag
+/// that some call site forgets to thread through.
+pub fn check_with(src: &str, reg: &Registry) -> (Program, Diagnostics) {
+    let parsed = guml_parser::parse(src, reg);
+    let mut program = parsed.program;
     let mut diagnostics = parsed.diagnostics;
-    sema::analyse(&parsed.program, &reg, &mut diagnostics);
+
+    // User-defined components are expanded first, so every pass after this one — resolution, the
+    // accessibility lint, validation, type inference, codegen — sees ordinary elements and needs no
+    // knowledge of `def` at all.
+    expand::expand(&mut program, &mut diagnostics);
+
+    sema::analyse(&program, reg, &mut diagnostics);
     // Validation runs unconditionally in the same pass: the repair loop should see every
     // problem at once, and a second command it might forget to call is not a validator.
-    validate::validate(&parsed.program, &mut diagnostics);
-    (parsed.program, diagnostics)
+    validate::validate(&program, &mut diagnostics);
+    // Inference runs last: it reads the same parsed expressions the validator does, and reporting
+    // a type error on syntax that was already rejected would be noise.
+    types::check(&program, &mut diagnostics);
+    (program, diagnostics)
 }
 
 pub fn compile(src: &str, opts: &Options) -> CompileResult {
-    let (program, mut diagnostics) = check(src);
+    let (program, mut diagnostics) = check_with(src, &opts.registry);
 
     let mut files = Vec::new();
     if let Some(b) = guml_codegen::backend(&opts.backend) {

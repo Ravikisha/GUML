@@ -201,8 +201,11 @@ fn a_filter_over_a_non_boolean_domain_uses_the_matching_row_field() {
         "the row field of the same name is the discriminant
 {src}"
     );
-    assert!(!src.contains("it.done"), "no field borrowed from another fixture's type
-{src}");
+    assert!(
+        !src.contains("it.done"),
+        "no field borrowed from another fixture's type
+{src}"
+    );
 }
 
 #[test]
@@ -214,8 +217,11 @@ fn a_filter_with_nothing_to_filter_on_warns_instead_of_guessing() {
         "expected a warning, got {:?}",
         diags.items
     );
-    assert!(src.contains("const visibleProjects = projects;"), "renders everything
-{src}");
+    assert!(
+        src.contains("const visibleProjects = projects;"),
+        "renders everything
+{src}"
+    );
 }
 
 #[test]
@@ -226,19 +232,24 @@ fn a_field_aggregate_over_a_resource_filters_the_rows() {
         "`projects.live.count` counts the rows whose field is true
 {src}"
     );
-    assert!(!src.contains("projects.live.length"), "not a property of the array
-{src}");
+    assert!(
+        !src.contains("projects.live.length"),
+        "not a property of the array
+{src}"
+    );
 }
 
 #[test]
 fn the_input_kind_becomes_the_dom_type() {
     // `kind=email` was emitted as a `kind` DOM prop beside `type="text"`. React has no such
     // property, so the output did not typecheck.
-    let (src, _) = emit("page P
+    let (src, _) = emit(
+        "page P
 state email=\"\"
 
 input email kind=email aria=\"Email\"
-");
+",
+    );
     assert!(src.contains("type=\"email\""), "{src}");
     assert!(!src.contains("kind="), "{src}");
 }
@@ -290,20 +301,24 @@ fn the_task_fixture_leaves_no_todo_markers() {
 fn several_root_elements_are_wrapped_in_a_fragment() {
     // JSX allows one root. Without this the emitted file does not parse at all,
     // which is what `tsc` reported on both multi-section fixtures.
-    let (src, _) = emit("page P
+    let (src, _) = emit(
+        "page P
 state n=0
 
 h One
 p Two
-");
+",
+    );
     assert!(src.contains("    <>"));
     assert!(src.contains("    </>"));
 
     // A single root needs no fragment.
-    let (single, _) = emit("page P
+    let (single, _) = emit(
+        "page P
 card sm
   h One
-");
+",
+    );
     assert!(!single.contains("<>"));
 }
 
@@ -311,10 +326,50 @@ card sm
 fn layout_attributes_become_classes_not_dom_props() {
     // `cols={3}` is not a valid prop on <section>; it is presentation, so it
     // belongs in the class list.
-    let (src, _) = emit("page P
+    let (src, _) = emit(
+        "page P
 section #features Features cols=3
   card \"A\" | body
-");
+",
+    );
     assert!(src.contains("md:grid-cols-3"));
     assert!(!src.contains("cols={3}"));
+}
+
+#[test]
+fn emitted_code_carries_line_provenance() {
+    // Without a map, a stack trace points at generated code the author never wrote — which the
+    // report names as an adoption blocker rather than a nicety. The assertion is about
+    // *correctness* of the mapping, not its presence: a map that points at the wrong line is
+    // worse than none, because a debugger will confidently open the wrong place.
+    let reg = Registry::builtin();
+    let parsed = guml_parser::parse(TASKS, &reg);
+    let out = ReactBackend.emit(&parsed.program);
+    let file = &out.files[0];
+    let map = file.source_map.as_ref().expect("the React backend records provenance");
+
+    let emitted: Vec<&str> = file.contents.lines().collect();
+    let source: Vec<&str> = TASKS.lines().collect();
+
+    // Find the line that declares the resource's state and ask where it came from.
+    let hook_line = emitted
+        .iter()
+        .position(|l| l.contains("const [tasks, setTasks]"))
+        .expect("resource state is emitted") as u32;
+    let origin = map.source_line_of(hook_line).expect("mapped") as usize;
+    assert!(
+        source[origin - 1].starts_with("data tasks"),
+        "the resource hooks map to the `data` line, got {:?}",
+        source[origin - 1]
+    );
+
+    // And a JSX line maps to the element that produced it.
+    let form_line =
+        emitted.iter().position(|l| l.contains("<form")).expect("form is emitted") as u32;
+    let origin = map.source_line_of(form_line).expect("mapped") as usize;
+    assert!(
+        source[origin - 1].starts_with("form >"),
+        "the form maps to its own line, got {:?}",
+        source[origin - 1]
+    );
 }

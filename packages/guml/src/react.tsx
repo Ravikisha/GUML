@@ -20,8 +20,8 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { tree as compileTree, type Diagnostic, type UiNode, type UiTree } from "./index";
-import { evaluate, interpolate, runAction, truthy, type Scope } from "./eval";
+import { tree as compileTree, type Diagnostic, type UiNode, type UiTree } from "./index.js";
+import { evaluate, interpolate, runAction, truthy, type Scope } from "./eval.js";
 
 export type GumlProps = {
   /** GUML source. Recompiled when it changes. */

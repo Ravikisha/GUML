@@ -1,0 +1,26 @@
+{
+  "comments": { "lineComment": "//" },
+  "brackets": [
+    ["{", "}"],
+    ["[", "]"]
+  ],
+  "autoClosingPairs": [
+    { "open": "{", "close": "}" },
+    { "open": "\"", "close": "\"", "notIn": ["string"] }
+  ],
+  "surroundingPairs": [
+    ["{", "}"],
+    ["\"", "\""]
+  ],
+  "indentationRules": {
+    "increaseIndentPattern": "^\\s*(card|row|col|section|nav|hero|footer|form|tabs|tier|faq|list|table|data)\\b.*$",
+    "decreaseIndentPattern": "^\\s*$"
+  },
+  "onEnterRules": [
+    {
+      "beforeText": ">.*$",
+      "action": { "indent": "none" }
+    }
+  ],
+  "wordPattern": "[A-Za-z_][A-Za-z0-9_.]*"
+}

@@ -1,0 +1,24 @@
+page TodoList
+
+type Todo {id, title, done:bool}
+data todos:Todo[] GET /api/todos
+  add  POST   /api/todos      {title} optimistic:prepend
+  save PATCH  /api/todos/{id} {done}  optimistic
+  drop DELETE /api/todos/{id}         optimistic
+
+state filter=all|open|done
+state draft=""
+
+head Todo List — {todos.open.count} open
+
+form >todos.add{title:draft}; draft=""
+  input draft placeholder="Add a todo…"
+  btn Add primary disabled={!draft.trim()} busy="Adding…"
+
+tabs filter
+
+list todos where={filter}
+  check {done} >todos.save
+  text {title} strike={done}
+  btn Delete quiet aria="Delete {title}" >todos.drop
+  empty Nothing here yet.

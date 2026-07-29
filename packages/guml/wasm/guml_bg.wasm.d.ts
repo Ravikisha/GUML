@@ -3,6 +3,7 @@
 export const memory: WebAssembly.Memory;
 export const check: (a: number, b: number) => [number, number, number];
 export const compile: (a: number, b: number, c: number, d: number) => [number, number, number];
+export const fix: (a: number, b: number, c: number) => [number, number, number];
 export const format: (a: number, b: number, c: number) => [number, number, number];
 export const highlight: (a: number, b: number) => [number, number, number];
 export const registry: (a: number, b: number) => [number, number, number];

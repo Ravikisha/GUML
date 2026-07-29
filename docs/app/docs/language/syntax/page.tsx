@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { CodeBlock } from "@/components/code-block";
+import { CodePreview } from "@/components/code-preview";
+import { SAMPLES } from "@/lib/samples";
 import { DocPage } from "@/components/doc-page";
 import { A, C, H2, H3, LI, Note, P, Table, UL } from "@/components/prose";
 import { FIXTURES } from "@/lib/fixtures.generated";
@@ -103,14 +105,7 @@ btn Save disabled={!draft.trim()} // disabled while the field is empty`}
         which is why prose costs almost nothing in GUML and why the compression floor on a
         content-heavy page is the copy itself.
       </P>
-      <CodeBlock
-        lang="guml"
-        code={`p Press the buttons to change the value.
-h1 Build the interface, skip the boilerplate
-head Tasks — {tasks.open.count} open
-
-card "Ship in minutes" | Describe the page, get a deployable build.`}
-      />
+      <CodePreview {...SAMPLES["syntax.prose"]} />
       <UL>
         <LI>
           Text tags: <C>h</C> <C>h1</C> <C>h2</C> <C>p</C> <C>text</C> <C>metric</C> <C>head</C>{" "}

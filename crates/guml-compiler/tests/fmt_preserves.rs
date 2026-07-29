@@ -31,7 +31,10 @@ const CASES: &[(&str, &str)] = &[
     ),
     ("faq pairs", "page X\nfaq open=1\n  Can I export? | Yes, plain source.\n"),
     ("prose spacing", "page X\np Two  spaces   and a  tab-free  line\n"),
-    ("comments everywhere", "// top\npage X\n// about state\nstate count=0\n\ncard A\n  // inner\n  p One\n"),
+    (
+        "comments everywhere",
+        "// top\npage X\n// about state\nstate count=0\n\ncard A\n  // inner\n  p One\n",
+    ),
     (
         "directives out of order",
         "page X\ncard A\n  p One\nstate draft=\"\"\ntype Task {id, done:bool}\ndata tasks:Task[] GET /api/tasks\n  add POST /api/tasks {title} optimistic:prepend\n",
@@ -73,7 +76,10 @@ fn formatting_preserves_the_ast() {
                 // Canonical mode reorders declarations on purpose, so compare the tree and
                 // the declaration *set* rather than declaration order.
                 let (a, b) = (ast_json(src), ast_json(&out));
-                assert_eq!(a["tree"], b["tree"], "canonical changed the element tree for {name}\n{out}");
+                assert_eq!(
+                    a["tree"], b["tree"],
+                    "canonical changed the element tree for {name}\n{out}"
+                );
                 for key in ["states", "resources", "types", "page"] {
                     assert_eq!(
                         sorted(&a[key]),
@@ -82,7 +88,11 @@ fn formatting_preserves_the_ast() {
                     );
                 }
             } else {
-                assert_eq!(ast_json(src), ast_json(&out), "format changed the AST for {name}\n{out}");
+                assert_eq!(
+                    ast_json(src),
+                    ast_json(&out),
+                    "format changed the AST for {name}\n{out}"
+                );
             }
         }
     }

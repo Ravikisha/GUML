@@ -1,4 +1,10 @@
-import { check, GLOBAL_DAILY_LIMIT, limitHeaders, PER_IDENTITY_LIMIT } from "@/lib/rate-limit";
+import {
+  checkShared,
+  GLOBAL_DAILY_LIMIT,
+  isDurable,
+  limitHeaders,
+  PER_IDENTITY_LIMIT,
+} from "@/lib/rate-limit";
 
 /**
  * How many generations this visitor has left.
@@ -14,7 +20,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  const d = check(request);
+  const d = await checkShared(request);
   return Response.json(
     {
       remaining: d.remaining,
@@ -23,6 +29,8 @@ export async function GET(request: Request) {
       resetAt: d.resetAt,
       blocked: !d.allowed,
       reason: d.reason ?? null,
+      /** Whether the count survives a restart. Useful when debugging a demo that forgets. */
+      durable: isDurable,
     },
     {
       headers: {

@@ -1,7 +1,7 @@
 {
   "name": "guml",
   "version": "0.1.0",
-  "description": "Compile GUML — a token-efficient UI representation — in the browser, and render it in React.",
+  "description": "Compile GUML \u2014 a token-efficient UI representation \u2014 in the browser, and render it in React.",
   "license": "Apache-2.0",
   "keywords": [
     "guml",
@@ -14,19 +14,30 @@
   "type": "module",
   "sideEffects": false,
   "files": [
+    "dist",
     "src",
     "wasm",
     "README.md"
   ],
   "exports": {
-    ".": "./src/index.ts",
-    "./react": "./src/react.tsx",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js"
+    },
     "./wasm": "./wasm/guml.js"
   },
   "scripts": {
+    "build": "pnpm build:wasm && pnpm build:ts",
+    "build:ts": "pnpm clean && tsc -p tsconfig.build.json",
     "build:wasm": "cd ../../crates/guml-wasm && wasm-pack build --target web --out-dir ../../packages/guml/wasm --out-name guml",
+    "prepublishOnly": "pnpm build:ts && pnpm test",
     "typecheck": "tsc --noEmit",
-    "test": "node --test src/*.test.ts"
+    "test": "node --test src/*.test.ts",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
   },
   "peerDependencies": {
     "react": ">=18"
@@ -40,5 +51,7 @@
     "@types/node": "^20.19.43",
     "@types/react": "^19",
     "typescript": "^5"
-  }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts"
 }

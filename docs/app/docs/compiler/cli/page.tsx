@@ -5,19 +5,26 @@ import { A, C, H2, LI, Note, P, Table, UL } from "@/components/prose";
 
 export const metadata: Metadata = {
   title: "CLI reference",
-  description: "Every guml subcommand: check, build, ast, lex, tokens, registry.",
+  description:
+    "Every guml subcommand: check, build, validate, fix, fmt, explain, where, highlight, ast, lex, tokens, registry.",
 };
 
 export default function Page() {
   return (
     <DocPage
       pathname="/docs/compiler/cli"
-      meter={{ label: "subcommands", value: "6" }}
+      meter={{ label: "subcommands", value: "12" }}
       title="CLI reference"
-      lede="Six subcommands. Examples use the long cargo form so they work in a fresh clone; install the binary and drop the prefix if you prefer."
+      lede="Twelve subcommands. Examples use the bare binary; prefix with `cargo run -q -p guml-cli --` to run them in a fresh clone."
       toc={[
         { id: "check", title: "check" },
         { id: "build", title: "build" },
+        { id: "validate", title: "validate" },
+        { id: "fix", title: "fix" },
+        { id: "fmt", title: "fmt" },
+        { id: "explain", title: "explain" },
+        { id: "where", title: "where" },
+        { id: "highlight", title: "highlight" },
         { id: "ast", title: "ast" },
         { id: "lex", title: "lex" },
         { id: "tokens", title: "tokens" },
@@ -64,7 +71,7 @@ guml build fixtures/a.guml
 guml build fixtures/a.guml -o out
 # wrote out/Counter.tsx
 #
-# source ~63 tokens -> emitted ~382 tokens (6.1x expansion, estimates only)`}
+# source ~68 tokens -> emitted ~485 tokens (7.1x expansion, estimates only)`}
       />
       <Table
         head={["flag", "default", "notes"]}
@@ -80,6 +87,99 @@ guml build fixtures/a.guml -o out
           <A href="/docs/research/measurements">measurements</A>.
         </p>
       </Note>
+
+      <H2 id="validate">validate</H2>
+      <P>
+        The same analysis as <C>check</C>, built for batches: a directory is searched for{" "}
+        <C>*.guml</C>. <C>--strict</C> turns warnings into failures, which is the CI setting and the
+        setting for scoring generated output.
+      </P>
+      <CodeBlock
+        lang="bash"
+        filename="terminal"
+        code={`guml validate <paths>... [--strict] [--format human|json]
+
+guml validate fixtures
+# 8 of 8 valid`}
+      />
+      <P>
+        See <A href="/docs/compiler/validator">Validator</A> for what it checks.
+      </P>
+
+      <H2 id="fix">fix</H2>
+      <P>
+        Applies every unambiguous diagnostic suggestion with no model in the loop. A typo&rsquo;d tag
+        should never cost a generation.
+      </P>
+      <CodeBlock
+        lang="bash"
+        filename="terminal"
+        code={`guml fix <files>... [-w|--write]
+
+guml fix counter.guml --write
+# GUML0030 line 4: crad → card`}
+      />
+
+      <H2 id="fmt">fmt</H2>
+      <P>
+        Reads stdin when no file is given, which is what editors want. Runs on input that does not
+        compile, because fixing a tab character should not cost a model call.
+      </P>
+      <CodeBlock
+        lang="bash"
+        filename="terminal"
+        code={`guml fmt [FILES]... [-w|--write] [--check] [--canonical]
+
+guml fmt fixtures/*.guml --check     # CI: exit 1 if unformatted
+cat counter.guml | guml fmt          # stdin → stdout`}
+      />
+      <P>
+        See <A href="/docs/compiler/formatter">Formatter</A>, including what <C>--canonical</C> is for.
+      </P>
+
+      <H2 id="explain">explain</H2>
+      <P>
+        What a diagnostic code means and <em>why the rule exists</em>. Accepts the full id or just the
+        number.
+      </P>
+      <CodeBlock
+        lang="bash"
+        filename="terminal"
+        code={`guml explain GUML0074
+guml explain 0074
+guml explain 74`}
+      />
+
+      <H2 id="where">where</H2>
+      <P>
+        Which GUML line produced a line of emitted code, resolved through the source map — so a stack
+        trace can be answered without reading VLQ by eye.
+      </P>
+      <CodeBlock
+        lang="bash"
+        filename="terminal"
+        code={`guml where <file> <emitted-line> [--backend react]
+
+guml where fixtures/b.guml 155
+# fixtures/b.guml:21
+#   21 | check {done} >tasks.save`}
+      />
+      <P>
+        See <A href="/docs/compiler/source-maps">Source maps</A>.
+      </P>
+
+      <H2 id="highlight">highlight</H2>
+      <P>
+        Classifies every byte for syntax highlighting using the real lexer and registry, because
+        prose-versus-structure depends on the tag. This is what the docs site, the playground and the
+        language server all colour from.
+      </P>
+      <CodeBlock
+        lang="bash"
+        filename="terminal"
+        code={`guml highlight counter.guml
+# [{"start":0,"end":4,"line":1,"class":"directive","lsp":"keyword"}, …]`}
+      />
 
       <H2 id="ast">ast</H2>
       <P>

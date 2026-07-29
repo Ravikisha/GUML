@@ -4,6 +4,8 @@ import * as Tabs from "@radix-ui/react-tabs";
 import { highlight, type Lang, CLASS_STYLE } from "@/lib/highlight";
 import { cn, commas, reduction } from "@/lib/utils";
 import { CopyButton } from "./copy-button";
+import { Play } from "lucide-react";
+import { LivePreview } from "./live-preview";
 
 type Pane = {
   id: string;
@@ -25,14 +27,23 @@ export function CodeCompare({
   baseline,
   className,
   maxHeight = 460,
+  preview,
 }: {
   panes: Pane[];
   /** Which pane's token count everything else is measured against. */
   baseline?: string;
   className?: string;
   maxHeight?: number;
+  /**
+   * Id of a `guml` pane to add a `preview` tab for. The preview is compiled in the reader's own
+   * browser by the same wasm build the playground uses, so the tab strip goes from "here are three
+   * representations" to "and here is what the first one actually renders" — which is the claim that
+   * matters and the one a static screenshot cannot make.
+   */
+  preview?: string;
 }) {
   const base = panes.find((p) => p.id === baseline) ?? panes[0];
+  const previewPane = preview ? panes.find((p) => p.id === preview) : undefined;
 
   return (
     <Tabs.Root
@@ -64,6 +75,19 @@ export function CodeCompare({
             </Tabs.Trigger>
           );
         })}
+
+        {previewPane ? (
+          <Tabs.Trigger
+            value="__preview"
+            className={cn(
+              "group flex items-center gap-2 rounded-chip px-3 py-2 font-mono text-xs text-fog transition-colors",
+              "hover:text-chalk data-[state=active]:bg-chalk/8 data-[state=active]:text-chalk",
+            )}
+          >
+            <Play className="size-3" />
+            <span>preview</span>
+          </Tabs.Trigger>
+        ) : null}
       </Tabs.List>
 
       {panes.map((pane) => {
@@ -99,6 +123,23 @@ export function CodeCompare({
           </Tabs.Content>
         );
       })}
+
+      {previewPane ? (
+        <Tabs.Content value="__preview" className="relative outline-none">
+          <div className="flex items-center justify-between gap-4 border-b border-line px-4 py-2">
+            <span className="label">rendered from {previewPane.label}</span>
+            <span className="label">no server, no build step</span>
+          </div>
+          <div className="overflow-auto" style={{ maxHeight }}>
+            {/* `border-0` because the pane already sits inside the panel's own border. */}
+            <LivePreview
+              source={previewPane.code}
+              className="rounded-none border-0"
+              label="live · compiled in your browser"
+            />
+          </div>
+        </Tabs.Content>
+      ) : null}
     </Tabs.Root>
   );
 }

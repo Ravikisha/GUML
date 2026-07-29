@@ -16,12 +16,13 @@ export default function Page() {
   return (
     <DocPage
       pathname="/docs/compiler/backends"
-      meter={{ label: "shipping", value: "2 of 6", tone: "ember" }}
+      meter={{ label: "shipping", value: "3 of 7" }}
       title="Backends"
-      lede="A backend turns the AST into source text. React is the one that works; the others are planned, and the gaps in the working one are reported rather than guessed."
+      lede="A backend turns the AST into source text. Three exist — React, a JSON UI tree, and static HTML — and they share one design-system table, which is what makes “GUML is an IR” a claim about the language rather than about one emitter."
       toc={[
         { id: "coverage", title: "What v0.1 covers" },
         { id: "example", title: "Source and output" },
+        { id: "html", title: "Static HTML" },
         { id: "gaps", title: "What it refuses to guess" },
         { id: "design-system", title: "The design-system table" },
         { id: "planned", title: "Planned backends" },
@@ -34,16 +35,28 @@ export default function Page() {
         rows={[
           ["Containers", "lowered", "card row col section nav hero footer"],
           ["Text", "lowered", "h h1 h2 p text metric head empty; prose verbatim"],
-          ["Controls", "lowered", "btn link check input, with explicit type= on buttons"],
-          ["state", "lowered", "useState plus a derived setter name"],
-          ["Actions", "lowered", "x++ x-- x=expr and ;-sequencing"],
-          ["Bindings", "pass-through", "forwarded to JSX; no field checking yet"],
+          ["Controls", "lowered", "btn link check input toggle select, with explicit type= on buttons"],
+          ["state", "lowered", "useState, a derived setter name, and a union type from an enumerated domain"],
+          ["Actions", "lowered", "x++ x-- x=expr, ;-sequencing, and resource mutations"],
+          [
+            "Bindings",
+            "lowered",
+            "parsed to an expression tree and type-checked; syntax outside the grammar is GUML0023, never forwarded",
+          ],
           ["Modifiers", "lowered", "the design-system table"],
           ["Anchors, routes", "lowered", "id= and href="],
-          ["aria=", "lowered", "becomes aria-label"],
-          ["data resources", "reported", "warns; needs the desugar pass"],
-          ["list / table", "reported", "warns; needs the desugar pass"],
-          ["form / tabs / faq / tier", "reported", "warns; needs the desugar pass"],
+          ["aria=", "lowered", "becomes aria-label; a missing accessible name is an error, not a lint"],
+          [
+            "data resources",
+            "lowered",
+            "fetch on mount with AbortController cancellation, loading / empty / error slots, optimistic apply and rollback",
+          ],
+          ["list / table", "lowered", "keyed map, where= filtering via useMemo, aggregates like tasks.open.count"],
+          ["form / tabs / faq / tier", "lowered", "submit wiring with a pending flag, segmented control from a domain, faq as <details>"],
+          ["js / raw blocks", "lowered", "emitted verbatim; reported as GUML0090 so the escape-hatch rate is countable"],
+          ["Source maps", "lowered", "every declaration and element, nested ones included"],
+          ["Retry, backoff, response cache", "not yet", "the resource layer stops at cancellation"],
+          ["def user components", "not yet", "no user-defined tags"],
         ]}
       />
 
@@ -51,6 +64,7 @@ export default function Page() {
       <P>Same fixture, both sides — the second tab is what the compiler actually wrote.</P>
       <CodeCompare
         baseline="react"
+        preview="guml"
         panes={[
           {
             id: "guml",
@@ -77,17 +91,20 @@ export default function Page() {
 
       <H2 id="gaps">What it refuses to guess</H2>
       <P>
-        A construct the backend cannot lower correctly produces a warning and a TODO in the output —
-        never approximate code.
+        A construct a backend cannot lower correctly produces a warning and a visible marker in the
+        output — never approximate code. The message names the backend, because the same construct can
+        be a temporary gap in one and an architectural impossibility in another.
       </P>
       <CodeBlock
         lang="bash"
         filename="terminal"
-        code={`cargo run -q -p guml-cli -- build fixtures/b.guml
+        code={`guml build fixtures/a.guml --backend html
 
-warning[GUML0030]: v0.1 React backend does not yet lower resource \`tasks\`
-  --> fixtures/b.guml:4:1
-   = help: tracked in ROADMAP.md Phase 3; the emitted file marks the gap with a TODO`}
+warning[GUML0030]: \`html\` backend: \`btn Decrement\` has an action, and the \`html\`
+                   backend emits no JavaScript — rendered disabled
+  --> fixtures/a.guml:9:5
+   = help: the emitted markup marks the gap with \`data-guml-inert\`; a construct that
+           needs a runtime cannot work in a no-JavaScript backend`}
       />
       <Note tone="info" title="Why warn instead of approximating">
         <p>
@@ -121,6 +138,64 @@ warning[GUML0030]: v0.1 React backend does not yet lower resource \`tasks\`
         <A href="/docs/language/modifiers">modifiers</A>.
       </P>
 
+      <H2 id="html">The static HTML backend</H2>
+      <P>
+        <C>--backend html</C> emits one <C>.html</C> file with no JavaScript. For a content-heavy page
+        that is not a degraded output, it is the right one: a landing page needs no runtime, and the
+        landing fixture lowers completely — including <C>faq</C>, because{" "}
+        <C>&lt;details&gt;</C>/<C>&lt;summary&gt;</C> is interactive without script.
+      </P>
+      <P>
+        What makes it evidence for the IR claim is that it shares <C>classes()</C> with the React
+        backend. The same GUML produces the same class strings from both, so presentation belongs to
+        the compiler; a second table would have made the agreement a coincidence, and a test holds
+        them to it.
+      </P>
+      <P>
+        Everything that needs a runtime is <em>reported and marked</em>, never dropped quietly:
+      </P>
+      <Table
+        head={["construct", "what the html backend does"]}
+        rows={[
+          [
+            <C key="a">state</C>,
+            "renders the initial value; warns once that nothing will update it",
+          ],
+          [
+            <C key="b">data</C>,
+            <>
+              nothing is fetched, so repeaters render their own <C key="c">empty</C> message — the
+              state a first-time visitor actually sees
+            </>,
+          ],
+          [
+            "an action",
+            <>
+              the control renders <C key="d">disabled</C> with{" "}
+              <C key="e">data-guml-inert</C>, and the dropped action is named in a warning
+            </>,
+          ],
+          [<C key="f">tabs</C>, "not emitted: it switches state, and there is no state"],
+          [
+            <>a binding like <C key="g">{"{count}"}</C></>,
+            "the declared initial value where one is knowable, an em dash and a warning where it is not",
+          ],
+          [<C key="h">js</C>, "dropped, with a warning — this backend emits no JavaScript"],
+        ]}
+      />
+      <Note tone="warn" title="“Not yet” and “not ever” are different messages">
+        <p>
+          In the React backend an unlowered construct is a gap to be filled. Here it is architectural:
+          there will never be an <C>onClick</C> in a file with no script. The diagnostic names which
+          backend is speaking, so it does not tell a reader to wait for something that is not coming.
+        </p>
+      </Note>
+      <P>
+        Prose is also escaped here for the first time in the pipeline. GUML prose is never quoted —
+        that is why it costs almost nothing in tokens — so this backend is the first thing that has to
+        turn <C>&amp;</C> and <C>&lt;</C> into entities.
+      </P>
+
       <H2 id="planned">Planned backends</H2>
       <Table
         head={["target", "why it exists", "phase"]}
@@ -131,7 +206,11 @@ warning[GUML0030]: v0.1 React backend does not yet lower resource \`tasks\`
             "what the browser runtime and the playground render; base for the A2UI emitter",
             "shipping",
           ],
-          ["Static HTML/CSS/JS", "best Lighthouse numbers for the benchmark", "1.5"],
+          [
+            "Static HTML",
+            "no JavaScript at all: the right output for a content page, and the proof that presentation belongs to the compiler rather than to a backend",
+            "shipping",
+          ],
           ["Svelte", "the compile-away-the-framework and bundle-size story", "7"],
           ["Web Components", "portability and embedding", "7"],
           ["A2UI", "emit into Google's agent-UI format", "7"],

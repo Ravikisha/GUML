@@ -1,0 +1,179 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "GUML",
+  "scopeName": "source.guml",
+  "patterns": [
+    {
+      "include": "#comment"
+    },
+    {
+      "include": "#directive"
+    },
+    {
+      "include": "#textTag"
+    },
+    {
+      "include": "#element"
+    }
+  ],
+  "repository": {
+    "comment": {
+      "match": "^\\s*//.*$",
+      "name": "comment.line.double-slash.guml"
+    },
+    "directive": {
+      "begin": "^\\s*(state|store|route|page|type|data|auth|def|raw|js)\\b",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.control.directive.guml"
+        }
+      },
+      "end": "$",
+      "patterns": [
+        {
+          "include": "#string"
+        },
+        {
+          "include": "#binding"
+        },
+        {
+          "include": "#method"
+        },
+        {
+          "include": "#route"
+        },
+        {
+          "include": "#number"
+        },
+        {
+          "match": "\\b[A-Z][A-Za-z0-9]*\\b",
+          "name": "entity.name.type.guml"
+        },
+        {
+          "match": "[=|:,\\[\\]{}]",
+          "name": "punctuation.separator.guml"
+        }
+      ]
+    },
+    "textTag": {
+      "begin": "^\\s*(metric|empty|head|text|h1|h2|h|p)\\b",
+      "beginCaptures": {
+        "1": {
+          "name": "entity.name.tag.text.guml"
+        }
+      },
+      "end": "$",
+      "patterns": [
+        {
+          "include": "#binding"
+        },
+        {
+          "match": ".",
+          "name": "string.unquoted.prose.guml"
+        }
+      ]
+    },
+    "element": {
+      "begin": "^\\s*(section|footer|select|toggle|check|input|table|card|form|hero|link|list|tabs|tier|btn|col|faq|nav|row)\\b",
+      "beginCaptures": {
+        "1": {
+          "name": "entity.name.tag.guml"
+        }
+      },
+      "end": "$",
+      "patterns": [
+        {
+          "include": "#action"
+        },
+        {
+          "include": "#content"
+        },
+        {
+          "include": "#string"
+        },
+        {
+          "include": "#binding"
+        },
+        {
+          "include": "#attribute"
+        },
+        {
+          "include": "#anchor"
+        },
+        {
+          "include": "#route"
+        },
+        {
+          "include": "#modifier"
+        },
+        {
+          "include": "#number"
+        }
+      ]
+    },
+    "action": {
+      "begin": ">",
+      "end": "$",
+      "name": "meta.function-call.action.guml"
+    },
+    "content": {
+      "begin": "\\|",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.separator.content.guml"
+        }
+      },
+      "end": "$",
+      "patterns": [
+        {
+          "include": "#binding"
+        },
+        {
+          "match": ".",
+          "name": "string.unquoted.prose.guml"
+        }
+      ]
+    },
+    "binding": {
+      "begin": "\\{",
+      "end": "\\}",
+      "name": "variable.other.binding.guml"
+    },
+    "string": {
+      "begin": "\"",
+      "end": "\"",
+      "name": "string.quoted.double.guml"
+    },
+    "attribute": {
+      "match": "\\b([a-zA-Z][\\w-]*)(=)",
+      "captures": {
+        "1": {
+          "name": "entity.other.attribute-name.guml"
+        },
+        "2": {
+          "name": "punctuation.separator.guml"
+        }
+      }
+    },
+    "modifier": {
+      "match": "\\b(secondary|featured|disabled|readonly|required|primary|outline|between|loading|danger|center|ghost|quiet|start|tight|loose|wrap|full|end|xs|sm|md|lg|xl)\\b",
+      "name": "support.type.modifier.guml"
+    },
+    "anchor": {
+      "match": "#[\\w-]+",
+      "name": "entity.name.label.guml"
+    },
+    "route": {
+      "match": "(?<=\\s)/[^\\s]*",
+      "name": "markup.underline.link.guml"
+    },
+    "method": {
+      "match": "\\b(GET|POST|PUT|PATCH|DELETE|HEAD)\\b",
+      "name": "keyword.other.method.guml"
+    },
+    "number": {
+      "match": "\\b\\d[\\d.]*\\b",
+      "name": "constant.numeric.guml"
+    }
+  }
+}

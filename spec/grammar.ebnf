@@ -4,18 +4,31 @@
  * emitted as tokens (see crates/guml-syntax). Blank lines and `//` comments are removed
  * before this grammar applies.
  *
- * This file must stay in sync with crates/guml-parser. It is also the artifact fed to
- * grammar-prompting and to grammar-constrained decoding, so it is the normative surface,
- * not documentation.
+ * This file is the artifact fed to grammar-prompting and to grammar-constrained decoding.
+ *
+ * It is NOT the normative definition of the language. `spec/tests/*.txt` is: those cases are
+ * executed against the compiler, and against any other implementation, whereas an EBNF that
+ * nothing executes drifts silently. This file drifted exactly that way once — `page_decl` said
+ * "page" IDENT NEWLINE for several releases after `page` gained metadata attributes.
+ *
+ * What keeps it honest now is `crates/guml-compiler/tests/grammar.rs`, which fails when a
+ * directive or a registry tag exists that this file does not mention. That catches the common
+ * drift — a construct added to the parser and not here — without pretending the file is a
+ * machine-checked grammar.
  *)
 
 program      ::= ( directive | element )* ;
 
 (* ---------------- directives ---------------- *)
 
-directive    ::= page_decl | type_decl | state_decl | data_decl ;
+directive    ::= page_decl | type_decl | state_decl | data_decl | def_decl ;
+                 (* `state`, `store` and `data` are app-level: at the core conformance level they
+                    are GUML0091. See spec/tests/levels.txt *)
 
-page_decl    ::= "page" IDENT NEWLINE ;
+page_decl    ::= "page" IDENT page_meta* NEWLINE ;
+
+page_meta    ::= ( "title" | "description" | "lang" | "dir" ) "=" value ;
+                 (* document metadata: `dir` is "ltr" or "rtl" and nothing else *)
 
 type_decl    ::= "type" IDENT brace_group NEWLINE ;
                  (* brace body: field ("," field)* ; field ::= IDENT [ ":" IDENT ] *)
@@ -32,11 +45,26 @@ mutation     ::= IDENT METHOD ROUTE [ brace_group ]
 METHOD       ::= "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" ;
 TYPEREF      ::= IDENT [ "[]" ] ;
 
+def_decl     ::= "def" IDENT IDENT* NEWLINE INDENT element+ DEDENT ;
+                 (* A user-defined component: a compile-time macro. Parameters are positional and are
+                    referenced in the body as `{param}`. A def's conformance level is its body's, so
+                    there is nothing to declare here. Expanded before codegen, so no backend sees one.
+                    See spec/tests/directives.txt *)
+
 (* ---------------- elements ---------------- *)
 
-element      ::= TAG positional* attribute* [ action ] [ content ] NEWLINE
+element      ::= escape_block
+               | TAG positional* attribute* [ action ] [ content ] NEWLINE
                  [ INDENT ( element+ | text_line+ ) DEDENT ] ;
                  (* text_line children only for tags in TEXT_CHILD_TAGS: tier, faq *)
+
+escape_block ::= ( "js" | "raw" [ IDENT ] ) NEWLINE INDENT raw_line+ DEDENT ;
+                 (* Matched before the registry: `js`/`raw` are the way *out* of the vocabulary,
+                    not part of it. The body is not GUML — not lexed, not checked, indentation
+                    preserved relative to its first line. Reported as GUML0090.
+                    `js` is app-level; `raw` is markup and is allowed at the core level. *)
+
+raw_line     ::= ANY_TEXT ;
 
 positional   ::= WORD | STRING | NUMBER | MODIFIER | binding | ROUTE | ANCHOR ;
 
@@ -47,8 +75,11 @@ action       ::= ">" REST_OF_LINE ;
 
 content      ::= "|" REST_OF_LINE
                | REST_OF_LINE ;
-                 (* the unprefixed form applies only when TAG has TagKind::Text
-                    and the line contains no "=" *)
+                 (* The unprefixed form applies when TAG has TagKind::Text and the line carries no
+                    attribute the registry accepts for that tag. "contains no =" was the earlier
+                    rule and was wrong: `p Set x=1 to enable` is prose containing an equals sign,
+                    and reading it as an attribute deleted the rest of the sentence.
+                    See spec/tests/syntax.txt *)
 
 text_line    ::= REST_OF_LINE ;
                  (* optionally "question | answer" for faq *)

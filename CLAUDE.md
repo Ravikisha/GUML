@@ -35,6 +35,10 @@ cargo run -q -p guml-cli -- check fixtures/b.guml --format json
 5. **Spec budget ≤3,000 tokens** including registry slice and examples. Past that, the amortisation
    math weakens and in-context learnability degrades.
 6. **Compile latency**: `check` < 2 ms, `build` < 10 ms on 200 lines. Hot path.
+   Measured (`cargo bench -p guml-compiler`): **check 1.19 ms, build 2.27 ms** on 200 lines.
+   The bench earns its place: it caught a per-element `Vec` allocation in the React backend that
+   had pushed check to 2.47 ms — over budget — and nobody had noticed, because every test still
+   passed. Run it after touching the analysis or codegen path.
 7. `guml-codegen` must not depend on `guml-parser` (cycle through the driver).
 
 ## Claim discipline

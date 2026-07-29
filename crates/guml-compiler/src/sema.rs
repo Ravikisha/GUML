@@ -95,10 +95,7 @@ pub fn row_text_binding(repeater: &Element) -> Option<String> {
         if let Some(b) = child.binding() {
             return Some(b.to_string());
         }
-        child
-            .content
-            .as_deref()
-            .and_then(|c| interpolations(c).into_iter().next())
+        child.content.as_deref().and_then(|c| interpolations(c).into_iter().next())
     })
 }
 
@@ -116,7 +113,7 @@ pub fn row_text_binding(repeater: &Element) -> Option<String> {
 /// * nothing at all — **error**.
 fn check_label(el: &Element, reg: &Registry, diags: &mut Diagnostics, named_by_row: bool) {
     let Some(def) = reg.get(&el.tag) else { return };
-    if !def.requires_label {
+    if !def.requires_label() {
         return;
     }
 
@@ -136,7 +133,9 @@ fn check_label(el: &Element, reg: &Registry, diags: &mut Diagnostics, named_by_r
                 format!("`{}` is labelled only by its placeholder", el.tag),
                 el.span,
             )
-            .with_help("a placeholder disappears on input and is not an accessible name; add `aria=\"…\"`"),
+            .with_help(
+                "a placeholder disappears on input and is not an accessible name; add `aria=\"…\"`",
+            ),
         );
         return;
     }
@@ -179,13 +178,9 @@ fn check_reference(
         el.span,
     );
     if let Some(near) = nearest(head, &scope.names) {
-        d = d
-            .with_help(format!("did you mean `{near}`?"))
-            .with_suggestion(near.clone());
+        d = d.with_help(format!("did you mean `{near}`?")).with_suggestion(near.clone());
     } else {
-        d = d.with_help(format!(
-            "declare it with `state {head}=…`, or a `data {head}` resource"
-        ));
+        d = d.with_help(format!("declare it with `state {head}=…`, or a `data {head}` resource"));
     }
     diags.push(d);
 }
@@ -196,12 +191,12 @@ fn bindings_of(el: &Element) -> Vec<String> {
     let mut out = Vec::new();
     for p in &el.positionals {
         if let Positional::Binding(b) = p {
-            out.push(b.clone());
+            out.push(b.source.clone());
         }
     }
     for a in &el.attrs {
         if let Value::Binding(b) = &a.value {
-            out.push(b.clone());
+            out.push(b.source.clone());
         }
     }
     if let Some(content) = &el.content {
@@ -251,9 +246,7 @@ fn action_targets(action: &str) -> Vec<String> {
 /// Leading identifier of a path or expression: `!draft.trim()` -> `draft`.
 fn head_ident(expr: &str) -> &str {
     let trimmed = expr.trim_start_matches(|c: char| !(c.is_alphanumeric() || c == '_'));
-    let end = trimmed
-        .find(|c: char| !(c.is_alphanumeric() || c == '_'))
-        .unwrap_or(trimmed.len());
+    let end = trimmed.find(|c: char| !(c.is_alphanumeric() || c == '_')).unwrap_or(trimmed.len());
     &trimmed[..end]
 }
 

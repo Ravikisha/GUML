@@ -32,7 +32,8 @@ export default function Page() {
         { id: "prompt-slice", title: "The prompt slice" },
         { id: "why-closed", title: "Why closed" },
         { id: "entries", title: "What an entry carries" },
-        { id: "packages", title: "Registry packages" },
+        { id: "loading", title: "Loading your own" },
+        { id: "packages", title: "Still planned" },
       ]}
     >
       <H2 id="vocabulary">The vocabulary</H2>
@@ -112,14 +113,15 @@ list (Repeater) — Renders one child template per item of a resource. Loading, 
 
       <H2 id="entries">What an entry carries</H2>
       <CodeBlock
-        lang="tsx"
-        filename="crates/guml-registry/src/lib.rs"
-        code={`ComponentDef {
-    name: "btn",
-    kind: TagKind::Control,
-    attrs: &["busy", "type"],
-    requires_label: true,
-    doc: "Button. First positional is the label; \`>\` gives the action.",
+        lang="json"
+        filename="an entry, as a host would write it"
+        code={`{
+  "name": "btn",
+  "kind": "control",
+  "level": "core",
+  "attrs": ["busy", "type"],
+  "a11y": { "requires_label": true, "focusable": true },
+  "doc": "Button. First positional is the label; \`>\` gives the action."
 }`}
       />
       <UL>
@@ -130,27 +132,71 @@ list (Repeater) — Renders one child template per item of a resource. Loading, 
           <C>attrs</C> — accepted beyond the global set; anything else warns (<C>GUML0032</C>).
         </LI>
         <LI>
-          <C>requires_label</C> — when true, a control with no text label and no <C>aria</C> is{" "}
-          <C>GUML0050</C>, a hard error.
+          <C>level</C> — <A href="/docs/language/levels">core or app</A>. Defaults to <C>core</C>, so a
+          hand-written entry is markup unless it says otherwise.
+        </LI>
+        <LI>
+          <C>a11y</C> — the accessibility contract, as data. <C>requires_label</C> makes a control with
+          no text label and no <C>aria</C> a hard error (<C>GUML0050</C>); <C>role</C>,{" "}
+          <C>focusable</C> and <C>announces_state</C> state what the compiler must guarantee. This is
+          what extends the accessibility promise past the builtin vocabulary — a third-party component
+          declares its contract instead of the guarantee stopping at tags we shipped.
         </LI>
         <LI>
           <C>doc</C> — the line that goes into a model&rsquo;s context.
         </LI>
       </UL>
 
-      <H2 id="packages">Registry packages</H2>
-      <P>Planned for Phase 4, and the shape is already decided:</P>
+      <H2 id="loading">Loading your own</H2>
+      <P>
+        A registry is a JSON document, and <C>--registry</C> merges it with the builtins. Both shapes are
+        accepted: <C>{"{\"components\": [ … ]}"}</C>, or a bare array.
+      </P>
+      <CodeBlock
+        lang="bash"
+        filename="terminal"
+        code={`guml check page.guml --registry design-system.json
+guml build page.guml --registry design-system.json --core`}
+      />
+      <P>
+        This is what makes the vocabulary extensible without a fork. Until it existed, every new tag meant
+        recompiling the compiler — a requirement no markup language can impose on the applications
+        embedding it.
+      </P>
+      <Note tone="warn" title="Three things are rejected rather than accepted quietly">
+        <UL>
+          <LI>
+            <strong>Shadowing a builtin.</strong> A registry may add tags; it may not redefine{" "}
+            <C>btn</C>. Otherwise the same document renders differently depending on which registry was
+            loaded, with no diagnostic — the exact failure a closed vocabulary exists to prevent.
+          </LI>
+          <LI>
+            <strong>An unusable name.</strong> The lexer reads a tag as a bare lowercase word, so{" "}
+            <C>My Tag</C> could be registered and never matched by any document.
+          </LI>
+          <LI>
+            <strong>An app-level entry in a core host.</strong> Skipped, not merged, so a registry cannot
+            smuggle behaviour past a host that asked for markup only.
+          </LI>
+        </UL>
+      </Note>
+      <P>
+        <C>Registry::to_json</C> serialises the vocabulary a host accepts, which is how a host publishes
+        its contract rather than describing it in prose.
+      </P>
+
+      <H2 id="packages">Still planned</H2>
       <UL>
-        <LI>JSON packages loaded at compile time, so a design system can ship its own vocabulary.</LI>
-        <LI>Per-entry accessibility contracts: required names, focus behaviour, roles.</LI>
-        <LI>Theme packs mapping modifiers to an organisation&rsquo;s design tokens.</LI>
         <LI>
-          Per-entry token-cost metadata, used by the optimizer and reported by the benchmark.
+          <A href="/docs/compiler/themes">Theme packs</A> mapping modifiers to an organisation&rsquo;s
+          design tokens — shipped; per-tag token metadata is not.
         </LI>
+        <LI>Per-entry token-cost metadata, used by the optimizer and reported by the benchmark.</LI>
         <LI>
           A retrieval layer that picks the slice from a task description instead of a hand-written
           list.
         </LI>
+        <LI>A version field on a registry document, so a host can pin the vocabulary it loaded.</LI>
       </UL>
       <P>
         The React backend maps onto shadcn/ui primitives, so &ldquo;grow the registry&rdquo; mostly

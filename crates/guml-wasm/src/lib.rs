@@ -99,7 +99,8 @@ pub fn compile(source: &str, backend: Option<String>) -> Result<JsValue, JsValue
             guml_compiler::backend_names().join(", ")
         )));
     }
-    let res = guml_compiler::compile(source, &guml_compiler::Options { backend });
+    let res =
+        guml_compiler::compile(source, &guml_compiler::Options { backend, ..Default::default() });
     to_js(&CompileResult {
         ok: res.ok(),
         files: res
@@ -132,8 +133,8 @@ pub fn tree(source: &str) -> Result<JsValue, JsValue> {
 #[wasm_bindgen]
 pub fn registry(tags: Option<String>) -> Result<JsValue, JsValue> {
     let reg = Registry::builtin();
-    let wanted: Option<Vec<String>> =
-        tags.map(|t| t.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect());
+    let wanted: Option<Vec<String>> = tags
+        .map(|t| t.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect());
 
     let components = reg
         .names()
@@ -143,7 +144,7 @@ pub fn registry(tags: Option<String>) -> Result<JsValue, JsValue> {
             name: c.name.to_string(),
             kind: format!("{:?}", c.kind),
             doc: c.doc.to_string(),
-            requires_label: c.requires_label,
+            requires_label: c.requires_label(),
             attrs: c.attrs.iter().map(|a| a.to_string()).collect(),
         })
         .collect();
@@ -168,6 +169,24 @@ pub fn format(source: &str, canonical: Option<bool>) -> Result<JsValue, JsValue>
 struct FormatResult {
     text: String,
     changed: bool,
+}
+
+/// Apply every unambiguous diagnostic suggestion, with no model in the loop.
+///
+/// The free layer of the repair loop. The harness runs this through the CLI; the browser gets
+/// the same implementation so a page can fix what the compiler already knows how to fix
+/// before it tells anyone the generation failed.
+#[wasm_bindgen]
+pub fn fix(source: &str, rounds: Option<usize>) -> Result<JsValue, JsValue> {
+    let out = guml_compiler::fix::fix(source, rounds.unwrap_or(3));
+    to_js(&FixResult { text: out.text, codes: out.codes, rounds: out.rounds })
+}
+
+#[derive(Serialize)]
+struct FixResult {
+    text: String,
+    codes: Vec<String>,
+    rounds: usize,
 }
 
 /// Syntax classification from the real lexer and registry, so a browser highlighter cannot

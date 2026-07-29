@@ -1,0 +1,169 @@
+---
+source: crates/guml-compiler/tests/snapshots.rs
+expression: "emitted(\"b.guml\", \"react\")"
+---
+// ---- Tasks.tsx ----
+import { useState, useCallback, useEffect, useMemo } from "react";
+
+type Task = { id: string; title: string; done: boolean; createdAt: string };
+
+const FILTER_OPTIONS = ["all", "open", "done"] as const;
+
+export default function Tasks() {
+  const [draft, setDraft] = useState("");
+  const [filter, setFilter] = useState<"all" | "open" | "done">("all");
+
+  // resource `tasks`
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(true);
+  const [tasksError, setTasksError] = useState<string | null>(null);
+  const [tasksSaving, setTasksSaving] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setTasksLoading(true);
+    setTasksError(null);
+    fetch("/api/tasks", { signal: controller.signal })
+      .then((res) => {
+        if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+        return res.json() as Promise<Task[]>;
+      })
+      .then(setTasks)
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === "AbortError") return;
+        setTasksError(err instanceof Error ? err.message : "Unknown error");
+      })
+      .finally(() => setTasksLoading(false));
+    return () => controller.abort();
+  }, []);
+
+  const tasksAdd = useCallback(
+    async (body: Partial<Task>) => {
+      const snapshot = tasks;
+      setTasksSaving(true);
+      const optimistic = { id: `tmp-${Date.now()}`, ...body } as Task;
+      setTasks((prev) => [optimistic, ...prev]);
+      try {
+        const res = await fetch("/api/tasks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+        const created = (await res.json()) as Task;
+        setTasks((prev) => prev.map((it) => (it === optimistic ? created : it)));
+      } catch (err: unknown) {
+        setTasks(snapshot);
+        setTasksError(err instanceof Error ? err.message : "Could not save");
+      } finally {
+        setTasksSaving(false);
+      }
+    },
+    [tasks],
+  );
+
+  const tasksSave = useCallback(
+    async (item: Task, body: Partial<Task> = {}) => {
+      const snapshot = tasks;
+      setTasksSaving(true);
+      setTasks((prev) => prev.map((it) => (it === item ? { ...it, ...body } : it)));
+      try {
+        const res = await fetch(`/api/tasks/${item.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+      } catch (err: unknown) {
+        setTasks(snapshot);
+        setTasksError(err instanceof Error ? err.message : "Could not save");
+      } finally {
+        setTasksSaving(false);
+      }
+    },
+    [tasks],
+  );
+
+  const tasksDrop = useCallback(
+    async (item: Task, body: Partial<Task> = {}) => {
+      const snapshot = tasks;
+      setTasksSaving(true);
+      setTasks((prev) => prev.filter((it) => it !== item));
+      try {
+        const res = await fetch(`/api/tasks/${item.id}`, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+      } catch (err: unknown) {
+        setTasks(snapshot);
+        setTasksError(err instanceof Error ? err.message : "Could not save");
+      } finally {
+        setTasksSaving(false);
+      }
+    },
+    [tasks],
+  );
+
+  const visibleTasks = useMemo(
+    () =>
+      filter === "open"
+        ? tasks.filter((it) => !it.done)
+        : filter === "done"
+          ? tasks.filter((it) => it.done)
+          : tasks,
+    [tasks, filter],
+  );
+
+  return (
+    <>
+      <p className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Tasks — {tasks.filter((it) => !it.done).length} open</p>
+      <form className="mt-6 flex gap-2" onSubmit={(e) => { e.preventDefault(); tasksAdd({ title: draft }); setDraft(""); }}>
+        <input className="flex-1 rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm outline-none bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100 disabled:opacity-40" type="text" placeholder="Add a task…" value={draft} onChange={(e) => setDraft(e.target.value)} />
+        <button className="rounded-md px-4 py-2 text-sm font-medium transition-colors bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-200 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100 disabled:opacity-40" type="submit" disabled={!draft.trim()}>{tasksSaving ? "Adding…" : "Add"}</button>
+      </form>
+      <div className="mt-4 flex gap-2">
+        {FILTER_OPTIONS.map((option) => (
+          <button
+            key={option}
+            type="button"
+            aria-pressed={filter === option}
+            onClick={() => setFilter(option)}
+            className={
+              filter === option
+                ? "rounded-full bg-slate-900 px-3 py-1 text-xs font-medium text-white"
+                : "rounded-full border border-slate-300 px-3 py-1 text-xs text-slate-600"
+            }
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+      {tasksError && (
+        <p role="alert" className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+          {tasksError}
+        </p>
+      )}
+      {tasksLoading ? (
+        <ul className="mt-6 space-y-2">
+          {[0, 1, 2].map((n) => (
+            <li key={n} className="h-12 animate-pulse rounded-md bg-slate-100" />
+          ))}
+        </ul>
+      ) : visibleTasks.length === 0 ? (
+        <p className="mt-10 text-center text-sm text-slate-500 dark:text-slate-400">Nothing here yet.</p>
+      ) : (
+        <ul className="mt-6 divide-y divide-slate-200 dark:divide-slate-800 rounded-md border border-slate-200 dark:border-slate-800">
+          {visibleTasks.map((item, i) => (
+            <li key={item.id} className="flex items-center gap-3 px-3 py-3">
+              <input className="h-4 w-4 rounded border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100 disabled:opacity-40" type="checkbox" checked={item.done} aria-label={item.title} onChange={() => { tasksSave(item, { done: !item.done }); }} />
+              <span className={`flex-1 text-sm text-slate-900 dark:text-slate-100 ${item.done ? "line-through text-slate-400" : ""}`}>{item.title}</span>
+              <button className="rounded-md px-4 py-2 text-sm font-medium transition-colors text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100 disabled:opacity-40" type="button" aria-label={`Delete ${item.title}`} onClick={() => { tasksDrop(item, {}); }}>Delete</button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}

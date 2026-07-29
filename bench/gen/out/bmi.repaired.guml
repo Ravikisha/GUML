@@ -1,0 +1,16 @@
+page BMI Calculator
+
+state height=0
+state weight=0
+
+card sm center
+  h Body Mass Index
+  p Enter your height and weight to calculate your BMI.
+  form
+    input height kind=number aria="Height in cm" placeholder="170" required
+    input weight kind=number aria="Weight in kg" placeholder="60" required
+    btn Calculate primary >weight / (height / 100) ** 2
+    btn Reset quiet >height=0;weight=0
+
+metric {weight / (height / 100) ** 2}
+text |

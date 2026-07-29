@@ -1,0 +1,20 @@
+---
+source: crates/guml-compiler/tests/snapshots.rs
+expression: table
+---
+tsx   8  <-  guml  9  state draft=""
+tsx   9  <-  guml 10  state filter=all|open|done
+tsx  11  <-  guml  4  data tasks:Task[] GET /api/tasks
+tsx 116  <-  guml 12  head Tasks — {tasks.open.count} open
+tsx 117  <-  guml 14  form >tasks.add{title:draft}; draft=""
+tsx 118  <-  guml 15  input draft placeholder="Add a task…"
+tsx 119  <-  guml 16  btn Add primary disabled={!draft.trim()} busy="Adding…"
+tsx 120  <-  guml 14  form >tasks.add{title:draft}; draft=""
+tsx 121  <-  guml 18  tabs filter
+tsx 138  <-  guml 20  list tasks where={filter}
+tsx 150  <-  guml 24  empty Nothing here yet.
+tsx 151  <-  guml 20  list tasks where={filter}
+tsx 155  <-  guml 21  check {done} >tasks.save
+tsx 156  <-  guml 22  text {title} strike={done}
+tsx 157  <-  guml 23  btn Delete quiet aria="Delete {title}" >tasks.drop
+tsx 158  <-  guml 20  list tasks where={filter}

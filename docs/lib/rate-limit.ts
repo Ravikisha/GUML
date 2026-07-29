@@ -27,9 +27,14 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
  *
  * # Storage
  *
- * In memory, per server process. Fine for a demo on one machine; on a serverless host with
- * several instances each keeps its own tally, and a restart forgives everyone. That is the
- * one place to swap in Redis, and it is one function: `store`.
+ * In memory by default, which is correct on one machine and leaky on several: each instance
+ * keeps its own tally and a restart forgives everyone. Setting `UPSTASH_REDIS_REST_URL` and
+ * `UPSTASH_REDIS_REST_TOKEN` makes it durable and shared, over plain `fetch` against the REST
+ * API — no client library, and it works on a runtime that cannot hold a TCP connection.
+ *
+ * The two paths are not either/or: the in-process counter always runs, and the shared counter
+ * *raises* the observed usage when it is higher. A Redis outage therefore degrades to the
+ * local limit rather than removing the limit.
  */
 
 export const PER_IDENTITY_LIMIT = 3;
@@ -42,12 +47,71 @@ const COOKIE = "guml_demo";
 
 type Bucket = { used: number; resetAt: number };
 
-/** Swap this for Redis to make the limit hold across instances and restarts. */
+/**
+ * In-process counters. Correct on one machine; on several instances each keeps its own tally
+ * and a restart forgives everyone.
+ *
+ * `SHARED` below replaces them when a Redis is configured. It speaks Upstash's REST API over
+ * plain `fetch` rather than a client library, so making the limit durable adds a URL and a
+ * token — no dependency, and it works on a serverless runtime where a TCP client would not.
+ */
 const store = {
   byIp: new Map<string, Bucket>(),
   byCookie: new Map<string, Bucket>(),
   global: { used: 0, resetAt: Date.now() + WINDOW_MS } as Bucket,
 };
+
+const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL;
+const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+export const isDurable = Boolean(REDIS_URL && REDIS_TOKEN);
+
+/**
+ * `INCR` plus `EXPIRE` on first write, which is the standard fixed-window counter. Returns
+ * `null` on any failure so the caller falls back to the in-process count: a Redis outage must
+ * not take the demo down, and it must not silently remove the limit either.
+ */
+async function redisIncr(key: string, ttlSeconds: number): Promise<number | null> {
+  if (!isDurable) return null;
+  try {
+    const res = await fetch(`${REDIS_URL}/pipeline`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${REDIS_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify([
+        ["INCR", key],
+        ["EXPIRE", key, String(ttlSeconds), "NX"],
+      ]),
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const out = (await res.json()) as Array<{ result?: number }>;
+    return typeof out?.[0]?.result === "number" ? out[0].result : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Read a counter without incrementing it, for the read-only limit endpoint. */
+async function redisGet(key: string): Promise<number | null> {
+  if (!isDurable) return null;
+  try {
+    const res = await fetch(`${REDIS_URL}/get/${encodeURIComponent(key)}`, {
+      headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const out = (await res.json()) as { result?: string | null };
+    return out.result == null ? 0 : Number(out.result);
+  } catch {
+    return null;
+  }
+}
+
+/** Fixed-window key, so the window rolls without needing a stored reset time. */
+function windowKey(kind: string, id: string): string {
+  const window = Math.floor(Date.now() / WINDOW_MS);
+  return `guml:${kind}:${window}:${id}`;
+}
 
 function secret(): string {
   // A dedicated secret if configured; otherwise derived from the API key so the signature
@@ -183,6 +247,66 @@ export function check(request: Request): Decision {
     setCookie,
     ticket,
   };
+}
+
+/**
+ * The decision, with the shared counters folded in when they are configured.
+ *
+ * `check` stays synchronous for callers that cannot await; this is the version the routes use.
+ * A shared count can only make the answer *stricter*: if Redis says three are spent and this
+ * instance's map says none, the visitor is out. The reverse — Redis unreachable — falls back to
+ * the local limit rather than removing the limit.
+ */
+export async function checkShared(request: Request): Promise<Decision> {
+  const local = check(request);
+  const shared = await sharedUsage(local.ticket);
+  if (!shared) return local;
+
+  const remaining = Math.min(local.remaining, Math.max(0, PER_IDENTITY_LIMIT - shared.identity));
+
+  if (shared.global >= GLOBAL_DAILY_LIMIT) {
+    return { ...local, allowed: false, remaining, reason: "global" };
+  }
+  if (remaining <= 0) {
+    return { ...local, allowed: false, remaining: 0, reason: "identity" };
+  }
+  return { ...local, allowed: local.allowed, remaining };
+}
+
+/**
+ * Spend one generation, durably when a Redis is configured.
+ *
+ * Async, unlike `check`: the in-process path stays synchronous and the shared path is awaited.
+ * The caller spends only after the model has started answering, so the extra round trip is
+ * never on the critical path of a refusal.
+ */
+export async function commitShared(ticket: Decision["ticket"]): Promise<void> {
+  commit(ticket);
+  if (!isDurable) return;
+  const ttl = Math.ceil(WINDOW_MS / 1000);
+  await Promise.all([
+    redisIncr(windowKey("ip", ticket.ip), ttl),
+    redisIncr(windowKey("id", ticket.id), ttl),
+    redisIncr(windowKey("global", "all"), ttl),
+  ]);
+}
+
+/**
+ * The durable counts, when configured. `null` means "no shared store, or it failed" and the
+ * caller keeps the in-process answer.
+ */
+export async function sharedUsage(
+  ticket: Decision["ticket"],
+): Promise<{ identity: number; global: number } | null> {
+  if (!isDurable) return null;
+  const [ip, id, global] = await Promise.all([
+    redisGet(windowKey("ip", ticket.ip)),
+    redisGet(windowKey("id", ticket.id)),
+    redisGet(windowKey("global", "all")),
+  ]);
+  if (ip === null || id === null || global === null) return null;
+  // The strictest counter wins, exactly as in the local path.
+  return { identity: Math.max(ip, id), global };
 }
 
 /** Spend one generation. Called once the model has actually started answering. */

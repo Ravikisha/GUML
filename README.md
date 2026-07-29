@@ -37,6 +37,10 @@ research question the project exists to answer is **still open** — see `spec/P
 | Formatter / canonicaliser (`guml fmt`) | working — formats invalid input, AST-preserving, `--check` in CI |
 | Syntax classification (`guml highlight`) | working — one classifier for CLI, wasm, docs and the LSP |
 | Static validator (`guml validate`) | working — 17 semantic codes, batch mode, `--strict` for CI |
+| Autofix (`guml fix`) | working — applies unambiguous suggestions with no model call |
+| Expression parser | working — one grammar in `guml-syntax::expr`; unknown syntax is `GUML0023`, not forwarded |
+| Source maps | working — `guml build --source-map` writes Source Map v3 |
+| Language server (`guml-lsp`) | working — diagnostics, semantic tokens, formatting, completion, hover, outline |
 | Resources / repeaters / forms / tabs / optimistic mutations | lowered: fetch + cancel, loading, empty, error, optimistic apply and snapshot rollback |
 | Expression lowering | GUML expressions → JS, mirrored in the TS runtime with a parity test |
 | Expression *parsing* | still pass-through; the lowering reads paths and aggregates, not arbitrary syntax (Phase 2) |
@@ -97,6 +101,8 @@ experiment that tells us which side GUML lands on. Full analysis: `GUML-Research
 | `packages/guml/` | npm package: the compiler as WebAssembly plus a React runtime |
 | `bench/phase0/` | The Phase 0 harness: ten tasks, paired references, prompt assembly, scoring, blind rubric |
 | `bench/gen/` | Generation test: six applications through a live model, scored on parse, validation and requirements |
+| `editors/vscode/` | VS Code extension: LSP client plus a TextMate grammar generated from the registry |
+| `scripts/count-tokens.mjs` | Every token counter side by side, with the authoritative one labelled |
 | `docs/` | The documentation site (Next.js). Its own git repo; gitignored here. Code samples are generated from `fixtures/` and from the compiler. |
 | `.claude/agents/` | Specialist subagents for this project |
 | `.claude/skills/` | Project skills: writing GUML, compiler dev, measurement, Phase 0 |

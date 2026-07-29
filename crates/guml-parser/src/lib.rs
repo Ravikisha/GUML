@@ -12,8 +12,8 @@
 //! strictly greater indent. Blank lines and comments were already dropped by the lexer.
 
 use guml_ast::{
-    Attr, Element, Field, Mutation, PageDecl, Positional, Program, Resource, StateDecl, TypeDecl,
-    Value,
+    Attr, Binding, Element, Field, Mutation, PageDecl, Positional, Program, Resource, StateDecl,
+    TypeDecl, Value,
 };
 use guml_diagnostics::{Code, Diagnostic, Diagnostics, Span};
 use guml_registry::{Registry, TagKind};
@@ -32,6 +32,7 @@ pub fn parse(src: &str, reg: &Registry) -> Parsed {
         reg,
         diagnostics: lexed.diagnostics,
         program: Program::default(),
+        defs: std::collections::BTreeSet::new(),
     };
     p.parse_top();
 
@@ -55,6 +56,11 @@ struct Parser<'r> {
     reg: &'r Registry,
     diagnostics: Diagnostics,
     program: Program,
+    /// Names declared by `def`, so a call to one is not reported as an unknown tag.
+    ///
+    /// Populated as the directives are read, which is why a `def` has to appear before it is used.
+    /// One pass, and the requirement matches every other directive in the language.
+    defs: std::collections::BTreeSet<String>,
 }
 
 impl<'r> Parser<'r> {
@@ -91,7 +97,8 @@ impl<'r> Parser<'r> {
                 self.i += 1;
                 let name =
                     line.tokens.get(1).and_then(|t| t.tok.text()).unwrap_or("Page").to_string();
-                self.program.page = Some(PageDecl { name, span: line.span() });
+                let meta = self.parse_page_meta(&line);
+                self.program.page = Some(PageDecl { name, meta, span: line.span() });
                 true
             }
             "type" => {
@@ -101,16 +108,143 @@ impl<'r> Parser<'r> {
             }
             "state" | "store" => {
                 self.i += 1;
+                self.reject_if_core(first, "mutable state needs a runtime", line.span());
                 self.parse_state(&line);
                 true
             }
             "data" => {
                 self.i += 1;
+                self.reject_if_core("data", "a resource declares a network request", line.span());
                 self.parse_data(&line);
+                true
+            }
+            "def" => {
+                self.i += 1;
+                self.parse_def(&line);
                 true
             }
             _ => false,
         }
+    }
+
+    /// `page Docs title="Read the docs" lang=en dir=ltr`
+    ///
+    /// Attributes rather than new directives: a document has one of each, they belong on the line
+    /// that already declares the document, and this costs no new syntax to learn.
+    fn parse_page_meta(&mut self, line: &Line) -> guml_ast::PageMeta {
+        const KNOWN: &[&str] = &["title", "description", "lang", "dir"];
+        let mut meta = guml_ast::PageMeta::default();
+        let toks = &line.tokens;
+
+        let mut i = 2;
+        while i < toks.len() {
+            let Some(name) = toks[i].tok.as_word() else {
+                i += 1;
+                continue;
+            };
+            if !matches!(toks.get(i + 1).map(|t| &t.tok), Some(Tok::Eq)) {
+                i += 1;
+                continue;
+            }
+            let value = toks.get(i + 2).and_then(|t| t.tok.text()).unwrap_or("").to_string();
+            match name {
+                "title" => meta.title = Some(value),
+                "description" => meta.description = Some(value),
+                "lang" => meta.lang = Some(value),
+                "dir" => {
+                    // Only two values exist, and a typo here silently mirrors the whole layout.
+                    if value == "ltr" || value == "rtl" {
+                        meta.dir = Some(value);
+                    } else {
+                        self.diagnostics.push(
+                            Diagnostic::error(
+                                Code::BadAttrValue,
+                                format!("`dir` must be `ltr` or `rtl`, not `{value}`"),
+                                toks[i].span,
+                            )
+                            .with_help("text direction has exactly two values"),
+                        );
+                    }
+                }
+                other => {
+                    let mut d = Diagnostic::warning(
+                        Code::UnknownAttr,
+                        format!("`page` does not accept the attribute `{other}`"),
+                        toks[i].span,
+                    );
+                    // First-letter match: enough for `titel`/`title`, and it cannot suggest
+                    // nonsense because the candidate list is four words long.
+                    if let Some(near) =
+                        KNOWN.iter().find(|k| k.as_bytes().first() == other.as_bytes().first())
+                    {
+                        d = d.with_help(format!("did you mean `{near}`?"));
+                    } else {
+                        d = d.with_help("`page` accepts `title`, `description`, `lang` and `dir`");
+                    }
+                    self.diagnostics.push(d);
+                }
+            }
+            i += 3;
+        }
+        meta
+    }
+
+    /// `def stat label value` plus an indented body.
+    ///
+    /// The body is parsed as ordinary elements, so everything the language already does inside a
+    /// container works inside a `def` with no special cases — and a construct that is rejected at the
+    /// core level is rejected inside a `def` body too, which is how a def inherits its level rather
+    /// than declaring one.
+    fn parse_def(&mut self, line: &Line) {
+        let base = line.indent;
+        let name = line.tokens.get(1).and_then(|t| t.tok.text()).unwrap_or("").to_string();
+        let params: Vec<String> = line
+            .tokens
+            .iter()
+            .skip(2)
+            .filter_map(|t| t.tok.as_word().map(str::to_string))
+            .collect();
+
+        // A `def` may add a tag; it may never redefine one. Same rule as a loaded registry, and for
+        // the same reason: a document using `card` has to mean the same thing everywhere.
+        if self.reg.get(&name).is_some() {
+            self.diagnostics.push(
+                Diagnostic::error(
+                    Code::DuplicateDef,
+                    format!("`{name}` is already a component in the registry"),
+                    line.span(),
+                )
+                .with_help("choose another name; a `def` may add a tag but not redefine one"),
+            );
+        } else if !self.defs.insert(name.clone()) {
+            self.diagnostics.push(Diagnostic::error(
+                Code::DuplicateDef,
+                format!("`{name}` is defined more than once"),
+                line.span(),
+            ));
+        }
+
+        let mut body = Vec::new();
+        while self.i < self.lines.len() && self.lines[self.i].indent > base {
+            if let Some(el) = self.parse_element() {
+                body.push(el);
+            }
+        }
+
+        if body.is_empty() {
+            self.diagnostics.push(
+                Diagnostic::error(
+                    Code::EmptyDef,
+                    format!(
+                        "`def {name}` has no body, so every call to it would expand to nothing"
+                    ),
+                    line.span(),
+                )
+                .with_help("indent the elements the component should produce"),
+            );
+        }
+
+        self.program.defs.push(guml_ast::DefDecl { name, params, body, span: line.span() });
     }
 
     fn parse_type(&mut self, line: &Line) {
@@ -208,9 +342,7 @@ impl<'r> Parser<'r> {
                 // An all-caps word in method position that is not a method was previously
                 // skipped, so `data rows:T[] FETCH /api/rows` silently became a GET. Silent
                 // mis-lowering is the one thing the compiler must never do (invariant 3).
-                Tok::Word(w)
-                    if w.chars().all(|c| c.is_ascii_uppercase()) && w.len() >= 3 =>
-                {
+                Tok::Word(w) if w.chars().all(|c| c.is_ascii_uppercase()) && w.len() >= 3 => {
                     self.diagnostics.push(
                         Diagnostic::error(
                             Code::BadMethod,
@@ -319,8 +451,51 @@ impl<'r> Parser<'r> {
             return None;
         };
 
+        // Escape hatches are recognised before the registry, because they are deliberately not
+        // part of the component vocabulary: `raw`/`js` are the way *out* of it. Their children are
+        // taken verbatim, and each one is reported so the escape-hatch rate is visible — a rising
+        // rate is the early warning that the vocabulary is too small (report §12.1 risk 5).
+        if tag == "js" || tag == "raw" {
+            if tag == "js" {
+                self.reject_if_core("js", "a `js` block is arbitrary code", line.span());
+            }
+            let target = line.tokens.get(1).and_then(|t| t.tok.text()).map(str::to_string);
+            let mut el = Element::new(tag.clone(), line.span());
+            if let Some(t) = &target {
+                el.positionals.push(Positional::Text(t.clone()));
+            }
+            // Indentation *inside* the block is relative to its first line. Unlike `tier`/`faq`
+            // content, this nesting is meaningful — the body is another language, and a template
+            // literal or a heredoc would change value if it were flattened.
+            let mut first_indent = None;
+            while self.i < self.lines.len() && self.lines[self.i].indent > base {
+                let line = &self.lines[self.i];
+                let origin = *first_indent.get_or_insert(line.indent);
+                let pad = " ".repeat(line.indent.saturating_sub(origin));
+                el.text_lines.push(format!("{pad}{}", line.text));
+                self.i += 1;
+            }
+            self.diagnostics.push(
+                Diagnostic::note(
+                    Code::EscapeHatch,
+                    format!(
+                        "`{tag}` block: {} line(s) emitted verbatim and not checked",
+                        el.text_lines.len()
+                    ),
+                    line.span(),
+                )
+                .with_help(
+                    "nothing the compiler guarantees applies inside, and the browser runtime will not execute it: a document may come from an untrusted agent",
+                ),
+            );
+            return Some(el);
+        }
+
         let known = self.reg.get(&tag);
-        if known.is_none() {
+        // A call to a user-defined component. Structured rather than prose: the arguments are
+        // positionals, so the line is read the same way a container's line is.
+        let is_def_call = known.is_none() && self.defs.contains(&tag);
+        if known.is_none() && !is_def_call {
             let span = line.tokens[0].span;
             let mut d = Diagnostic::error(Code::UnknownTag, format!("unknown tag `{tag}`"), span);
             if let Some(s) = self.reg.suggest(&tag) {
@@ -337,8 +512,15 @@ impl<'r> Parser<'r> {
 
         // Children: following lines with a strictly greater indent.
         if self.reg.children_are_text(&tag) {
+            // Indentation *inside* the block is relative to its first line. Unlike `tier`/`faq`
+            // content, this nesting is meaningful — the body is another language, and a template
+            // literal or a heredoc would change value if it were flattened.
+            let mut first_indent = None;
             while self.i < self.lines.len() && self.lines[self.i].indent > base {
-                el.text_lines.push(self.lines[self.i].text.clone());
+                let line = &self.lines[self.i];
+                let origin = *first_indent.get_or_insert(line.indent);
+                let pad = " ".repeat(line.indent.saturating_sub(origin));
+                el.text_lines.push(format!("{pad}{}", line.text));
                 self.i += 1;
             }
         } else {
@@ -371,10 +553,44 @@ impl<'r> Parser<'r> {
         Some(el)
     }
 
+    /// At the core level, refuse a construct that needs a runtime.
+    ///
+    /// Reported rather than ignored: a host that asked for markup and received a document declaring
+    /// `data tasks:Task[] GET /api/tasks` needs to be told, not quietly handed a page with the fetch
+    /// removed. Invariant 3 applies to conformance levels exactly as it applies to codegen.
+    fn reject_if_core(&mut self, what: &str, why: &str, span: Span) {
+        if self.reg.level() != guml_registry::Level::Core {
+            return;
+        }
+        self.diagnostics.push(
+            Diagnostic::error(
+                Code::AppLevelConstruct,
+                format!("`{what}` is an app-level construct, and this document is being compiled at the core level"),
+                span,
+            )
+            .with_help(format!("{why}; `guml explain GUML0091` describes the two levels")),
+        );
+    }
+
     /// Positionals, attributes, actions and content for a single line.
     fn fill_element(&mut self, el: &mut Element, line: &Line, kind: TagKind) {
         let toks: &[Token] = &line.tokens;
-        let has_attr = toks.iter().skip(1).any(|t| matches!(t.tok, Tok::Eq));
+
+        // Whether this line carries a real attribute, which is what decides prose-vs-structure for a
+        // text tag. An `=` is *not* enough: `p Set x=1 to enable the flag.` is prose that happens to
+        // contain one, and treating it as an attribute silently destroyed the rest of the sentence —
+        // the emitted output kept only `Set`, plus an invalid `x={1}` DOM prop.
+        //
+        // The name has to be one the registry actually allows on this tag. That resolves the genuine
+        // ambiguity in both directions: `text {title} strike={done}` stays structured because
+        // `strike` is a `text` attribute, and `x=1` is prose because `x` is not.
+        //
+        // Prose being verbatim is the content-floor claim (report §1.5); a rule that quietly drops
+        // words is not a token saving, it is data loss.
+        let has_attr = toks.windows(2).skip(1).any(|pair| {
+            matches!(pair[1].tok, Tok::Eq)
+                && pair[0].tok.as_word().is_some_and(|name| self.reg.accepts_attr(&el.tag, name))
+        });
 
         // Text tags with no attributes take the whole remainder as prose. This is the rule
         // that lets prose cost ~0 extra tokens (report §1.5).
@@ -387,6 +603,7 @@ impl<'r> Parser<'r> {
                 Tok::Action(a) => Some(a.clone()),
                 _ => None,
             }) {
+                self.reject_if_core("an action", "`>` runs code on an event", line.span());
                 el.actions.push(a);
             }
             return;
@@ -467,7 +684,7 @@ impl<'r> Parser<'r> {
                     i += 1;
                 }
                 Tok::Brace(b) => {
-                    el.positionals.push(Positional::Binding(b.clone()));
+                    el.positionals.push(Positional::Binding(Binding::new(b.clone())));
                     i += 1;
                 }
                 Tok::Route(r) => {
@@ -496,6 +713,7 @@ impl<'r> Parser<'r> {
                             .with_help("`>` consumes the rest of the line — put modifiers before it"),
                         );
                     }
+                    self.reject_if_core("an action", "`>` runs code on an event", line.span());
                     el.actions.push(a.clone());
                     i += 1;
                 }
@@ -525,7 +743,7 @@ fn token_value(t: &Tok) -> Value {
     match t {
         Tok::Str(s) => Value::Str(s.clone()),
         Tok::Num(n) => n.parse::<f64>().map(Value::Num).unwrap_or_else(|_| Value::Word(n.clone())),
-        Tok::Brace(b) => Value::Binding(b.clone()),
+        Tok::Brace(b) => Value::Binding(Binding::new(b.clone())),
         Tok::Word(w) => match w.as_str() {
             "true" => Value::Bool(true),
             "false" => Value::Bool(false),

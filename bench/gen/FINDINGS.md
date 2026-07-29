@@ -100,6 +100,37 @@ mutation; a `data` directive with no path. All three are caught by the validator
 suggestion attached, and all three are the kind of thing one repair round should fix — which
 is the next thing worth measuring.
 
+## The repair round, measured
+
+`node repair.mjs --trials 3`. Four layers in increasing cost; each only sees what the cheaper
+ones could not fix.
+
+| app | raw errors | after the free layers | repair trials that fixed it | final | survived |
+|---|---|---|---|---|---|
+| todo | 0 | 0 | — | 0 | — |
+| dashboard | 0 | 0 | — | 0 | — |
+| tip | 1 | **0** | — | 0 | — |
+| bmi | 8 | 2 | **1/2** | 0 | — |
+| expenses | 5 | 5 | 0/3 | 5 | `GUML0030`, `GUML0051`, `GUML0080` |
+| signup | 4 | 4 | 0/3 | 4 | `GUML0030`, `GUML0080` |
+
+- **The free layers cost nothing and did most of the work.** `tip` went from broken to
+  compiling with no model call at all, and `bmi` from 8 errors to 2. Five trailing lines of
+  commentary were dropped across the set, found with the compiler rather than a prose regex.
+- **One repair round fixed the reference and type errors**, as predicted — `bmi`'s remaining
+  `GUML0065` fell on the second trial.
+- **`option` survived everything.** Zero of six repair trials across `expenses` and `signup`
+  removed `GUML0030`/`GUML0080`. Both predictions in this document held, so the vocabulary
+  conclusion stands rather than being withdrawn.
+- **Seven of nine repair attempts did not improve on the free layers, and two made things
+  worse** (`expenses` 5 → 8, `signup` 4 → 6). The pipeline discards any attempt that raises
+  the error count; without that guard a repair loop degrades documents it was asked to fix.
+  That is worth knowing before Phase 5 commits to "≤1 repair round".
+
+**Variance is real.** Two consecutive single-trial runs disagreed about `bmi` — fixed in one,
+not in the next, at `temperature 0.1`. The table above reports trials-that-succeeded for that
+reason; a single lucky round reported as a capability would have been wrong.
+
 ## What this says about the validator
 
 Every failure above was caught statically, with a line number and, where possible, a fix.

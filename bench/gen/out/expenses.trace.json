@@ -1,0 +1,56 @@
+{
+  "app": "expenses",
+  "model": "meta/llama-3.1-8b-instruct",
+  "trace": [
+    {
+      "layer": "raw",
+      "errors": 5,
+      "codes": [
+        "GUML0030",
+        "GUML0051",
+        "GUML0080"
+      ]
+    },
+    {
+      "layer": "sanitize",
+      "errors": 5,
+      "codes": [
+        "GUML0030",
+        "GUML0051",
+        "GUML0080"
+      ],
+      "fenced": false,
+      "separators": 0,
+      "droppedLines": 0
+    },
+    {
+      "layer": "format",
+      "errors": 5,
+      "codes": [
+        "GUML0030",
+        "GUML0051",
+        "GUML0080"
+      ]
+    },
+    {
+      "layer": "fix",
+      "errors": 5,
+      "codes": [
+        "GUML0030",
+        "GUML0051",
+        "GUML0080"
+      ]
+    },
+    {
+      "layer": "model",
+      "errors": 5,
+      "codes": [
+        "GUML0030",
+        "GUML0051",
+        "GUML0080"
+      ],
+      "accepted": false,
+      "attempts": 3
+    }
+  ]
+}

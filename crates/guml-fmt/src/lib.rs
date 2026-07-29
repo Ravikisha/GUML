@@ -180,7 +180,8 @@ mod tests {
 
     #[test]
     fn a_data_block_moves_with_its_mutations() {
-        let src = "page X\ncard Hi\ndata tasks:Task[] GET /api/tasks\n  add POST /api/tasks {title}\n";
+        let src =
+            "page X\ncard Hi\ndata tasks:Task[] GET /api/tasks\n  add POST /api/tasks {title}\n";
         let out = c(src);
         let data_at = out.find("data tasks").unwrap();
         let add_at = out.find("add POST").unwrap();

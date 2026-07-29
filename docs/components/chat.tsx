@@ -1,7 +1,7 @@
 "use client";
 
 import type { Diagnostic } from "guml";
-import { applyAllSuggestions, check, format } from "guml";
+import { applyAllSuggestions, check, fix, format } from "guml";
 import { Guml } from "guml/react";
 import { AlignLeft, ArrowUp, Eraser, Loader2, Square, Wand2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -34,11 +34,24 @@ const PROMPTS = [
   "A support dashboard: four KPI tiles and a ticket table I can resolve rows from.",
 ];
 
-/** Models occasionally wrap output in a fence despite being told not to. Take the code. */
+/**
+ * Models wrap output in a fence and scatter markdown rules through it despite being told not
+ * to. Both are packaging, not document.
+ *
+ * Trailing commentary — "This page uses…" after the last real line — is deliberately *not*
+ * stripped here. Telling prose from GUML needs the compiler, since `This` is a plausible tag
+ * name; the harness does it that way in `bench/gen/lib/pipeline.mjs`. In the browser it would
+ * mean a compile per candidate line on every streamed chunk, and the diagnostics already point
+ * the reader at the offending line.
+ */
 function extractGuml(text: string): string {
   const fenced = /```(?:guml)?\s*\n([\s\S]*?)(?:```|$)/.exec(text);
   const body = fenced ? fenced[1] : text;
-  return body.trim();
+  return body
+    .split("\n")
+    .filter((line) => !/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line))
+    .join("\n")
+    .trim();
 }
 
 export function Chat() {
@@ -63,6 +76,8 @@ export function Chat() {
   const [configured, setConfigured] = useState<boolean | null>(null);
   /** Set while a request is taking long enough that the reader deserves an explanation. */
   const [slowWarning, setSlowWarning] = useState(false);
+  /** What the free repair layers changed, so the reader knows the document was edited. */
+  const [repaired, setRepaired] = useState<string[] | null>(null);
   /** Demo quota, read from the server — the browser is not the authority on it. */
   const [quota, setQuota] = useState<{ remaining: number; limit: number; resetAt: number } | null>(
     null,
@@ -141,6 +156,7 @@ export function Chat() {
       setMessages([...history, { role: "assistant", content: "" }]);
       setInput("");
       setError(null);
+      setRepaired(null);
       setStreaming(true);
       setPane("result");
 
@@ -190,6 +206,24 @@ export function Chat() {
             return next;
           });
           setSource(extractGuml(acc));
+        }
+
+        // The free layers, once, after the stream closes. Deterministic, no model call, and
+        // no point running them per chunk on a half-written document.
+        //
+        // The order matters: formatting first (a tab or a three-space indent is a whitespace
+        // problem, not a language one), then the suggestion applier, which needs a document
+        // the parser could read.
+        const cleaned = extractGuml(acc);
+        if (cleaned) {
+          const formatted = (await format(cleaned)).text;
+          const applied = await fix(formatted);
+          if (applied.text !== cleaned) {
+            setSource(applied.text);
+            setRepaired(applied.codes);
+          } else {
+            setRepaired(null);
+          }
         }
 
         // Some NIMs answer with reasoning only, or with nothing at all. Silence looks like
@@ -389,6 +423,23 @@ export function Chat() {
             </p>
           )}
 
+          {repaired && (
+            <p role="status" className="rounded-card border border-line px-3 py-2 text-sm text-fog">
+              {repaired.length > 0 ? (
+                <>
+                  Formatted, and applied {repaired.length}{" "}
+                  {repaired.length === 1 ? "fix" : "fixes"} the compiler already knew (
+                  <span className="font-mono text-[0.7rem] text-chalk">
+                    {[...new Set(repaired)].join(", ")}
+                  </span>
+                  ) — no second model call.
+                </>
+              ) : (
+                <>Formatted. No model call needed.</>
+              )}
+            </p>
+          )}
+
           {error && (
             <p role="alert" className="rounded-card border border-ember/30 bg-ember/[0.06] px-3 py-2 text-sm text-ember">
               {error}
@@ -477,7 +528,7 @@ export function Chat() {
               ) : null}
             </span>
           </header>
-          <div className="min-h-0 flex-1 overflow-auto bg-white p-5">
+          <div className="min-h-0 flex-1 overflow-auto bg-slate-50 p-5 dark:bg-slate-950">
             {source ? (
               errors.length > 0 ? (
                 <ul className="space-y-1 font-mono text-xs text-red-600">

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { CodeBlock } from "@/components/code-block";
+import { CodePreview } from "@/components/code-preview";
+import { SAMPLES } from "@/lib/samples";
 import { DocPage } from "@/components/doc-page";
 import { A, C, H2, LI, Note, P, Table, UL } from "@/components/prose";
 import { Badge } from "@/components/ui";
@@ -38,12 +40,7 @@ export default function Page() {
         React&rsquo;s tokens. They are also the part a model is most likely to get subtly wrong:
         contrast that fails, focus rings dropped, spacing that drifts between sections.
       </P>
-      <CodeBlock
-        lang="guml"
-        code={`btn Increment primary
-// emits: rounded-md px-4 py-2 text-sm font-medium transition-colors
-//        bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-40`}
-      />
+      <CodePreview {...SAMPLES["modifiers.intent"]} />
       <P>
         Three tokens of intent in, fourteen tokens of presentation out — and the disabled state and
         hover treatment come along whether or not the author remembered them.

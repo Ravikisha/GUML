@@ -1,0 +1,192 @@
+{
+  "name": "slate",
+  "contract": {
+    "focus_visible": "focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100",
+    "min_contrast": 4.5,
+    "disabled": "disabled:opacity-40"
+  },
+  "rules": [
+    {
+      "tag": "card",
+      "base": "rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm"
+    },
+    {
+      "tag": "card",
+      "when": [
+        "sm"
+      ],
+      "add": "mx-auto mt-10 w-full max-w-sm"
+    },
+    {
+      "tag": "card",
+      "when": [
+        "center"
+      ],
+      "add": "text-center"
+    },
+    {
+      "tag": "row",
+      "base": "flex items-center gap-3"
+    },
+    {
+      "tag": "row",
+      "when": [
+        "center"
+      ],
+      "add": "justify-center"
+    },
+    {
+      "tag": "row",
+      "when": [
+        "between"
+      ],
+      "add": "justify-between"
+    },
+    {
+      "tag": "row",
+      "when": [
+        "wrap"
+      ],
+      "add": "flex-wrap"
+    },
+    {
+      "tag": "col",
+      "base": "flex flex-col gap-3"
+    },
+    {
+      "tag": "section",
+      "base": "mx-auto max-w-6xl px-6 py-16"
+    },
+    {
+      "tag": "nav",
+      "base": "mx-auto flex max-w-6xl items-center justify-between px-6 py-5"
+    },
+    {
+      "tag": "hero",
+      "base": "mx-auto max-w-3xl px-6 py-24 text-center"
+    },
+    {
+      "tag": "footer",
+      "base": "border-t border-slate-200 dark:border-slate-800 px-6 py-8 text-sm text-slate-500 dark:text-slate-400"
+    },
+    {
+      "tag": "form",
+      "base": "mt-6 flex gap-2"
+    },
+    {
+      "tag": "h",
+      "base": "text-lg font-semibold text-slate-900 dark:text-slate-100"
+    },
+    {
+      "tag": "h2",
+      "base": "text-lg font-semibold text-slate-900 dark:text-slate-100"
+    },
+    {
+      "tag": "h1",
+      "base": "text-4xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-5xl"
+    },
+    {
+      "tag": "p",
+      "base": "mt-1 text-sm text-slate-500 dark:text-slate-400"
+    },
+    {
+      "tag": "head",
+      "base": "text-2xl font-semibold text-slate-900 dark:text-slate-100"
+    },
+    {
+      "tag": "empty",
+      "base": "mt-10 text-center text-sm text-slate-500 dark:text-slate-400"
+    },
+    {
+      "tag": "metric",
+      "base": "mt-6 text-center text-5xl font-bold tabular-nums text-slate-900 dark:text-slate-100"
+    },
+    {
+      "tag": "text",
+      "base": "flex-1 text-sm text-slate-900 dark:text-slate-100"
+    },
+    {
+      "tag": "text",
+      "when": [
+        "quiet"
+      ],
+      "add": "text-slate-500 dark:text-slate-400"
+    },
+    {
+      "tag": "list",
+      "base": "mt-6 divide-y divide-slate-200 dark:divide-slate-800 rounded-md border border-slate-200 dark:border-slate-800"
+    },
+    {
+      "tag": "table",
+      "base": "mt-6 divide-y divide-slate-200 dark:divide-slate-800 rounded-md border border-slate-200 dark:border-slate-800"
+    },
+    {
+      "tag": "btn",
+      "base": "rounded-md px-4 py-2 text-sm font-medium transition-colors"
+    },
+    {
+      "tag": "btn",
+      "when": [
+        "primary"
+      ],
+      "add": "bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-200",
+      "group": "intent"
+    },
+    {
+      "tag": "btn",
+      "when": [
+        "outline"
+      ],
+      "add": "border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800",
+      "group": "intent"
+    },
+    {
+      "tag": "btn",
+      "when": [
+        "quiet"
+      ],
+      "add": "text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100",
+      "group": "intent"
+    },
+    {
+      "tag": "btn",
+      "when": [
+        "danger"
+      ],
+      "add": "bg-red-600 dark:bg-red-500 text-white dark:text-slate-900 hover:bg-red-700 dark:hover:bg-red-400",
+      "group": "intent"
+    },
+    {
+      "tag": "btn",
+      "add": "border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800",
+      "group": "intent"
+    },
+    {
+      "tag": "link",
+      "base": "text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+    },
+    {
+      "tag": "input",
+      "base": "flex-1 rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm outline-none bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+    },
+    {
+      "tag": "select",
+      "base": "flex-1 rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm outline-none bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+    },
+    {
+      "tag": "check",
+      "base": "h-4 w-4 rounded border-slate-300 dark:border-slate-700"
+    },
+    {
+      "tag": "toggle",
+      "base": "h-4 w-4 rounded border-slate-300 dark:border-slate-700"
+    },
+    {
+      "tag": "*",
+      "when": [
+        "full"
+      ],
+      "add": "w-full"
+    }
+  ]
+}

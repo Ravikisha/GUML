@@ -1,5 +1,5 @@
 import { SYSTEM_PROMPT } from "@/lib/prompt.generated";
-import { check, commit, limitHeaders, PER_IDENTITY_LIMIT } from "@/lib/rate-limit";
+import { checkShared, commitShared, limitHeaders, PER_IDENTITY_LIMIT } from "@/lib/rate-limit";
 import { DEFAULT_MODEL, NVIDIA_BASE, VERIFIED_MODELS } from "./models";
 
 /**
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
 
   // The quota is enforced here rather than in the browser, so `curl` and a private window
   // are subject to it too. Nothing is spent yet — see `commit` below.
-  const quota = check(request);
+  const quota = await checkShared(request);
   const quotaHeaders = { ...limitHeaders(quota), ...(quota.setCookie ? { "Set-Cookie": quota.setCookie } : {}) };
 
   if (!quota.allowed) {
@@ -123,7 +123,7 @@ export async function POST(request: Request) {
     }
 
     // Spent only now: a `DEGRADED` upstream must not cost one of someone's three.
-    commit(quota.ticket);
+    await commitShared(quota.ticket);
 
     return new Response(toTextStream(upstream.body), {
       headers: {

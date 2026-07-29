@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { CodeBlock } from "@/components/code-block";
+import { CodePreview } from "@/components/code-preview";
 import { DocPage } from "@/components/doc-page";
 import { A, C, H2, LI, Note, P, Step, Steps, UL } from "@/components/prose";
 import { FIXTURES } from "@/lib/fixtures.generated";
@@ -31,7 +32,12 @@ export default function Page() {
           <P>
             Save this as <C>counter.guml</C>. Two-space indentation, no closing tags, no imports.
           </P>
-          <CodeBlock code={counter.guml} lang="guml" filename="counter.guml" meter="64 tokens" />
+          <CodePreview
+            code={counter.guml}
+            lang="guml"
+            filename="counter.guml"
+            meter="64 tokens"
+          />
         </Step>
 
         <Step n={2} title="Check it">
@@ -54,7 +60,7 @@ export default function Page() {
             code={`cargo run -q -p guml-cli -- build counter.guml -o out
 # wrote out/Counter.tsx
 #
-# source ~63 tokens -> emitted ~382 tokens (6.1x expansion, estimates only)`}
+# source ~68 tokens -> emitted ~485 tokens (7.1x expansion, estimates only)`}
           />
           <P>Drop the result into any React + Tailwind project. It has no runtime dependency on GUML.</P>
         </Step>

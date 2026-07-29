@@ -12,6 +12,9 @@
 
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+// `./eval.ts`, not `./eval.js`: Node runs this file directly with type stripping and does not
+// rewrite specifiers, so it needs the file that exists. The library source uses `.js` because
+// that is what the *published* ESM has to say. Both resolve under TypeScript.
 import { evaluate, interpolate, runAction, truthy } from "./eval.ts";
 
 const TASKS = [

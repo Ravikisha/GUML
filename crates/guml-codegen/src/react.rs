@@ -15,7 +15,7 @@
 
 use crate::expr::{self, Ctx};
 use crate::{Backend, Emitted, OutFile, component_name, modifiers_of, setter, unsupported};
-use guml_ast::{Element, Program, Resource, Value};
+use guml_ast::{Element, Positional, Program, Resource, Value};
 use guml_diagnostics::Diagnostics;
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
@@ -32,19 +32,40 @@ impl Backend for ReactBackend {
         let mut out = Emitted::default();
         let name = component_name(program.page.as_ref().map(|p| p.name.as_str()).unwrap_or("Page"));
 
-        let mut g =
-            Gen { program, diags: &mut out.diagnostics, hooks: Hooks::default(), pending: None };
-        let body = g.tree();
+        let mut g = Gen {
+            program,
+            diags: &mut out.diagnostics,
+            hooks: Hooks::default(),
+            marks: Vec::new(),
+            collections: program.resources.iter().map(|r| r.name.clone()).collect(),
+            pending: None,
+        };
+        let (body, body_offsets) = g.tree();
         let hooks = g.hooks.clone();
+
+        // Dead-declaration elimination. A `state` or `data` nothing refers to becomes ~1 line of
+        // `useState` or ~60 lines of fetch/effect/callbacks that can never run, and in the resource
+        // case a network request on mount for data no element reads.
+        //
+        // The live set is `guml_ast::referenced_names`, which is the *same* function the validator
+        // uses to decide `GUML0074`/`GUML0075`. That sharing is what makes this safe to do silently:
+        // anything elided here has already been reported to the author as unused, and a reference
+        // form the walker knows about — including a bare mention inside a `js` body — keeps the
+        // declaration alive.
+        let live = guml_ast::referenced_names(program);
+        let states: Vec<_> = program.states.iter().filter(|s| live.contains(&s.name)).collect();
+        let resources: Vec<_> =
+            program.resources.iter().filter(|r| live.contains(&r.name)).collect();
 
         let mut src = String::new();
 
-        // Imports, driven by what the body actually needed.
+        // Imports, driven by what the body actually needed — after elimination, so an elided
+        // declaration does not leave an unused import behind.
         let mut imports: Vec<&str> = Vec::new();
-        if !program.states.is_empty() || !program.resources.is_empty() {
+        if !states.is_empty() || !resources.is_empty() {
             imports.push("useState");
         }
-        if !program.resources.is_empty() {
+        if !resources.is_empty() {
             imports.push("useCallback");
             imports.push("useEffect");
         }
@@ -66,9 +87,24 @@ impl Backend for ReactBackend {
             let _ = writeln!(src, "type {} = {{ {fields} }};\n", ty.name);
         }
 
+        for (_, decl) in &hooks.hoisted {
+            let _ = writeln!(src, "{decl}\n");
+        }
+
         let _ = writeln!(src, "export default function {name}() {{");
 
-        for s in &program.states {
+        // Provenance. Every declaration and every element, nested ones included — `Gen::tree`
+        // explains how a nested position is known.
+        //
+        // Still line granularity, not column: one GUML line becomes a *region* of TSX, so a column
+        // claim would send a debugger to an arbitrary character. What nesting adds is that a binding
+        // error inside a row template now resolves to the row's own line instead of to the `list`
+        // twenty lines above it.
+        let mut map = crate::sourcemap::SourceMap::new();
+        let line_of = |text: &str| text.lines().count() as u32;
+
+        for s in &states {
+            map.mark(line_of(&src), s.span.line);
             let ty = state_type(&s.init, &s.domain);
             let _ = writeln!(
                 src,
@@ -80,8 +116,11 @@ impl Backend for ReactBackend {
         }
 
         let busy = busy_resources(&program.tree, None);
-        for r in &program.resources {
+        for r in &resources {
             src.push('\n');
+            // One `data` line becomes ~60 lines of state, effect and callbacks. This is the
+            // mapping that matters most: a failed fetch should point at the declaration.
+            map.mark(line_of(&src), r.span.line);
             src.push_str(&resource_hooks(r, busy.contains(&r.name)));
         }
 
@@ -90,7 +129,26 @@ impl Backend for ReactBackend {
             src.push_str(derived);
         }
 
+        // `js` blocks are component-body code, so they are hoisted here: after the state and the
+        // resource hooks they will want to reference, and before the return. Emitted verbatim —
+        // not checked, not reformatted, not escaped. That is the deal, and the `GUML0090` note
+        // already said so.
+        for block in js_blocks(&program.tree) {
+            src.push('\n');
+            for line in block {
+                let _ = writeln!(src, "  {line}");
+            }
+        }
+
         let _ = writeln!(src, "\n  return (");
+
+        // The body was rendered before this header existed, so every offset inside it shifts by
+        // the number of lines that precede the JSX — plus one when a fragment wraps it.
+        let body_start = line_of(&src) + u32::from(program.tree.len() > 1);
+        for (offset, source_line) in &body_offsets {
+            map.mark(body_start + offset, *source_line);
+        }
+
         if body.trim().is_empty() {
             src.push_str("    <></>\n");
         } else if program.tree.len() > 1 {
@@ -106,9 +164,24 @@ impl Backend for ReactBackend {
         }
         src.push_str("  );\n}\n");
 
-        out.files.push(OutFile { path: format!("{name}.tsx"), contents: src });
+        // Serialised by the driver, which is the layer that holds the source text.
+        let source_map = (!map.is_empty()).then_some(map);
+        out.files.push(OutFile { path: format!("{name}.tsx"), contents: src, source_map });
         out
     }
+}
+
+/// `filter` → `FILTER`, `taskFilter` → `TASK_FILTER`. Module constants are screaming snake by
+/// convention, and the emitted file has to read like one a person wrote.
+fn screaming_snake(name: &str) -> String {
+    let mut out = String::new();
+    for (i, ch) in name.chars().enumerate() {
+        if ch.is_uppercase() && i > 0 {
+            out.push('_');
+        }
+        out.extend(ch.to_uppercase());
+    }
+    out
 }
 
 /// Anything the body decides the component needs above the JSX.
@@ -116,30 +189,90 @@ impl Backend for ReactBackend {
 struct Hooks {
     needs_memo: bool,
     derived: Vec<String>,
+    /// Module-scope constants hoisted out of the render: `(name, declaration)`, deduplicated by
+    /// name because two `tabs` over the same state produce the same array.
+    hoisted: Vec<(String, String)>,
 }
 
 struct Gen<'a> {
     program: &'a Program,
+    /// `(line within the current renderer's output, GUML source line)`. Re-based by parents as
+    /// child output is appended; see `Gen::tree`.
+    marks: Vec<(u32, u32)>,
     diags: &'a mut Diagnostics,
     hooks: Hooks,
+    /// Resource names, built once. Rebuilding this per element cost 5 ms on a 200-line
+    /// document — the benchmark caught it immediately, which is the argument for having one.
+    collections: Vec<String>,
     /// Loading flag of the resource the enclosing form submits to. A `busy` label
     /// belongs to the button, but the mutation is declared on the form around it.
     pending: Option<String>,
 }
 
 impl<'a> Gen<'a> {
-    /// Resource names, so the expression lowering can tell an array from a string.
-    fn collections(&self) -> Vec<String> {
-        self.program.resources.iter().map(|r| r.name.clone()).collect()
+    /// The JSX body, plus where *every* element landed in it — nested ones included.
+    ///
+    /// # How nested positions are known
+    ///
+    /// The renderers return strings, so a parent concatenating them cannot see inside a child. Each
+    /// renderer therefore records its marks relative to *its own* output, and the parent re-bases
+    /// them by the line at which it appended that output. `collect` is what makes that composable:
+    /// it swaps `self.marks` out, runs the renderer, and hands back only what that renderer pushed.
+    ///
+    /// The alternative — threading an absolute line number down through every renderer — puts the
+    /// same arithmetic at every call site instead of at the three places children are appended.
+    fn tree(&mut self) -> (String, Vec<(u32, u32)>) {
+        let mut out = String::new();
+        let ctx = Ctx::default().with_collections(&self.collections);
+        let (body, marks) = self.collect(|g| {
+            for el in &g.program.tree {
+                let at = out.lines().count() as u32;
+                let (text, marks) = g.element_marked(el, 2, &ctx);
+                out.push_str(&text);
+                g.rebase(marks, at);
+            }
+            std::mem::take(&mut out)
+        });
+        (body, marks)
     }
 
-    fn tree(&mut self) -> String {
-        let mut out = String::new();
-        let ctx = Ctx::default().with_collections(&self.collections());
-        for el in &self.program.tree {
-            out.push_str(&self.element(el, 2, &ctx));
+    /// Run a renderer and take only the marks it produced, relative to its own output.
+    fn collect<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> (T, Vec<(u32, u32)>) {
+        let outer = std::mem::take(&mut self.marks);
+        let value = f(self);
+        let inner = std::mem::replace(&mut self.marks, outer);
+        (value, inner)
+    }
+
+    /// Shift a child's marks by where its output was appended, and keep them.
+    fn rebase(&mut self, marks: Vec<(u32, u32)>, at: u32) {
+        self.marks.extend(marks.into_iter().map(|(line, source)| (line + at, source)));
+    }
+
+    /// Attribute the next line of `out` to `source_line`.
+    ///
+    /// A mapping is a *range*: every emitted line inherits the last mark at or before it. So after a
+    /// child's output is appended, the lines that follow still belong to the child unless the parent
+    /// says otherwise — which is how a repeater's own `<ul>`/`<li>` scaffolding ended up credited to
+    /// whichever element happened to be emitted last.
+    fn mark_here(&mut self, out: &str, source_line: u32) {
+        self.marks.push((out.lines().count() as u32, source_line));
+    }
+
+    /// An element's output, with a mark for the element itself plus everything inside it.
+    fn element_marked(
+        &mut self,
+        el: &Element,
+        depth: usize,
+        ctx: &Ctx,
+    ) -> (String, Vec<(u32, u32)>) {
+        let (text, mut marks) = self.collect(|g| g.element(el, depth, ctx));
+        // The element's own output starts at its own line 0. An escape block emits nothing here, so
+        // marking it would claim a line that belongs to whatever follows.
+        if !text.is_empty() {
+            marks.insert(0, (0, el.span.line));
         }
-        out
+        (text, marks)
     }
 
     fn resource(&self, name: &str) -> Option<&'a Resource> {
@@ -184,7 +317,7 @@ impl<'a> Gen<'a> {
         }
 
         let fields = self.item_fields(&source);
-        let ctx = Ctx::item(&fields).with_collections(&self.collections());
+        let ctx = Ctx::item(&fields).with_collections(&self.collections);
         let cap = capitalize(&source);
         let visible = format!("visible{cap}");
 
@@ -197,7 +330,7 @@ impl<'a> Gen<'a> {
         // only `tsc` over the output caught it. That is a silent mis-lowering, which
         // invariant 3 forbids.
         if let Some(Value::Binding(b)) = el.attr("where") {
-            let filter = expr::lower(b);
+            let filter = expr::lower_expr(&b.expr, &Ctx::default());
             let domain = self
                 .program
                 .states
@@ -235,10 +368,10 @@ impl<'a> Gen<'a> {
                 } else {
                     format!("{source}.filter((it) => it.{field} === {filter})")
                 };
-                self.hooks
-                    .derived
-                    .push(format!("  const {visible} = useMemo(() => {body}, [{source}, {filter}]);
-"));
+                self.hooks.derived.push(format!(
+                    "  const {visible} = useMemo(() => {body}, [{source}, {filter}]);
+"
+                ));
             } else {
                 // Nothing to filter on. Warn and render everything rather than invent a
                 // predicate: an unfiltered list is visibly wrong, a wrong filter is not.
@@ -249,22 +382,32 @@ impl<'a> Gen<'a> {
                         "`where={{{filter}}}` — the row type has no `{filter}` field and the domain is not the open/done idiom, so the list is not filtered"
                     ),
                 );
-                self.hooks.derived.push(format!("  const {visible} = {source};
-"));
+                self.hooks.derived.push(format!(
+                    "  const {visible} = {source};
+"
+                ));
             }
         } else {
-            self.hooks.derived.push(format!("  const {visible} = {source};
-"));
+            self.hooks.derived.push(format!(
+                "  const {visible} = {source};
+"
+            ));
         }
 
         let empty = el.children.iter().find(|c| c.tag == "empty").cloned();
         let template: Vec<Element> =
             el.children.iter().filter(|c| c.tag != "empty").cloned().collect();
 
-        let mut rows = String::new();
-        for child in &template {
-            rows.push_str(&self.element(child, depth + 4, &ctx));
-        }
+        let (rows, row_marks) = self.collect(|g| {
+            let mut rows = String::new();
+            for child in &template {
+                let at = rows.lines().count() as u32;
+                let (text, marks) = g.element_marked(child, depth + 4, &ctx);
+                rows.push_str(&text);
+                g.rebase(marks, at);
+            }
+            rows
+        });
 
         let key = if fields.iter().any(|f| f == "id") { "item.id" } else { "i" };
         let list_class = classes(&el.tag, &modifiers_of(el));
@@ -284,8 +427,11 @@ impl<'a> Gen<'a> {
         let _ = writeln!(out, "{pad}) : {visible}.length === 0 ? (");
         match &empty {
             Some(e) => {
-                let ctx = Ctx::default().with_collections(&self.collections());
-                out.push_str(&self.plain(e, depth + 1, &ctx));
+                let ctx = Ctx::default().with_collections(&self.collections);
+                let at = out.lines().count() as u32;
+                let (text, marks) = self.element_marked(e, depth + 1, &ctx);
+                out.push_str(&text);
+                self.rebase(marks, at);
             }
             None => {
                 let _ = writeln!(
@@ -294,6 +440,8 @@ impl<'a> Gen<'a> {
                 );
             }
         }
+        // Back to the repeater: the list scaffolding is the `list` line's, not the empty slot's.
+        self.mark_here(&out, el.span.line);
         let _ = writeln!(out, "{pad}) : (");
         let _ = writeln!(out, "{pad}  <ul className={list_class:?}>");
         let _ = writeln!(out, "{pad}    {{{visible}.map((item, i) => (");
@@ -301,7 +449,11 @@ impl<'a> Gen<'a> {
             out,
             "{pad}      <li key={{{key}}} className=\"flex items-center gap-3 px-3 py-3\">"
         );
+        let rows_at = out.lines().count() as u32;
         out.push_str(&rows);
+        self.rebase(row_marks, rows_at);
+        // The closing tags belong to the repeater, not to the last child of the row template.
+        self.mark_here(&out, el.span.line);
         let _ = writeln!(out, "{pad}      </li>");
         let _ = writeln!(out, "{pad}    ))}}");
         let _ = writeln!(out, "{pad}  </ul>");
@@ -330,13 +482,23 @@ impl<'a> Gen<'a> {
             return String::new();
         }
 
-        let options =
-            state.domain.iter().map(|d| format!("{d:?}")).collect::<Vec<_>>().join(", ");
+        let options = state.domain.iter().map(|d| format!("{d:?}")).collect::<Vec<_>>().join(", ");
         let set = setter(&name);
+
+        // Static hoist. The option array is a constant derived from the state's declared domain, so
+        // rebuilding it on every render allocates for nothing. Hoisting it to module scope is also
+        // what a person would write — which matters more than the allocation, because emitted code
+        // that does not read as hand-written is the first thing a reviewer holds against a compiler.
+        let konst = format!("{}_OPTIONS", screaming_snake(&name));
+        if !self.hooks.hoisted.iter().any(|(n, _)| *n == konst) {
+            self.hooks
+                .hoisted
+                .push((konst.clone(), format!("const {konst} = [{options}] as const;")));
+        }
 
         format!(
             "{pad}<div className=\"mt-4 flex gap-2\">\n\
-             {pad}  {{([{options}] as const).map((option) => (\n\
+             {pad}  {{{konst}.map((option) => (\n\
              {pad}    <button\n\
              {pad}      key={{option}}\n\
              {pad}      type=\"button\"\n\
@@ -435,6 +597,39 @@ impl<'a> Gen<'a> {
 
     fn plain(&mut self, el: &Element, depth: usize, ctx: &Ctx) -> String {
         let pad = " ".repeat(depth * 2);
+        // Escape hatches, emitted verbatim.
+        //
+        // `raw` goes where it appears in the tree; `js` is component-body code and is hoisted
+        // above the return by `emit`. Neither is checked, reformatted or escaped — that is the
+        // deal, and the diagnostic already said so.
+        if el.tag == "raw" {
+            let target = el.positionals.iter().find_map(|p| match p {
+                Positional::Text(t) => Some(t.as_str()),
+                _ => None,
+            });
+            // `raw svelte` in a React build is not an error: a document can carry blocks for
+            // several backends, and each emitter takes its own.
+            if target.is_some_and(|t| t != "react") {
+                return String::new();
+            }
+            let pad = "  ".repeat(depth);
+            return el
+                .text_lines
+                .iter()
+                .map(|line| {
+                    format!(
+                        "{pad}{line}
+"
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("");
+        }
+        if el.tag == "js" {
+            // Collected by `emit`; nothing belongs in the JSX.
+            return String::new();
+        }
+
         let mods = modifiers_of(el);
         let class = classes(&el.tag, &mods);
         let (tag_name, fixed) = html_tag(&el.tag, el);
@@ -445,7 +640,8 @@ impl<'a> Gen<'a> {
         };
 
         let mut attrs: Vec<String> = fixed;
-        let mut class_attr = if class.is_empty() { None } else { Some(format!("className={class:?}")) };
+        let mut class_attr =
+            if class.is_empty() { None } else { Some(format!("className={class:?}")) };
         if let Some(a) = el.anchor() {
             attrs.push(format!("id={a:?}"));
         }
@@ -480,13 +676,13 @@ impl<'a> Gen<'a> {
                         layout.push(format!("max-w-{w}"));
                     }
                 }
-                "class" | "id" | "where" | "cta" | "open" | "sort" | "of" => {}
+                "id" | "where" | "cta" | "open" | "sort" | "of" => {}
                 // `strike` folds into the class list rather than becoming a prop.
                 "strike" => {
                     if let Value::Binding(b) = &a.value {
                         class_attr = Some(format!(
                             "className={{`{class} ${{{} ? \"line-through text-slate-400\" : \"\"}}`}}",
-                            expr::lower_in(b, ctx)
+                            expr::lower_expr(&b.expr, ctx)
                         ));
                     }
                 }
@@ -607,8 +803,15 @@ impl<'a> Gen<'a> {
         for line in &el.text_lines {
             let _ = writeln!(out, "{pad}  <li>{}</li>", jsx_escape(line));
         }
+        let had_children = !el.children.is_empty();
         for child in &el.children {
-            out.push_str(&self.element(child, depth + 1, ctx));
+            let at = out.lines().count() as u32;
+            let (text, marks) = self.element_marked(child, depth + 1, ctx);
+            out.push_str(&text);
+            self.rebase(marks, at);
+        }
+        if had_children {
+            self.mark_here(&out, el.span.line);
         }
         let _ = writeln!(out, "{pad}</{tag_name}>");
         self.pending = outer_pending;
@@ -737,7 +940,11 @@ fn resource_hooks(r: &Resource, wants_pending: bool) -> String {
 
     for m in &r.mutations {
         let fname = format!("{name}{}", capitalize(&m.name));
-        let body_ty = if m.body.is_empty() { "Partial<{ty}>".replace("{ty}", &ty) } else { format!("Partial<{ty}>") };
+        let body_ty = if m.body.is_empty() {
+            "Partial<{ty}>".replace("{ty}", &ty)
+        } else {
+            format!("Partial<{ty}>")
+        };
         let takes_item = m.url.contains('{');
         let args = if takes_item {
             format!("item: {ty}, body: {body_ty} = {{}}")
@@ -840,6 +1047,18 @@ fn interpolate_path(url: &str) -> String {
     out
 }
 
+/// Every `js` block in the tree, in document order.
+fn js_blocks(els: &[Element]) -> Vec<&Vec<String>> {
+    let mut out = Vec::new();
+    for el in els {
+        if el.tag == "js" {
+            out.push(&el.text_lines);
+        }
+        out.extend(js_blocks(&el.children));
+    }
+    out
+}
+
 /// Resources whose mutations something actually watches with a `busy` label.
 ///
 /// Walked up front so the pending flag is declared only where it is read: an unused
@@ -881,7 +1100,7 @@ fn attr_out(name: &str, v: &Value, ctx: &Ctx) -> String {
         Value::Str(s) => format!("{name}={}", expr::lower_attr_value_in(s, ctx)),
         Value::Word(w) => format!("{name}={:?}", w),
         Value::Num(_) | Value::Bool(_) => format!("{name}={{{}}}", v.to_js()),
-        Value::Binding(b) => format!("{name}={{{}}}", expr::lower_in(b, ctx)),
+        Value::Binding(b) => format!("{name}={{{}}}", expr::lower_expr(&b.expr, ctx)),
         Value::Flag => name.to_string(),
     }
 }
@@ -891,7 +1110,7 @@ fn initial(v: &Value) -> String {
         Value::Str(s) => format!("{s:?}"),
         Value::Num(_) | Value::Bool(_) => v.to_js(),
         Value::Word(w) => format!("{w:?}"),
-        Value::Binding(b) => b.clone(),
+        Value::Binding(b) => b.source.clone(),
         Value::Flag => "true".into(),
     }
 }
@@ -961,19 +1180,15 @@ pub(crate) fn html_tag(tag: &str, el: &Element) -> (Option<&'static str>, Vec<St
             (Some("a"), vec![format!("href={href:?}")])
         }
         "check" => (Some("input"), vec!["type=\"checkbox\"".to_string()]),
-        "toggle" => (
-            Some("input"),
-            vec!["type=\"checkbox\"".to_string(), "role=\"switch\"".to_string()],
-        ),
+        "toggle" => {
+            (Some("input"), vec!["type=\"checkbox\"".to_string(), "role=\"switch\"".to_string()])
+        }
         // `type` comes from the element's `kind` attribute when it has one; the caller
         // replaces this default. Emitting both produced `<input type="text" kind="email">`,
         // which `tsc` rejects — `kind` is not a DOM property.
         "input" => (
             Some("input"),
-            vec![format!(
-                "type={:?}",
-                el.attr("kind").and_then(|v| v.as_text()).unwrap_or("text")
-            )],
+            vec![format!("type={:?}", el.attr("kind").and_then(|v| v.as_text()).unwrap_or("text"))],
         ),
         "select" => (Some("select"), vec![]),
         _ => (None, vec![]),
@@ -986,80 +1201,16 @@ pub(crate) fn is_void(tag: &str) -> bool {
 
 /// The design system. Every string here is a token the model does not produce,
 /// and a presentational decision it cannot get wrong.
+/// Classes for a tag and its modifiers, from the active theme.
+///
+/// This was a `match` statement with the Tailwind palette written into it, which meant "the compiler
+/// owns presentation" also meant nobody else could. The table now lives in `crate::theme` as data;
+/// see that module for why a themeable compiler still has to enforce an accessibility contract.
+///
+/// The signature is unchanged so every call site reads as before. A per-compilation theme belongs on
+/// `Options`; until a backend threads one through, this is the shipped theme.
 pub(crate) fn classes(tag: &str, mods: &[&str]) -> String {
-    let has = |m: &str| mods.contains(&m);
-    let mut c: Vec<&str> = Vec::new();
-
-    match tag {
-        "card" => {
-            c.push("rounded-xl border border-slate-200 bg-white p-6 shadow-sm");
-            if has("sm") {
-                c.push("mx-auto mt-10 w-full max-w-sm");
-            }
-            if has("center") {
-                c.push("text-center");
-            }
-        }
-        "row" => {
-            c.push("flex items-center gap-3");
-            if has("center") {
-                c.push("justify-center");
-            }
-            if has("between") {
-                c.push("justify-between");
-            }
-            if has("wrap") {
-                c.push("flex-wrap");
-            }
-        }
-        "col" => c.push("flex flex-col gap-3"),
-        "section" => c.push("mx-auto max-w-6xl px-6 py-16"),
-        "nav" => c.push("mx-auto flex max-w-6xl items-center justify-between px-6 py-5"),
-        "hero" => c.push("mx-auto max-w-3xl px-6 py-24 text-center"),
-        "footer" => c.push("border-t border-slate-200 px-6 py-8 text-sm text-slate-500"),
-        "form" => c.push("mt-6 flex gap-2"),
-        "h" | "h2" => c.push("text-lg font-semibold text-slate-900"),
-        "h1" => c.push("text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl"),
-        "p" => c.push("mt-1 text-sm text-slate-500"),
-        "head" => c.push("text-2xl font-semibold text-slate-900"),
-        "empty" => c.push("mt-10 text-center text-sm text-slate-500"),
-        "metric" => c.push("mt-6 text-center text-5xl font-bold tabular-nums text-slate-900"),
-        "text" => {
-            c.push("flex-1 text-sm text-slate-900");
-            if has("quiet") {
-                c.push("text-slate-500");
-            }
-        }
-        "list" | "table" => {
-            c.push("mt-6 divide-y divide-slate-200 rounded-md border border-slate-200")
-        }
-        "btn" => {
-            c.push("rounded-md px-4 py-2 text-sm font-medium transition-colors");
-            if has("primary") {
-                c.push("bg-slate-900 text-white hover:bg-slate-800");
-            } else if has("outline") {
-                c.push("border border-slate-300 text-slate-700 hover:bg-slate-50");
-            } else if has("quiet") {
-                c.push("text-slate-500 hover:text-slate-900");
-            } else if has("danger") {
-                c.push("bg-red-600 text-white hover:bg-red-700");
-            } else {
-                c.push("border border-slate-300 text-slate-700 hover:bg-slate-50");
-            }
-            c.push("disabled:opacity-40");
-        }
-        "link" => c.push("text-sm text-slate-600 hover:text-slate-900"),
-        "input" | "select" => c.push(
-            "flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900",
-        ),
-        "check" | "toggle" => c.push("h-4 w-4 rounded border-slate-300"),
-        _ => {}
-    }
-
-    if has("full") {
-        c.push("w-full");
-    }
-    c.join(" ")
+    crate::theme::active().classes(tag, mods)
 }
 
 #[cfg(test)]

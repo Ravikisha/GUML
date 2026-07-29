@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { CodeBlock } from "@/components/code-block";
+import { CodePreview } from "@/components/code-preview";
+import { SAMPLES } from "@/lib/samples";
 import { DocPage } from "@/components/doc-page";
 import { A, C, H2, LI, Note, P, Table, UL } from "@/components/prose";
 
@@ -47,34 +49,19 @@ export default function Page() {
       </P>
 
       <H2 id="containers">Containers</H2>
-      <CodeBlock
-        lang="guml"
-        code={`card sm center
-  h Clicks
-  row center
-    btn Decrement ghost >count--
-    btn Increment primary >count++`}
-      />
+      <CodePreview {...SAMPLES["elements.containers"]} />
       <P>
         Layout comes from the tag plus modifiers — <C>row center</C>, <C>col</C>, <C>cols=3</C> —
         never from utility classes. A container&rsquo;s first quoted positional becomes its title:
       </P>
-      <CodeBlock
-        lang="guml"
-        code={`card "Ship in minutes" | Describe the page, get a deployable build.`}
-      />
+      <CodePreview {...SAMPLES["elements.title"]} />
 
       <H2 id="text">Text</H2>
       <P>
         Text tags take the line remainder as prose. Bindings inside prose still interpolate, so a
         heading can carry a live count:
       </P>
-      <CodeBlock
-        lang="guml"
-        code={`head Tasks — {tasks.open.count} open
-metric {count}
-empty Nothing here yet.`}
-      />
+      <CodePreview {...SAMPLES["elements.text"]} />
       <UL>
         <LI>
           <C>metric</C> is for a single large number — counters, KPI tiles.
@@ -117,14 +104,7 @@ input draft placeholder="Add a task…"`}
       </Note>
 
       <H2 id="repeaters">Repeaters</H2>
-      <CodeBlock
-        lang="guml"
-        code={`list tasks where={filter}
-  check {done} >tasks.save
-  text {title} strike={done}
-  btn Delete quiet aria="Delete {title}" >tasks.drop
-  empty Nothing here yet.`}
-      />
+      <CodePreview {...SAMPLES["elements.repeater"]} />
       <P>
         A repeater&rsquo;s children are the template for one item. Inside it, bare field names
         resolve against the resource&rsquo;s type, and mutations know which record they act on. The
@@ -144,17 +124,7 @@ input draft placeholder="Add a task…"`}
         Two tags take content lines rather than elements, because wrapping every perk or question in
         its own tag is exactly the per-line overhead GUML exists to remove.
       </P>
-      <CodeBlock
-        lang="guml"
-        code={`tier Pro $24/mo "For working developers" cta="Go Pro" /signup featured
-  Unlimited projects
-  Custom domains
-  Email support
-
-faq open=1
-  Can I export the code? | Yes. Every build is plain source.
-  Do I need a card to try it? | No. The free tier needs no payment details.`}
-      />
+      <CodePreview {...SAMPLES["elements.content"]} />
       <P>
         In a <C>faq</C>, the <C>|</C> splits question from answer. In a <C>tier</C>, each line is one
         perk.

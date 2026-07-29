@@ -1,0 +1,57 @@
+{
+  "name": "guml-vscode",
+  "displayName": "GUML",
+  "description": "GUML language support: the compiler's own diagnostics, formatting and highlighting.",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "private": true,
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Programming Languages", "Formatters", "Linters"],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "guml",
+        "aliases": ["GUML"],
+        "extensions": [".guml"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "guml",
+        "scopeName": "source.guml",
+        "path": "./syntaxes/guml.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "GUML",
+      "properties": {
+        "guml.serverPath": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to the `guml-lsp` binary. Empty means look on `PATH`, then in `target/release` and `target/debug` of the workspace — which is where `cargo build -p guml-lsp` puts it."
+        },
+        "guml.formatOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Format with the compiler's own formatter on save. Never changes meaning: an AST-preservation test enforces that."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "gen:grammar": "node scripts/gen-grammar.mjs",
+    "compile": "tsc -p .",
+    "vscode:prepublish": "npm run gen:grammar && npm run compile"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20",
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  }
+}

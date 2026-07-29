@@ -108,7 +108,13 @@ impl Backend for JsonBackend {
         let mut out = Emitted::default();
         let tree = ui_tree(program, &mut out.diagnostics);
         let contents = serde_json::to_string_pretty(&tree).unwrap_or_else(|_| "{}".into());
-        out.files.push(OutFile { path: format!("{}.ui.json", tree.page), contents });
+        // A render tree has no line correspondence worth claiming: it is one JSON object for the
+        // whole document.
+        out.files.push(OutFile {
+            path: format!("{}.ui.json", tree.page),
+            contents,
+            source_map: None,
+        });
         out
     }
 }
@@ -117,11 +123,16 @@ impl Backend for JsonBackend {
 /// `el: null` so the runtime can display the gap honestly.
 pub fn ui_tree(program: &Program, diags: &mut Diagnostics) -> UiTree {
     let _ = diags; // the tree reports gaps structurally rather than as warnings
+    // Same dead-declaration elimination as the React backend, and for a sharper reason here: an
+    // unreferenced `data` in this tree is a request the runtime fires on mount for data nothing
+    // renders. See `guml_ast::referenced_names` for why eliding is safe.
+    let live = guml_ast::referenced_names(program);
     UiTree {
         page: component_name(program.page.as_ref().map(|p| p.name.as_str()).unwrap_or("Page")),
         state: program
             .states
             .iter()
+            .filter(|s| live.contains(&s.name))
             .map(|s| StateInit {
                 name: s.name.clone(),
                 init: json_value(&s.init),
@@ -131,6 +142,7 @@ pub fn ui_tree(program: &Program, diags: &mut Diagnostics) -> UiTree {
         resources: program
             .resources
             .iter()
+            .filter(|r| live.contains(&r.name))
             .map(|r| ResourceSpec {
                 name: r.name.clone(),
                 ty: r.ty.clone(),
@@ -154,6 +166,36 @@ pub fn ui_tree(program: &Program, diags: &mut Diagnostics) -> UiTree {
 }
 
 fn node(el: &Element) -> UiNode {
+    // An escape hatch is arbitrary code, and this tree is consumed by the browser runtime — which
+    // renders documents that may have come from an untrusted agent. So the *content* is dropped
+    // here rather than passed along: there is no path from a `js` block to `eval` because the code
+    // never reaches the client. The emitted file is the only place it runs.
+    if el.tag == "js" || el.tag == "raw" {
+        return UiNode {
+            tag: format!("{}-placeholder", el.tag),
+            // `el: None` is the existing signal for "the runtime shows the gap instead of
+            // guessing", which is exactly right here.
+            el: None,
+            class: String::new(),
+            text: Some(format!(
+                "{} block: {} line(s), present in the emitted code but not run in the preview",
+                el.tag,
+                el.text_lines.len()
+            )),
+            label: None,
+            bind: None,
+            props: Vec::new(),
+            actions: Vec::new(),
+            source: None,
+            filter: None,
+            aria_from: None,
+            // Deliberately empty: `lines` is what the runtime renders, and the block body must
+            // not reach the client.
+            lines: Vec::new(),
+            children: Vec::new(),
+        };
+    }
+
     let mods = modifiers_of(el);
     let (element, fixed) = react::html_tag(&el.tag, el);
 
@@ -183,7 +225,7 @@ fn node(el: &Element) -> UiNode {
         match &a.value {
             Value::Binding(b) => props.push(Prop {
                 name,
-                value: serde_json::Value::String(b.clone()),
+                value: serde_json::Value::String(b.source.clone()),
                 bound: true,
             }),
             v => props.push(Prop { name, value: json_value(v), bound: false }),
@@ -210,7 +252,7 @@ fn node(el: &Element) -> UiNode {
         actions: el.actions.clone(),
         source: if is_repeater { el.label().map(str::to_string) } else { None },
         filter: el.attr("where").and_then(|v| match v {
-            Value::Binding(b) => Some(b.clone()),
+            Value::Binding(b) => Some(b.source.clone()),
             v => v.as_text().map(str::to_string),
         }),
         aria_from: if is_repeater { row_binding(el) } else { None },
@@ -243,7 +285,7 @@ fn json_value(v: &Value) -> serde_json::Value {
             .map(serde_json::Value::Number)
             .unwrap_or(serde_json::Value::Null),
         Value::Bool(b) => serde_json::Value::Bool(*b),
-        Value::Binding(b) => serde_json::Value::String(b.clone()),
+        Value::Binding(b) => serde_json::Value::String(b.source.clone()),
         Value::Flag => serde_json::Value::Bool(true),
     }
 }
@@ -265,7 +307,7 @@ mod tests {
         card.children.push(btn);
 
         Program {
-            page: Some(PageDecl { name: "Counter".into(), span }),
+            page: Some(PageDecl { name: "Counter".into(), meta: Default::default(), span }),
             states: vec![StateDecl {
                 name: "count".into(),
                 init: Value::Num(0.0),

@@ -39,17 +39,13 @@ pub fn validate(program: &Program, diags: &mut Diagnostics) {
         .collect();
 
     resources(program, &types, diags);
-    let used = walk_tree(program, &types, diags);
-    unused(program, &used, diags);
+    walk_tree(program, &types, diags);
+    unused(program, diags);
 }
 
 /* ------------------------------------------------------------------ resources */
 
-fn resources(
-    program: &Program,
-    types: &HashMap<&str, HashSet<&str>>,
-    diags: &mut Diagnostics,
-) {
+fn resources(program: &Program, types: &HashMap<&str, HashSet<&str>>, diags: &mut Diagnostics) {
     for r in &program.resources {
         let item = r.ty.trim_end_matches("[]");
         // A resource whose type is undeclared emits `unknown[]`, and every field access on
@@ -61,8 +57,9 @@ fn resources(
                 r.span,
             )
             .with_help("declare it with `type Name {field, other:bool}`");
-            if let Some(near) = nearest(item, &types.keys().map(|k| k.to_string()).collect::<Vec<_>>()) {
-                d = d.with_suggestion(near);
+            let names: Vec<String> = types.keys().map(|k| k.to_string()).collect();
+            if let Some(hint) = did_you_mean(item, &names) {
+                d = d.with_help(hint);
             }
             diags.push(d);
         }
@@ -94,8 +91,8 @@ fn resources(
                             "an optimistic mutation applies its body to a row locally, so every                              field must exist on the row type",
                         );
                         let names: Vec<String> = fields.iter().map(|f| f.to_string()).collect();
-                        if let Some(near) = nearest(field, &names) {
-                            d = d.with_suggestion(near);
+                        if let Some(hint) = did_you_mean(field, &names) {
+                            d = d.with_help(hint);
                         }
                         diags.push(d);
                     }
@@ -127,12 +124,10 @@ fn check_url(url: &str, span: Span, diags: &mut Diagnostics) {
     }
     if !url.starts_with('/') && !url.starts_with("http") {
         diags.push(
-            Diagnostic::error(
-                Code::BadUrl,
-                format!("`{url}` is not a request path"),
-                span,
-            )
-            .with_help("start it with `/` for a same-origin path, or `http` for an absolute URL"),
+            Diagnostic::error(Code::BadUrl, format!("`{url}` is not a request path"), span)
+                .with_help(
+                    "start it with `/` for a same-origin path, or `http` for an absolute URL",
+                ),
         );
     }
 }
@@ -141,16 +136,12 @@ fn check_url(url: &str, span: Span, diags: &mut Diagnostics) {
 
 #[derive(Default)]
 struct Used {
-    states: HashSet<String>,
-    resources: HashSet<String>,
+    /// Anchor references, kept here rather than in the shared walker because a duplicate-anchor
+    /// diagnostic needs the span of each *occurrence*, not just the set of names.
     anchors: Vec<(String, Span)>,
 }
 
-fn walk_tree(
-    program: &Program,
-    types: &HashMap<&str, HashSet<&str>>,
-    diags: &mut Diagnostics,
-) -> Used {
+fn walk_tree(program: &Program, types: &HashMap<&str, HashSet<&str>>, diags: &mut Diagnostics) {
     let mut used = Used::default();
     let mut defined_anchors: HashMap<String, Span> = HashMap::new();
     let mut h1s: Vec<Span> = Vec::new();
@@ -168,10 +159,12 @@ fn walk_tree(
                 format!("nothing on this page has the id `{anchor}`"),
                 *span,
             )
-            .with_help("add `#{anchor}` to the section it should scroll to".replace("{anchor}", anchor));
+            .with_help(
+                "add `#{anchor}` to the section it should scroll to".replace("{anchor}", anchor),
+            );
             let names: Vec<String> = defined_anchors.keys().cloned().collect();
             if let Some(near) = nearest(anchor, &names) {
-                d = d.with_suggestion(format!("#{near}"));
+                d = d.with_help(format!("did you mean `#{near}`?"));
             }
             diags.push(d);
         }
@@ -180,17 +173,11 @@ fn walk_tree(
     if h1s.len() > 1 {
         for span in h1s.iter().skip(1) {
             diags.push(
-                Diagnostic::warning(
-                    Code::MultipleH1,
-                    "more than one `h1` on the page",
-                    *span,
-                )
-                .with_help("one `h1` names the page; use `h2` or `h` for sections"),
+                Diagnostic::warning(Code::MultipleH1, "more than one `h1` on the page", *span)
+                    .with_help("one `h1` names the page; use `h2` or `h` for sections"),
             );
         }
     }
-
-    used
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -239,7 +226,7 @@ fn element(
     }
 
     attributes(el, diags);
-    record_uses(el, used);
+    expressions(el, diags);
     actions(el, program, diags);
     enumerated(el, program, diags);
 
@@ -276,48 +263,33 @@ fn element(
     }
 }
 
-/// Which declarations this element refers to, so unused ones can be reported later.
-fn record_uses(el: &Element, used: &mut Used) {
-    let mut note = |expr: &str| {
-        let head = head_ident(expr);
-        if !head.is_empty() {
-            used.states.insert(head.to_string());
-            used.resources.insert(head.to_string());
-        }
-    };
-
+/// Every binding on this element goes through the real expression parser.
+///
+/// Before this, syntax the grammar does not cover — `{a ? b : c}`, `{fetch(url)}` — was passed
+/// through into emitted JavaScript, where it either failed to compile or, worse, ran. Reporting
+/// it is also the security boundary: actions and bindings are deliberately not
+/// Turing-complete, and "not covered by the grammar" has to mean "rejected", not "forwarded".
+fn expressions(el: &Element, diags: &mut Diagnostics) {
+    if el.is_escape() {
+        return;
+    }
+    // Already parsed, so this only reports. Parsing again here is what the `Binding` type was
+    // introduced to stop.
     for p in &el.positionals {
-        match p {
-            Positional::Binding(b) => note(b),
-            // `input draft` and `list tasks` name a declaration in a positional slot.
-            Positional::Text(t) => note(t),
-            _ => {}
+        if let Positional::Binding(b) = p {
+            guml_syntax::expr::report_unknown(&b.expr, el.span, diags);
         }
     }
     for a in &el.attrs {
         if let Value::Binding(b) = &a.value {
-            note(b);
+            guml_syntax::expr::report_unknown(&b.expr, a.span, diags);
         }
     }
+    // Prose interpolations are expressions too: `head Total {a ? b : c}` reaches the same
+    // lowering as an attribute binding.
     for text in el.content.iter().chain(el.text_lines.iter()) {
         for b in interpolations(text) {
-            note(&b);
-        }
-    }
-    for action in &el.actions {
-        for part in action.split(';') {
-            note(part.trim());
-            // `>tasks.add{title:draft}` uses `draft` as well as `tasks`.
-            if let Some(open) = part.find('{') {
-                for pair in part[open + 1..].trim_end_matches('}').split(',') {
-                    if let Some((_, v)) = pair.split_once(':') {
-                        note(v.trim());
-                    }
-                }
-            }
-            if let Some((_, rhs)) = part.split_once('=') {
-                note(rhs.trim());
-            }
+            guml_syntax::expr::parse_reported(b, el.span, diags);
         }
     }
 }
@@ -418,8 +390,8 @@ fn actions(el: &Element, program: &Program, diags: &mut Diagnostics) {
                         .with_help("declare it as an indented line under the `data` directive");
                         let names: Vec<String> =
                             resource.mutations.iter().map(|m| m.name.clone()).collect();
-                        if let Some(near) = nearest(name, &names) {
-                            d = d.with_suggestion(near);
+                        if let Some(hint) = did_you_mean(name, &names) {
+                            d = d.with_help(hint);
                         }
                         diags.push(d);
                     }
@@ -428,7 +400,6 @@ fn actions(el: &Element, program: &Program, diags: &mut Diagnostics) {
         }
     }
 }
-
 
 /// `state count=0` then `>count=""` would emit `setCount("")` into a number.
 fn check_assignment_type(
@@ -481,7 +452,7 @@ fn enumerated(el: &Element, program: &Program, diags: &mut Diagnostics) {
             .iter()
             .find_map(|p| match p {
                 Positional::Text(t) => Some(t.clone()),
-                Positional::Binding(b) => Some(head_ident(b).to_string()),
+                Positional::Binding(b) => b.head_ident().map(str::to_string),
                 _ => None,
             })
             .or_else(|| el.attr("bind").and_then(|v| v.as_text()).map(str::to_string)),
@@ -503,7 +474,8 @@ fn enumerated(el: &Element, program: &Program, diags: &mut Diagnostics) {
     }
 
     if let Some(Value::Binding(b)) = el.attr("where") {
-        let head = head_ident(b);
+        // From the parsed tree rather than a substring scan.
+        let head = b.head_ident().unwrap_or("");
         if let Some(state) = program.state(head) {
             if state.domain.is_empty() {
                 diags.push(
@@ -519,9 +491,12 @@ fn enumerated(el: &Element, program: &Program, diags: &mut Diagnostics) {
     }
 }
 
-fn unused(program: &Program, used: &Used, diags: &mut Diagnostics) {
+fn unused(program: &Program, diags: &mut Diagnostics) {
+    // One shared answer for "what does this document refer to", so codegen cannot elide a
+    // declaration this pass considers live. See `guml_ast::referenced_names`.
+    let referenced = guml_ast::referenced_names(program);
     for state in &program.states {
-        if !used.states.contains(&state.name) {
+        if !referenced.contains(&state.name) {
             diags.push(
                 Diagnostic::warning(
                     Code::UnusedState,
@@ -533,7 +508,7 @@ fn unused(program: &Program, used: &Used, diags: &mut Diagnostics) {
         }
     }
     for r in &program.resources {
-        if !used.resources.contains(&r.name) {
+        if !referenced.contains(&r.name) {
             diags.push(
                 Diagnostic::warning(
                     Code::UnusedResource,
@@ -548,27 +523,16 @@ fn unused(program: &Program, used: &Used, diags: &mut Diagnostics) {
 
 /* ------------------------------------------------------------------ helpers */
 
-/// `tasks.open.count` → `tasks`; `!draft.trim()` → `draft`.
-fn head_ident(expr: &str) -> &str {
-    let expr = expr.trim().trim_start_matches(['!', '(']);
-    let end = expr
-        .find(|c: char| !(c.is_alphanumeric() || c == '_'))
-        .unwrap_or(expr.len());
-    &expr[..end]
-}
+use guml_syntax::expr::interpolations;
 
-fn interpolations(text: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut rest = text;
-    while let Some(open) = rest.find('{') {
-        let after = &rest[open + 1..];
-        match after.find('}') {
-            Some(close) => {
-                out.push(after[..close].to_string());
-                rest = &after[close + 1..];
-            }
-            None => break,
-        }
-    }
-    out
+/// A near-miss name, phrased for the `help` line.
+///
+/// Deliberately *not* `with_suggestion`. That field is a machine-applicable replacement for
+/// the diagnostic's span, and every span in this module covers a whole line — the resource
+/// declaration, the mutation, the element. Attaching a bare name to a line span means
+/// `guml fix` replaces `check {done} aria="done" >rows.sve` with the single word `save`,
+/// which is how an autofix destroys a document. Until the AST carries token spans inside
+/// actions and directives, the name goes in prose where a human applies it.
+fn did_you_mean(unknown: &str, candidates: &[String]) -> Option<String> {
+    nearest(unknown, candidates).map(|near| format!("did you mean `{near}`?"))
 }

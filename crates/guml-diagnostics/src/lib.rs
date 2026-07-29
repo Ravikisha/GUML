@@ -12,6 +12,8 @@
 //!    string that is a drop-in replacement for the offending span.
 //! 4. **Serializable** — `--format json` is the format the repair loop consumes.
 
+pub mod explain;
+
 use serde::{Deserialize, Serialize};
 
 /// A byte range in the source, with precomputed line/column for display.
@@ -70,6 +72,8 @@ pub enum Code {
     ExpectedTag,
     ExpectedValue,
     TrailingTokensAfterAction,
+    /// Syntax the expression grammar does not cover, rather than passed through into output.
+    BadExpression,
     // Resolution
     UnknownTag,
     UnknownModifier,
@@ -110,6 +114,33 @@ pub enum Code {
     DuplicateAttr,
     BadMethod,
     BadUrl,
+
+    // Escape hatches (0090)
+    /// A `js` or `raw` block. Not a defect — a measurement. A rising escape-hatch rate is the
+    /// early warning that the vocabulary is too small (report §12.1 risk 5).
+    EscapeHatch,
+
+    // Conformance level (0091-0092)
+    /// A construct that needs a runtime, in a document being compiled at the Core level.
+    ///
+    /// Core is markup: no I/O, no state, no behaviour, so a host can render a Core document that
+    /// came from an untrusted agent. This is what makes that guarantee enforced rather than
+    /// advertised.
+    AppLevelConstruct,
+    /// A registry document could not be loaded.
+    BadRegistry,
+
+    // User-defined components (0093-0097)
+    /// A `def` whose name is already a builtin tag or another `def`.
+    DuplicateDef,
+    /// A `def` call with the wrong number of arguments.
+    DefArity,
+    /// A `def` that expands into itself, directly or through another.
+    RecursiveDef,
+    /// A `def` with no body: it would expand to nothing.
+    EmptyDef,
+    /// A `def` parameter used somewhere expansion cannot substitute it.
+    DefParamUnsupported,
 }
 
 impl Code {
@@ -125,6 +156,7 @@ impl Code {
             Code::ExpectedTag => "GUML0020",
             Code::ExpectedValue => "GUML0021",
             Code::TrailingTokensAfterAction => "GUML0022",
+            Code::BadExpression => "GUML0023",
             Code::UnknownTag => "GUML0030",
             Code::UnknownModifier => "GUML0031",
             Code::UnknownAttr => "GUML0032",
@@ -152,6 +184,14 @@ impl Code {
             Code::DuplicateAttr => "GUML0082",
             Code::BadMethod => "GUML0083",
             Code::BadUrl => "GUML0084",
+            Code::EscapeHatch => "GUML0090",
+            Code::AppLevelConstruct => "GUML0091",
+            Code::BadRegistry => "GUML0092",
+            Code::DuplicateDef => "GUML0093",
+            Code::DefArity => "GUML0094",
+            Code::RecursiveDef => "GUML0095",
+            Code::EmptyDef => "GUML0096",
+            Code::DefParamUnsupported => "GUML0097",
         }
     }
 }
@@ -187,6 +227,12 @@ impl Diagnostic {
 
     pub fn warning(code: Code, message: impl Into<String>, span: Span) -> Self {
         Self { severity: Severity::Warning, ..Self::error(code, message, span) }
+    }
+
+    /// Informational. Used where the compiler is *measuring* rather than complaining — an escape
+    /// hatch is not a defect, but its rate is the thing worth watching.
+    pub fn note(code: Code, message: impl Into<String>, span: Span) -> Self {
+        Self { severity: Severity::Note, ..Self::error(code, message, span) }
     }
 
     pub fn with_help(mut self, help: impl Into<String>) -> Self {
@@ -275,41 +321,9 @@ mod tests {
 
     #[test]
     fn codes_are_unique() {
-        let codes = [
-            Code::TabIndent,
-            Code::UnterminatedString,
-            Code::UnterminatedBrace,
-            Code::UnexpectedChar,
-            Code::InconsistentDedent,
-            Code::UnexpectedIndent,
-            Code::ExpectedTag,
-            Code::ExpectedValue,
-            Code::TrailingTokensAfterAction,
-            Code::UnknownTag,
-            Code::UnknownModifier,
-            Code::UnknownAttr,
-            Code::UnknownState,
-            Code::DuplicateState,
-            Code::MissingPageDirective,
-            Code::IconControlWithoutLabel,
-            Code::InputWithoutLabel,
-            Code::UnknownMutation,
-            Code::UnknownTypeName,
-            Code::UnknownBodyField,
-            Code::AssignToNonState,
-            Code::TypeMismatch,
-            Code::DuplicateAnchor,
-            Code::DanglingAnchor,
-            Code::EmptyRepeater,
-            Code::MultipleH1,
-            Code::UnusedState,
-            Code::UnusedResource,
-            Code::NotEnumerated,
-            Code::BadAttrValue,
-            Code::DuplicateAttr,
-            Code::BadMethod,
-            Code::BadUrl,
-        ];
+        // `Code::ALL` rather than a second list here: the duplicate meant adding a code
+        // required editing a test nothing pointed at, and forgetting was silent.
+        let codes = Code::ALL;
         let mut ids: Vec<&str> = codes.iter().map(|c| c.id()).collect();
         let total = ids.len();
         ids.sort_unstable();

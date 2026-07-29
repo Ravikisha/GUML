@@ -27,6 +27,8 @@ export const NAV: NavGroup[] = [
       { title: "Modifiers", href: "/docs/language/modifiers" },
       { title: "Bindings & actions", href: "/docs/language/bindings" },
       { title: "Component registry", href: "/docs/language/registry" },
+      { title: "User components", href: "/docs/language/components", note: "def" },
+      { title: "Conformance levels", href: "/docs/language/levels", note: "core" },
     ],
   },
   {
@@ -34,8 +36,13 @@ export const NAV: NavGroup[] = [
     items: [
       { title: "Architecture", href: "/docs/compiler/architecture" },
       { title: "Diagnostics", href: "/docs/compiler/diagnostics" },
+      { title: "Validator", href: "/docs/compiler/validator" },
+      { title: "Formatter", href: "/docs/compiler/formatter" },
       { title: "CLI reference", href: "/docs/compiler/cli" },
       { title: "Backends", href: "/docs/compiler/backends" },
+      { title: "Themes", href: "/docs/compiler/themes" },
+      { title: "Source maps", href: "/docs/compiler/source-maps" },
+      { title: "Editor support", href: "/docs/compiler/editors", note: "lsp" },
     ],
   },
   {

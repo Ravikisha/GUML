@@ -1,0 +1,19 @@
+{
+  // Emits `dist/` for publishing. `tsconfig.json` stays the no-emit config the editor and
+  // `pnpm typecheck` use; a single config cannot do both, because publishing needs
+  // declarations and the test file imports `./eval.ts` by its real extension.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    // The published entry points must not carry `.ts` specifiers.
+    "allowImportingTsExtensions": false,
+    "types": ["react"]
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
+}

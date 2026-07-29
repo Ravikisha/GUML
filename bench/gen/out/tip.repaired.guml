@@ -1,0 +1,18 @@
+page Tip Splitter
+
+type Split {bill:number, tip:number, people:number}
+
+state bill=0
+state tip=15
+state people=1
+
+card "Tip Splitter" sm center
+  form
+    input bill kind=number aria="Bill total" placeholder="Total bill" required
+    input tip kind=number aria="Tip percentage" placeholder="Tip percentage" required
+    input people kind=number min=1 aria="Number of people" placeholder="Number of people" required
+  row between
+    metric {bill} label="Bill total"
+    metric {(bill * tip / 100)} label="Tip amount"
+    metric {(bill + bill * tip / 100)} label="Total with tip"
+    metric {((bill + bill * tip / 100) / people)} label="Amount per person"

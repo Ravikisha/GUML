@@ -1,0 +1,51 @@
+{
+  "app": "signup",
+  "model": "meta/llama-3.1-8b-instruct",
+  "trace": [
+    {
+      "layer": "raw",
+      "errors": 4,
+      "codes": [
+        "GUML0030",
+        "GUML0080"
+      ]
+    },
+    {
+      "layer": "sanitize",
+      "errors": 4,
+      "codes": [
+        "GUML0030",
+        "GUML0080"
+      ],
+      "fenced": false,
+      "separators": 0,
+      "droppedLines": 0
+    },
+    {
+      "layer": "format",
+      "errors": 4,
+      "codes": [
+        "GUML0030",
+        "GUML0080"
+      ]
+    },
+    {
+      "layer": "fix",
+      "errors": 4,
+      "codes": [
+        "GUML0030",
+        "GUML0080"
+      ]
+    },
+    {
+      "layer": "model",
+      "errors": 4,
+      "codes": [
+        "GUML0030",
+        "GUML0080"
+      ],
+      "accepted": false,
+      "attempts": 3
+    }
+  ]
+}

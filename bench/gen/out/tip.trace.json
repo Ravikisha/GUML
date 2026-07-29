@@ -1,0 +1,31 @@
+{
+  "app": "tip",
+  "model": "meta/llama-3.1-8b-instruct",
+  "trace": [
+    {
+      "layer": "raw",
+      "errors": 1,
+      "codes": [
+        "GUML0030"
+      ]
+    },
+    {
+      "layer": "sanitize",
+      "errors": 0,
+      "codes": [],
+      "fenced": false,
+      "separators": 0,
+      "droppedLines": 1
+    },
+    {
+      "layer": "format",
+      "errors": 0,
+      "codes": []
+    },
+    {
+      "layer": "fix",
+      "errors": 0,
+      "codes": []
+    }
+  ]
+}

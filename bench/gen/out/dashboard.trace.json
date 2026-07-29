@@ -1,0 +1,29 @@
+{
+  "app": "dashboard",
+  "model": "meta/llama-3.1-8b-instruct",
+  "trace": [
+    {
+      "layer": "raw",
+      "errors": 0,
+      "codes": []
+    },
+    {
+      "layer": "sanitize",
+      "errors": 0,
+      "codes": [],
+      "fenced": false,
+      "separators": 0,
+      "droppedLines": 0
+    },
+    {
+      "layer": "format",
+      "errors": 0,
+      "codes": []
+    },
+    {
+      "layer": "fix",
+      "errors": 0,
+      "codes": []
+    }
+  ]
+}

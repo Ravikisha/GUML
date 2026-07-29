@@ -9,6 +9,7 @@
 import initWasm, {
   check as wasmCheck,
   compile as wasmCompile,
+  fix as wasmFix,
   format as wasmFormat,
   highlight as wasmHighlight,
   registry as wasmRegistry,
@@ -125,6 +126,13 @@ export type Backend = "react" | "json";
 
 export type FormatResult = { text: string; changed: boolean };
 
+export type FixResult = {
+  text: string;
+  /** Diagnostic codes that were applied, one entry per edit. */
+  codes: string[];
+  rounds: number;
+};
+
 /**
  * Syntax classes, produced by the compiler's own lexer and registry. A regex highlighter
  * cannot produce these: whether a line's remainder is structure or prose depends on the
@@ -223,6 +231,18 @@ export async function format(source: string, canonical = false): Promise<FormatR
   return wasmFormat(source, canonical) as FormatResult;
 }
 
+/**
+ * Apply every unambiguous diagnostic suggestion. No model call.
+ *
+ * The free layer of the repair loop: renaming `crad` to `card` is an edit the compiler already
+ * described precisely, and spending a generation on it is the most expensive way to fix a typo.
+ * Suggestions that are *templates* (`aria="…"`) are left for a human.
+ */
+export async function fix(source: string, rounds = 3): Promise<FixResult> {
+  await load();
+  return wasmFix(source, rounds) as FixResult;
+}
+
 /** Classify every byte for highlighting, using the compiler's lexer and registry. */
 export async function highlight(source: string): Promise<HighlightSpan[]> {
   await load();
@@ -257,16 +277,28 @@ export function formatDiagnostic(d: Diagnostic, source?: string): string {
  * the no-model-call half of the repair loop.
  */
 export function applySuggestion(source: string, d: Diagnostic): string {
-  if (!d.suggestion) return source;
+  if (!d.suggestion || !isApplicable(d)) return source;
   return source.slice(0, d.span.start) + d.suggestion + source.slice(d.span.end);
+}
+
+/**
+ * Whether a suggestion is a replacement or a *template*.
+ *
+ * Accessibility diagnostics suggest shapes like `toggle aria="…"`, where the ellipsis is a
+ * placeholder for a human. Splicing that in literally puts an ellipsis in the accessible
+ * name, which is worse than the original problem — the code said "unambiguous" and did not
+ * check.
+ */
+export function isApplicable(d: Diagnostic): boolean {
+  return Boolean(d.suggestion) && !d.suggestion!.includes("…");
 }
 
 /** Apply every unambiguous suggestion, right to left so offsets stay valid. */
 export function applyAllSuggestions(source: string, diagnostics: Diagnostic[]): string {
   return [...diagnostics]
-    .filter((d) => d.suggestion)
+    .filter(isApplicable)
     .sort((a, b) => b.span.start - a.span.start)
     .reduce(applySuggestion, source);
 }
 
-export { evaluate, runAction } from "./eval";
+export { evaluate, runAction } from "./eval.js";

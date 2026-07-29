@@ -1,0 +1,28 @@
+page Spend
+
+type Entry {id, label, amount:number, month}
+data entries:Entry[] GET /api/entries
+
+state month=all|q1|q2
+
+js
+  const currency = (n: number) =>
+    n.toLocaleString("en-GB", { style: "currency", currency: "GBP" });
+  const total = (xs: { amount: number }[]) => xs.reduce((sum, x) => sum + x.amount, 0);
+
+head Spend — {entries.count} entries
+
+tabs month
+
+table entries where={month} sort=month
+  text {label}
+  text {amount}
+
+raw react
+  <p className="text-xs">Total: {currency(total(entries))}</p>
+
+raw svelte
+  <p class="text-xs">Svelte total: {currency(total(entries))}</p>
+
+p Totals are formatted by a `js` block, because currency formatting is not something the
+p vocabulary should try to own.

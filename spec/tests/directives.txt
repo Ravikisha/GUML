@@ -1,0 +1,267 @@
+Directives: `page` and its metadata, `type`, `state`, `data`.
+
+:::: page metadata becomes document metadata
+`page Name` names a component. A document also needs a title, a language and a direction — without
+`lang`, assistive technology guesses pronunciation.
+--- guml
+page Docs title="Read the docs" description="How GUML works." lang=en-GB dir=rtl
+p Body.
+--- ast
+page=Docs title="Read the docs" description="How GUML works." lang="en-GB" dir="rtl"
+p content="Body."
+--- html
+<html lang="en-GB" dir="rtl">
+<title>Read the docs</title>
+<meta name="description" content="How GUML works." />
+--- diagnostics
+::::
+
+:::: a document with no metadata still declares a language
+--- guml
+page P
+p Body.
+--- html
+<html lang="en">
+<title>P</title>
+--- diagnostics
+::::
+
+:::: dir has exactly two values
+A typo here would mirror the entire layout, so it is an error rather than a pass-through.
+--- guml
+page P dir=sideways
+--- diagnostics
+GUML0081 1
+::::
+
+:::: an unknown page attribute is reported
+--- guml
+page P titel="typo"
+--- diagnostics
+GUML0032 1
+::::
+
+:::: a type declares fields, string by default
+--- guml
+page P
+type Task {id, title, done:bool, createdAt:date}
+--- ast
+page=P
+type Task {id:string, title:string, done:bool, createdAt:date}
+--- diagnostics
+::::
+
+:::: state takes an initial value
+--- guml
+page P
+state count=0
+metric {count}
+--- ast
+page=P
+state count
+metric content="{count}"
+--- diagnostics
+::::
+
+:::: a pipe-separated state is an enumerated domain
+The first value is the initial one. The domain is what lets `tabs` render a segmented control with no
+options written by hand.
+--- guml
+page P
+state filter=all|open|done
+tabs filter
+--- ast
+page=P
+state filter domain=all|open|done
+tabs text="filter"
+--- diagnostics
+::::
+
+:::: a single value is not a domain
+--- guml
+page P
+state draft=""
+input draft aria="Draft"
+--- ast
+page=P
+state draft
+input text="draft" aria="Draft"
+--- diagnostics
+::::
+
+:::: state declared twice is an error
+--- guml
+page P
+state count=0
+state count=1
+metric {count}
+--- diagnostics
+GUML0040 3
+::::
+
+:::: a resource declares a method, a url and its mutations
+--- guml
+page P
+type Task {id, title, done:bool}
+data tasks:Task[] GET /api/tasks
+  add  POST   /api/tasks      {title} optimistic:prepend
+  drop DELETE /api/tasks/{id}         optimistic
+list tasks
+  text {title}
+--- ast
+page=P
+type Task {id:string, title:string, done:bool}
+data tasks Task[] GET /api/tasks [add POST /api/tasks] [drop DELETE /api/tasks/{id}]
+list text="tasks"
+  text content="{title}"
+--- diagnostics
+::::
+
+:::: an unknown http method is an error rather than a silent GET
+This was a real silent mis-lowering: `FETCH` became `GET`, so the document compiled and did the wrong
+thing.
+--- guml
+page P
+type T {id}
+data rows:T[] FETCH /api/rows
+list rows
+  text {id}
+--- diagnostics
+GUML0083 3
+::::
+
+:::: a path that is not a route is an error rather than an empty url
+--- guml
+page P
+type T {id}
+data rows:T[] GET api/rows
+list rows
+  text {id}
+--- diagnostics
+GUML0084 3
+::::
+
+:::: a binding to an undeclared name is an error with a suggestion
+--- guml
+page P
+state count=0
+metric {conut}
+--- diagnostics
+GUML0033 3 GUML0074 2
+::::
+
+:::: an unused declaration is a warning
+--- guml
+page P
+state count=0
+card Hi
+--- diagnostics
+GUML0074 2
+::::
+
+:::: a def expands to its body with arguments substituted
+A compile-time macro, not a runtime component: by codegen the tree holds no trace of one, which is what
+lets a `def` work in every backend with no per-backend support.
+--- guml
+page P
+state total=0
+def stat label value
+  card sm center
+    h {label}
+    metric {value}
+stat "Revenue" {total}
+--- ast
+page=P
+state total
+card mod=sm mod=center
+  h content="Revenue"
+  metric content="{total}"
+--- diagnostics
+::::
+
+:::: a def may call another def
+--- guml
+page P
+def label text
+  h {text}
+def panel title
+  card
+    label {title}
+    p Body.
+panel "Hello"
+--- ast
+page=P
+card
+  h content="Hello"
+  p content="Body."
+--- diagnostics
+::::
+
+:::: a def inherits its level from its body
+A body of markup is core. There is no `level` on a `def` because there is nothing to declare.
+level: core
+--- guml
+page P
+def panel title
+  card {title}
+    p Body.
+panel "Hi"
+--- ast
+page=P
+card text="Hi"
+  p content="Body."
+--- diagnostics
+::::
+
+:::: a def containing an action needs the app level
+level: core
+--- guml
+page P
+def clicker label
+  btn {label} primary >count++
+clicker "Go"
+--- diagnostics
+GUML0091 3 GUML0033 3
+::::
+
+:::: a def may not shadow a builtin
+--- guml
+page P
+def card x
+  p {x}
+--- diagnostics
+GUML0093 2
+::::
+
+:::: a call with the wrong number of arguments is an error
+--- guml
+page P
+def box a
+  card {a}
+box
+--- diagnostics
+GUML0094 4
+::::
+
+:::: a recursive def is rejected rather than expanded
+--- guml
+page P
+def loop x
+  card
+    loop {x}
+loop "a"
+--- diagnostics
+GUML0095 2
+::::
+
+:::: children at a call site are rejected because there is no slot
+Slots are deliberately deferred; adding them later is additive. Dropping children silently is not.
+--- guml
+page P
+def box a
+  card {a}
+box "x"
+  p inner
+--- diagnostics
+GUML0097 4
+::::

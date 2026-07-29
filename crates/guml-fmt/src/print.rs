@@ -66,8 +66,8 @@ pub fn render(
                 seen_code = true;
             }
             Item::Code(idx) => {
-                let is_directive =
-                    infos[*idx].depth == 0 && tag_of(&lines[*idx]).and_then(directive_rank).is_some();
+                let is_directive = infos[*idx].depth == 0
+                    && tag_of(&lines[*idx]).and_then(directive_rank).is_some();
                 let child_of_directive = infos[*idx].depth > 0 && !directives_done;
 
                 // One blank line marks the seam between the declarations and the tree.
@@ -109,7 +109,8 @@ fn canonical_order(lines: &[Line], infos: &[Info]) -> Vec<usize> {
     let mut seq = 0usize;
 
     while i < lines.len() {
-        let rank = (infos[i].depth == 0).then(|| tag_of(&lines[i]).and_then(directive_rank)).flatten();
+        let rank =
+            (infos[i].depth == 0).then(|| tag_of(&lines[i]).and_then(directive_rank)).flatten();
         match rank {
             Some(rank) => {
                 let mut group = vec![i];
@@ -145,7 +146,9 @@ fn push_line(
 ) {
     let line = &lines[idx];
     let info = &infos[idx];
-    out.push_str(&" ".repeat(info.depth * INDENT));
+    // `extra_indent` is non-zero only inside a `js`/`raw` body, where the nesting belongs to
+    // another language and is reproduced rather than normalised.
+    out.push_str(&" ".repeat(info.depth * INDENT + info.extra_indent));
     out.push_str(&render_line(line, info, aligned[idx].as_deref(), broken, reg, opts));
     out.push('\n');
 }
@@ -311,7 +314,10 @@ fn token_text(tok: &Tok, positional: bool, opts: Options) -> String {
 fn can_drop_quotes(s: &str) -> bool {
     let reg = Registry::builtin();
     !s.is_empty()
-        && s.chars().all(|c| !c.is_whitespace() && !matches!(c, '"' | '{' | '}' | '|' | '=' | ':' | ',' | '>' | '#' | '\\'))
+        && s.chars().all(|c| {
+            !c.is_whitespace()
+                && !matches!(c, '"' | '{' | '}' | '|' | '=' | ':' | ',' | '>' | '#' | '\\')
+        })
         && !s.starts_with('/')
         && !s.chars().next().is_some_and(|c| c.is_ascii_digit())
         && !reg.is_modifier(s)
@@ -372,7 +378,9 @@ fn align_mutation_columns(
         // Pad every column except the last one present on each row.
         let cols = rows.iter().map(Vec::len).max().unwrap_or(0);
         let widths: Vec<usize> = (0..cols)
-            .map(|c| rows.iter().filter_map(|r| r.get(c)).map(|s| s.chars().count()).max().unwrap_or(0))
+            .map(|c| {
+                rows.iter().filter_map(|r| r.get(c)).map(|s| s.chars().count()).max().unwrap_or(0)
+            })
             .collect();
 
         for (row, slot) in rows.iter().zip(out[start..i].iter_mut()) {

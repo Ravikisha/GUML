@@ -83,6 +83,22 @@ highlight-parity:
 typecheck-emitted:
     bash scripts/typecheck-emitted.sh
 
+# Render the emitted components and assert on the HTML — structure, roles, accessible names.
+render-emitted:
+    node scripts/render-emitted.mjs
+
+# Explain a diagnostic code, or list them all.
+explain code="":
+    cargo run -q -p guml-cli -- explain {{code}}
+
+# Which GUML line produced a line of emitted code.
+where file line:
+    cargo run -q -p guml-cli -- where {{file}} {{line}}
+
+# Every token counter side by side. The authoritative column needs ANTHROPIC_API_KEY.
+count-tokens:
+    node scripts/count-tokens.mjs
+
 # --- Phase 0: the kill-or-continue spike (bench/phase0) ---------------------
 
 # Harness integrity: task set, examples, registry slices, prompt budget, references.

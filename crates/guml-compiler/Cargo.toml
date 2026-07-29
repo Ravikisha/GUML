@@ -15,5 +15,15 @@ guml-registry = { workspace = true }
 guml-syntax = { workspace = true }
 
 [dev-dependencies]
+# The fuzz test drives the expression parser and the React backend directly, which the driver
+# itself does not depend on for its public API.
+guml-codegen = { workspace = true }
+guml-syntax = { workspace = true }
+criterion = { version = "0.5", default-features = false, features = ["cargo_bench_support"] }
+insta = "1"
 guml-fmt = { workspace = true }
 serde_json = { workspace = true }
+
+[[bench]]
+name = "compile"
+harness = false

@@ -107,6 +107,18 @@ pub fn classify(src: &str) -> Vec<Span> {
     let infos = crate::layout::analyse(&lexed.lines, &reg);
     let mut out: Vec<Span> = Vec::new();
 
+    // Inside a `js`/`raw` body, `//` is the host language's comment and the lexer keeps the line
+    // rather than dropping it. Without this, the line gets a `comment` span from the pass below
+    // *and* a `prose` span from the pass after it — two overlapping spans for the same bytes,
+    // which renders the text twice.
+    let verbatim: Vec<u32> = lexed
+        .lines
+        .iter()
+        .zip(&infos)
+        .filter(|(_, info)| info.raw_text_child)
+        .map(|(line, _)| line.line_no)
+        .collect();
+
     // Comments never reach the lexer, so they are found the same way the formatter finds
     // them: by re-reading the source.
     let mut offset = 0usize;
@@ -114,7 +126,7 @@ pub fn classify(src: &str) -> Vec<Span> {
         let line_no = (i + 1) as u32;
         let bare = raw.strip_suffix('\r').unwrap_or(raw);
         let trimmed = bare.trim_start();
-        if trimmed.starts_with("//") {
+        if trimmed.starts_with("//") && !verbatim.contains(&line_no) {
             let start = offset + (bare.len() - trimmed.len());
             out.push(Span {
                 start,
@@ -129,7 +141,13 @@ pub fn classify(src: &str) -> Vec<Span> {
     for (idx, line) in lexed.lines.iter().enumerate() {
         // A `tier`/`faq` content line is prose end to end, including any `|`.
         if infos[idx].raw_text_child {
-            push_prose(&mut out, src, line.text_start, line.text_start + line.text.len(), line.line_no);
+            push_prose(
+                &mut out,
+                src,
+                line.text_start,
+                line.text_start + line.text.len(),
+                line.line_no,
+            );
             continue;
         }
 
@@ -309,18 +327,17 @@ mod tests {
     use super::*;
 
     fn classes(src: &str) -> Vec<(&'static str, String)> {
-        classify(src).into_iter().map(|s| (s.class.name(), src[s.start..s.end].to_string())).collect()
+        classify(src)
+            .into_iter()
+            .map(|s| (s.class.name(), src[s.start..s.end].to_string()))
+            .collect()
     }
 
     #[test]
     fn a_tag_is_a_tag_and_a_modifier_is_a_modifier() {
         assert_eq!(
             classes("btn Add primary\n"),
-            vec![
-                ("tag", "btn".into()),
-                ("text", "Add".into()),
-                ("modifier", "primary".into())
-            ]
+            vec![("tag", "btn".into()), ("text", "Add".into()), ("modifier", "primary".into())]
         );
     }
 
@@ -358,8 +375,10 @@ mod tests {
         // `head Tasks — {tasks.open.count} open` renders a live count. Flattening it into
         // prose would hide the only executable part of the line.
         assert_eq!(
-            classes("head Tasks — {tasks.open.count} open
-"),
+            classes(
+                "head Tasks — {tasks.open.count} open
+"
+            ),
             vec![
                 ("tag", "head".into()),
                 ("prose", "Tasks — ".into()),
@@ -367,14 +386,21 @@ mod tests {
                 ("prose", " open".into()),
             ]
         );
-        assert_eq!(classes("metric {count}
-")[1], ("binding", "{count}".into()));
+        assert_eq!(
+            classes(
+                "metric {count}
+"
+            )[1],
+            ("binding", "{count}".into())
+        );
     }
 
     #[test]
     fn content_after_a_bar_is_prose_not_structure() {
-        let c = classes("card \"Ship it\" | Describe the page, get a full build.
-");
+        let c = classes(
+            "card \"Ship it\" | Describe the page, get a full build.
+",
+        );
         assert_eq!(c[0], ("tag", "card".into()));
         assert_eq!(c[1], ("string", "\"Ship it\"".into()));
         assert_eq!(c[2], ("punct", "|".into()));
@@ -409,7 +435,10 @@ mod tests {
     #[test]
     fn json_is_well_formed_and_carries_the_lsp_mapping() {
         let json = to_json("btn Add primary\n");
-        assert!(json.starts_with(r#"[{"start":0,"end":3,"line":1,"class":"tag","lsp":"type"}"#), "{json}");
+        assert!(
+            json.starts_with(r#"[{"start":0,"end":3,"line":1,"class":"tag","lsp":"type"}"#),
+            "{json}"
+        );
     }
 
     #[test]

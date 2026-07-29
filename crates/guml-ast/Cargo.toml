@@ -7,5 +7,8 @@ license.workspace = true
 description = "GUML abstract syntax tree"
 
 [dependencies]
+# For the parsed form of a binding. `guml-syntax` is the lexer and expression grammar; it does
+# not depend on the AST, so this is not a cycle.
+guml-syntax = { workspace = true }
 guml-diagnostics = { workspace = true }
 serde = { workspace = true }

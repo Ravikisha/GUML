@@ -1,0 +1,129 @@
+Conformance levels. `core` is markup; `app` adds behaviour.
+
+One language, two levels, in the way CommonMark and GFM are one language with two levels. A core
+document has no I/O, no state and no behaviour, so a host can render one that arrived from an untrusted
+agent — there is nothing in it to run. An app document declares network requests and mutations on the
+host's behalf, which is a different thing to accept from a stranger.
+
+Every case here is an **error**, not a filter. A host that asked for core and received an app document
+has to be told, rather than handed a page with the fetch silently removed.
+
+:::: markup compiles at the core level
+level: core
+--- guml
+page Landing title="Northwind"
+hero
+  h1 Build the interface, skip the boilerplate
+  p Describe the page, get a deployable build.
+section #features cols=3
+  card "Ship in minutes" | No boilerplate to review.
+  card "Own your output" | Plain framework code you can keep editing.
+--- ast
+page=Landing title="Northwind"
+hero
+  h1 content="Build the interface, skip the boilerplate"
+  p content="Describe the page, get a deployable build."
+section anchor=#features cols=3
+  card text="Ship in minutes" content="No boilerplate to review."
+  card text="Own your output" content="Plain framework code you can keep editing."
+--- diagnostics
+::::
+
+:::: content blocks are markup
+`tier` and `faq` take content lines, and `faq` lowers to `<details>`, which is interactive with no
+script at all.
+level: core
+--- guml
+page Pricing
+tier Pro $24/mo "For working developers" cta="Go Pro" /signup featured
+  Unlimited projects
+  Custom domains
+faq open=1
+  Can I export the code? | Yes. Every build is plain source.
+--- html
+<details
+<summary
+--- diagnostics
+::::
+
+:::: state is rejected at the core level
+level: core
+--- guml
+page P
+state count=0
+metric {count}
+--- diagnostics
+GUML0091 2
+::::
+
+:::: data is rejected at the core level
+level: core
+--- guml
+page P
+type T {id}
+data rows:T[] GET /api/rows
+p Body.
+--- diagnostics
+GUML0091 3 GUML0075 3
+::::
+
+:::: an action is rejected at the core level
+level: core
+--- guml
+page P
+card Hi
+  btn Go primary >count++
+--- diagnostics
+GUML0091 3 GUML0033 3
+::::
+
+:::: a js block is rejected at the core level
+level: core
+--- guml
+page P
+js
+  fetch("/exfiltrate");
+card Hi
+--- diagnostics
+GUML0091 2 GUML0090 2
+::::
+
+:::: raw markup is still allowed at the core level
+`raw html` is markup, not behaviour — the same judgement a Markdown renderer makes about inline HTML.
+It is still counted as an escape hatch so the rate stays measurable.
+level: core
+--- guml
+page P
+raw html
+  <hr class="my-4" />
+--- html
+<hr class="my-4" />
+--- diagnostics
+GUML0090 2
+::::
+
+:::: a repeater is not in the core vocabulary
+It has nothing to iterate without `data`, so it fails as an unknown tag — enforcement by absence rather
+than by a downstream check somebody could forget.
+level: core
+--- guml
+page P
+list rows
+  text {id}
+--- diagnostics
+GUML0030 2 GUML0033 3
+::::
+
+:::: the same document is fine at the app level
+--- guml
+page P
+state count=0
+metric {count}
+btn Add primary >count++
+--- ast
+page=P
+state count
+metric content="{count}"
+btn text="Add" mod=primary action="count++"
+--- diagnostics
+::::

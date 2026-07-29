@@ -1,5 +1,10 @@
 name: ci
 
+# Every gate this project verifies by hand runs here. That is the whole point: a per-element
+# allocation once pushed compile latency 24% over its committed budget while every test stayed
+# green, and only the benchmark saw it. A check that lives in someone's shell history is not a
+# check.
+
 on:
   push:
     branches: [main]
@@ -10,7 +15,7 @@ env:
   RUSTFLAGS: -D warnings
 
 jobs:
-  test:
+  rust:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -32,15 +37,70 @@ jobs:
       - name: Test
         run: cargo test --workspace
 
-      # The fixtures back the token measurement in the research report, so a fixture that
-      # stops compiling is a broken claim, not just a broken test.
-      - name: Fixtures still compile
+      # The language server is a separate binary with its own dependency tree, so a workspace
+      # test run can pass while it fails to build.
+      - name: Language server builds
+        run: cargo build -p guml-lsp
+
+      # Compiled, not run: the numbers need a quiet machine to mean anything, but a benchmark
+      # that stops compiling is a benchmark nobody will run again.
+      - name: Benchmarks compile
+        run: cargo bench -p guml-compiler --no-run
+
+  guml-sources:
+    # Every `.guml` file in the repository has to be formatted and valid. The fixtures back the
+    # token measurements in the research report, so one that stops compiling is a broken claim.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Formatted
+        run: cargo run -q -p guml-cli -- fmt --check fixtures/*.guml bench/phase0/examples/*.guml
+
+      - name: Valid
+        run: cargo run -q -p guml-cli -- validate fixtures bench/phase0/examples
+
+      # The strongest test of a code generator: emit everything, then typecheck the result under
+      # `--strict`. Five silent mis-lowerings have been caught this way and by nothing else.
+      - name: Emitted TypeScript typechecks
         run: |
-          cargo run -q -p guml-cli -- check fixtures/a.guml
-          cargo run -q -p guml-cli -- check fixtures/b.guml
-          cargo run -q -p guml-cli -- check fixtures/c.guml
-          cargo run -q -p guml-cli -- build fixtures/a.guml > /dev/null
+          pnpm install --frozen-lockfile
+          bash scripts/typecheck-emitted.sh
         shell: bash
+
+      # Typechecking and executing catch different things. `tsc` found a DOM prop React does not
+      # have; only rendering can notice a table with no header row or a control with no name.
+      - name: Emitted components render
+        run: node scripts/render-emitted.mjs
+
+  phase0:
+    # The harness that decides whether the project continues. Everything here runs without an
+    # API key; the generations themselves do not.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Prompt budget, example leakage, registry slices, and that the ten React references
+      # still typecheck.
+      - name: Harness preflight
+        run: node bench/phase0/preflight.mjs
+
+      # Scores synthetic generations of known shape. A miscount here would produce a plausible,
+      # wrong answer to the only question Phase 0 exists to ask.
+      - name: Scoring self-test
+        run: node bench/phase0/selftest.mjs
 
   docs:
     runs-on: ubuntu-latest
@@ -58,8 +118,55 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # The docs site regenerates its code samples from the real fixtures and the
-      # real compiler, so this step also proves the compiler still builds.
+      # The site regenerates its code samples from the real fixtures and the real compiler, so
+      # this also proves the compiler still builds.
       - run: pnpm --filter docs build
 
       - run: pnpm --filter docs lint
+
+      - run: pnpm --filter docs typecheck
+
+      # The compiler's theme decides which utility classes the emitted output carries, and Tailwind
+      # cannot discover classes produced at runtime. A stale generated list means a live preview
+      # renders class names with no rule — half-styled, with nothing to indicate it.
+      - name: Theme class list is current
+        run: pnpm --filter docs check:theme
+
+      # The site keeps a TypeScript highlighter because server rendering has to be synchronous.
+      # That is a second implementation of a language rule, so it is held to the compiler's
+      # answer span for span rather than by review.
+      - name: Highlighter agrees with the compiler
+        run: pnpm --filter docs check:highlight
+
+      # Docs samples that carry a live preview are compiled by the real CLI, and the check fails on a
+      # warning as well as an error. A sample that stopped compiling would not fail the build on its
+      # own — it would quietly replace an interface with a diagnostics panel, on a page whose
+      # argument is that the language works.
+      - name: Docs previews compile clean
+        run: pnpm --filter docs check:previews
+
+  package:
+    # The npm package ships the compiler as wasm. Its build output and its tests are separate
+    # from the Rust workspace's.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm --filter guml typecheck
+
+      # The runtime evaluator is a second implementation of semantics the Rust compiler also
+      # owns. Several of these tests exist purely to pin that parity.
+      - name: Runtime tests
+        run: pnpm --filter guml test
+
+      - name: Build output
+        run: pnpm --filter guml build:ts

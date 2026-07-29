@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { CodeBlock } from "@/components/code-block";
+import { CodePreview } from "@/components/code-preview";
 import { DocPage } from "@/components/doc-page";
 import { A, C, H2, LI, Note, P, Table, UL } from "@/components/prose";
 import { FIXTURES } from "@/lib/fixtures.generated";
@@ -77,7 +78,12 @@ export default function Page() {
         Indentation is nesting. No closing tags, no imports, no class names. The first bare word on
         a line is a tag; <C>{">"}</C> introduces behaviour and takes the rest of the line.
       </P>
-      <CodeBlock code={counter.guml} lang="guml" filename="counter.guml" meter="64 tokens · 11 lines" />
+      <CodePreview
+        code={counter.guml}
+        lang="guml"
+        filename="counter.guml"
+        meter="64 tokens · 11 lines"
+      />
       <P>
         That compiles to a React component with the design system, the state setters, and the
         conditional disable all supplied by the compiler:
@@ -87,7 +93,7 @@ export default function Page() {
           code={counter.emitted}
           lang="tsx"
           filename="Counter.tsx — emitted"
-          meter="368 tokens · 39 lines"
+          meter="~489 tokens · 18 lines"
           maxHeight={380}
         />
       ) : null}

@@ -251,7 +251,7 @@ export function Playground({ samples }: { samples: Sample[] }) {
             <div className="border-b border-line px-4 py-2">
               <span className="label">rendered from the compiler&rsquo;s UI tree</span>
             </div>
-            <div className="min-h-[26rem] overflow-auto bg-white p-6">
+            <div className="min-h-[26rem] overflow-auto bg-slate-50 p-6 dark:bg-slate-950">
               {errors.length > 0 ? (
                 <p className="font-mono text-sm text-red-600">
                   {errors.length} error{errors.length > 1 ? "s" : ""} — fix them to see the preview.

@@ -1,0 +1,20 @@
+[package]
+name = "guml-lsp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Language server for GUML: the compiler's own diagnostics, in an editor"
+
+[[bin]]
+name = "guml-lsp"
+path = "src/main.rs"
+
+[dependencies]
+guml-compiler = { workspace = true }
+guml-diagnostics = { workspace = true }
+guml-fmt = { workspace = true }
+guml-registry = { workspace = true }
+tower-lsp = "0.20"
+tokio = { version = "1", features = ["rt-multi-thread", "io-std", "macros"] }
+dashmap = "6"

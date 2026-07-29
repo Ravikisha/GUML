@@ -62,12 +62,7 @@ mod tests {
         let items = split(src, &lex(src));
         assert_eq!(
             items,
-            vec![
-                Item::Comment("// top".into()),
-                Item::Code(0),
-                Item::Blank,
-                Item::Code(1),
-            ]
+            vec![Item::Comment("// top".into()), Item::Code(0), Item::Blank, Item::Code(1),]
         );
     }
 

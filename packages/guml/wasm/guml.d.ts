@@ -13,6 +13,15 @@ export function check(source: string): any;
 export function compile(source: string, backend?: string | null): any;
 
 /**
+ * Apply every unambiguous diagnostic suggestion, with no model in the loop.
+ *
+ * The free layer of the repair loop. The harness runs this through the CLI; the browser gets
+ * the same implementation so a page can fix what the compiler already knows how to fix
+ * before it tells anyone the generation failed.
+ */
+export function fix(source: string, rounds?: number | null): any;
+
+/**
  * Format source. `canonical` strips comments, blank lines and declaration order so that
  * two semantically identical documents produce identical bytes.
  */
@@ -46,6 +55,7 @@ export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly check: (a: number, b: number) => [number, number, number];
     readonly compile: (a: number, b: number, c: number, d: number) => [number, number, number];
+    readonly fix: (a: number, b: number, c: number) => [number, number, number];
     readonly format: (a: number, b: number, c: number) => [number, number, number];
     readonly highlight: (a: number, b: number) => [number, number, number];
     readonly registry: (a: number, b: number) => [number, number, number];

@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { CodeBlock } from "@/components/code-block";
+import { CodePreview } from "@/components/code-preview";
+import { SAMPLES } from "@/lib/samples";
 import { DocPage } from "@/components/doc-page";
 import { A, C, H2, LI, Note, P, Table, UL } from "@/components/prose";
 
@@ -102,6 +104,12 @@ btn Delete quiet aria="Delete {title}" >tasks.drop`}
 form >tasks.add{title:draft}; draft=""
 btn Delete quiet aria="Delete {title}" >tasks.drop`}
       />
+      <P>
+        The form on its own, with the field and the button that submit it — this one runs, so the
+        optimistic insert and the disabled-while-empty rule are the compiler&rsquo;s, not a
+        description of them:
+      </P>
+      <CodePreview {...SAMPLES["bindings.mutations"]} />
       <P>
         <C>{">tasks.add{title:draft}"}</C> sends the body, applies the optimistic update, and — if
         the request fails — restores the snapshot and surfaces the error. Inside a repeater,{" "}

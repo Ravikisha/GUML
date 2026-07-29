@@ -35,6 +35,26 @@ export function compile(source, backend) {
 }
 
 /**
+ * Apply every unambiguous diagnostic suggestion, with no model in the loop.
+ *
+ * The free layer of the repair loop. The harness runs this through the CLI; the browser gets
+ * the same implementation so a page can fix what the compiler already knows how to fix
+ * before it tells anyone the generation failed.
+ * @param {string} source
+ * @param {number | null} [rounds]
+ * @returns {any}
+ */
+export function fix(source, rounds) {
+    const ptr0 = passStringToWasm0(source, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.fix(ptr0, len0, isLikeNone(rounds) ? Number.MAX_SAFE_INTEGER : (rounds) >>> 0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
  * Format source. `canonical` strips comments, blank lines and declaration order so that
  * two semantically identical documents produce identical bytes.
  * @param {string} source

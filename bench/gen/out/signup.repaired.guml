@@ -1,0 +1,23 @@
+page SignUp
+
+type User {id, email, password, country}
+data users:User[] POST /api/signup {email,password,country}
+
+state name=""
+state email=""
+state password=""
+state country=""
+state terms=false
+
+card "Sign up" sm center
+  p Please fill in the form to create an account.
+  form >users {email:email,password:password,country:country,terms:terms}
+    input name placeholder="Your full name" required
+    input email kind=email aria="Email address" placeholder="you@example.com" required
+    input password kind=password aria="Password" placeholder="Your password" required
+    select country aria="Country" required
+      option GB "United Kingdom"
+      option US "United States"
+      option DE "Germany"
+    toggle {terms} aria="I accept the terms" >terms=!terms
+    btn "Sign up" primary disabled={!name.trim()} busy="Signing up…"

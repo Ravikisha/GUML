@@ -1,11 +1,8 @@
 # GUML v0.1 — language specification
 
-This file is the artifact that goes **into the model's context**, so it is written for a model:
-terse, complete, example-led. Target budget ≤3,000 tokens including the registry slice and
-examples. If it grows past that, the amortisation math weakens and in-context learnability
-degrades — cut features, not explanation.
-
-Everything described here is implemented and covered by tests unless marked `PLANNED`.
+Written for a model: terse, complete, example-led. Everything here is implemented and tested
+unless marked `PLANNED`. Budget ≤3,000 tokens assembled (spec + registry slice + examples);
+`bench/phase0/preflight.mjs` enforces it, and rationale lives in the docs site, not here.
 
 ## Shape of a file
 
@@ -32,7 +29,7 @@ card sm center
 ## Directives (top level, any order)
 
 ```
-page Counter                                  // page name -> component name
+page Counter title="Clicks" lang=en dir=ltr   // name -> component; metadata optional
 type Task {id, title, done:bool, createdAt:date}   // fields default to `string`
 state count=0                                 // local state; type inferred
 state draft=""
@@ -43,14 +40,21 @@ data tasks:Task[] GET /api/tasks              // a resource
   drop DELETE /api/tasks/{id}          optimistic
 route /app -> Dashboard                       // PLANNED
 auth clerk                                    // PLANNED
+
+def stat label value                          // a user-defined component
+  card sm center
+    h {label}
+    metric {value}
+
+stat "Revenue" {total}                        // a call: arguments are positional
 ```
 
 A `data` block's indented children are its mutations: `name METHOD /url {body fields}
 [optimistic[:strategy]]`. Strategies: `prepend`, `append`, `replace` (default).
 
-**What `data` gives you for free** — none of this is written by hand: fetch on mount, request
-cancellation, retry with backoff, loading state, error state, empty state, optimistic apply,
-snapshot rollback on failure, and derived aggregates (`tasks.open.count`).
+**What `data` gives you for free** — none of it written by hand: fetch on mount, request
+cancellation, loading/error/empty state, optimistic apply, rollback on failure, and aggregates
+(`tasks.open.count`).
 
 ## Elements
 
@@ -59,9 +63,9 @@ tag [positionals…] [name=value…] [>action]
 tag …                | content text
 ```
 
-Order is free except `>action`, which **must be last** — it consumes the rest of the line.
+Order is free except `>action`, which **must be last**: it consumes the rest of the line.
 
-**Positionals** — the first bare word or quoted string is the label/title. Others:
+**Positionals** — first bare word or quoted string is the label/title. Others:
 
 | Form | Meaning |
 |---|---|
@@ -89,8 +93,7 @@ card "Ship in minutes" | Describe the page, get a deployable build.
 ```
 
 **Bindings** — `{expr}`: paths (`title`, `tasks.open.count`), comparison, boolean, arithmetic,
-aggregates (`.count`, `.sum`, `.where`). Bindings are derived, never assigned — there is no
-memoisation to get wrong.
+aggregates (`.count`, `.sum`, `.where`). Bindings are read-only.
 
 ## Tag vocabulary
 
@@ -104,7 +107,7 @@ Closed set. An unknown tag is a compile error with a `did you mean` suggestion.
 | Field | `input` `select` | first positional is the state it binds |
 | Repeater | `list` `table` | children are the item template |
 
-`tier` and `faq` take **content lines** as children rather than elements:
+`tier` and `faq` take **content lines**, not elements:
 
 ```
 tier Pro $24/mo "For working developers" cta="Go Pro" /signup featured
@@ -115,8 +118,7 @@ faq open=1
   Can I export the code? | Yes. Every build is plain source.
 ```
 
-Run `guml registry` for the live list, or `guml registry --tags btn,card,list` for a
-prompt-sized slice.
+Live list: `guml registry`, or `--tags btn,card,list` for a slice.
 
 ## Modifiers
 
@@ -133,13 +135,30 @@ state    disabled loading readonly required
 
 ## Global attributes
 
-`id` `class` `aria` `title` `hidden` `cols` `gap` `w` `if` `disabled` `loading` `readonly`
-`required`. Per-tag extras: `btn` → `busy` `type`; `input` → `placeholder` `kind` `min` `max`;
+`id` `aria` `title` `hidden` `cols` `gap` `w` `if` `disabled` `loading` `readonly`
+`required`. No `class`: presentation is the theme's.
+
+Per-tag extras: `btn` → `busy` `type`; `input` → `placeholder` `kind` `min` `max`;
 `list`/`table` → `where` `sort` `of`; `tier` → `cta`; `faq` → `open`; `text` → `strike`.
 
-## Escape hatches `PLANNED`
+## User-defined components
 
-Every construct must have a way out, or the expressiveness cliff becomes an adoption wall:
+`def <name> <params…>` + indented body, expanded at compile time. In the body `{param}` substitutes
+into a binding, an attribute value, or prose; any other `{name}` is the document's own. A literal
+argument becomes text, a binding stays a binding.
+
+Exact arity. No redefining an existing tag, no recursion, no parameter inside an action, no children
+at a call site (slots are not implemented).
+
+## Conformance levels
+
+**core** is markup: containers, text, controls, `tier`, `faq`, `raw` — no I/O, no state, safe to
+render from an untrusted agent. **app** adds `state`, `store`, `data`, actions, `js`, and the
+repeaters that iterate a resource. An app construct at the core level is `GUML0091`, an error.
+
+## Escape hatches
+
+For anything the vocabulary cannot express:
 
 ```
 js
@@ -148,39 +167,14 @@ raw react
   <SomeThirdPartyChart data={rows} />
 ```
 
-The compiler tracks how often these appear — a rising escape-hatch rate is the early warning
-that the vocabulary is too small.
+Bodies are verbatim and never checked; indentation is preserved and `//` is the host language's
+comment. `raw <target>` is skipped by other backends. Each block reports `GUML0090`, so the
+escape-hatch rate stays countable.
 
-## Worked example — CRUD with optimistic updates
+## Worked example
 
-```
-page Tasks
-
-type Task {id, title, done:bool, createdAt:date}
-data tasks:Task[] GET /api/tasks
-  add  POST   /api/tasks         {title}  optimistic:prepend
-  save PATCH  /api/tasks/{id}    {done}   optimistic
-  drop DELETE /api/tasks/{id}             optimistic
-
-state draft=""
-state filter=all|open|done
-
-head Tasks — {tasks.open.count} open
-
-form >tasks.add{title:draft}; draft=""
-  input draft placeholder="Add a task…"
-  btn Add primary disabled={!draft.trim()} busy="Adding…"
-
-tabs filter
-
-list tasks where={filter}
-  check {done} >tasks.save
-  text {title} strike={done}
-  btn Delete quiet aria="Delete {title}" >tasks.drop
-  empty Nothing here yet.
-```
-
-173 tokens. The equivalent hand-written React+TS+Tailwind is 1,434.
+Three complete documents are appended below under **Examples of valid GUML**, including a CRUD page
+with optimistic updates. Read those rather than a fourth one here.
 
 ## Rules a generator should follow
 
@@ -191,5 +185,7 @@ list tasks where={filter}
 4. Never hand-write loading, empty, error, or rollback logic — declare the resource and the
    `empty` message.
 5. Put `>action` last on its line.
-6. Prose goes in text tags or after `|`; never quote prose unless it contains `|` or `=`.
+6. Prose goes in text tags or after `|`, and needs no quoting: `p Set x=1 to enable` is prose,
+   because `=` only starts an attribute when the name is one the tag accepts. Quote it if it
+   contains `|`.
 7. If something cannot be expressed, say so rather than inventing a tag.

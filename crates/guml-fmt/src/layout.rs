@@ -21,6 +21,10 @@ pub struct Info {
     pub raw_text_child: bool,
     /// Tag of the enclosing block, for context-sensitive printing (mutations under `data`).
     pub parent_tag: Option<String>,
+    /// Spaces to add on top of `depth`, for lines inside a `js`/`raw` block. Those bodies are
+    /// another language, so their internal nesting is meaningful and is reproduced exactly —
+    /// where `tier`/`faq` content is deliberately flattened because the parser flattens it too.
+    pub extra_indent: usize,
 }
 
 struct Frame {
@@ -31,6 +35,19 @@ struct Frame {
     /// single depth they all print at. The parser flattens them into `text_lines`, so any
     /// extra indent the author used carries no meaning and must not be reproduced.
     content_depth: Option<usize>,
+    /// Where this frame sits with respect to a `js`/`raw` block.
+    escape: Escape,
+}
+
+/// A block header does not yet know how far its author indented the body, so the origin is
+/// resolved on the first body line and then inherited unchanged by everything below it.
+#[derive(Clone, Copy, PartialEq)]
+enum Escape {
+    No,
+    /// The header line of a `js`/`raw` block.
+    Opened,
+    /// Inside a block whose body starts at this indent.
+    Body(usize),
 }
 
 pub fn analyse(lines: &[Line], reg: &Registry) -> Vec<Info> {
@@ -50,18 +67,41 @@ pub fn analyse(lines: &[Line], reg: &Registry) -> Vec<Info> {
         };
         let parent_tag = parent.and_then(|f| f.tag.clone());
 
+        // Inherited from the parent, resolving the origin if this is the first body line.
+        let escape = match parent.map_or(Escape::No, |f| f.escape) {
+            Escape::Opened => Escape::Body(line.indent),
+            other => other,
+        };
+        let extra_indent = match escape {
+            Escape::Body(origin) => line.indent.saturating_sub(origin),
+            _ => 0,
+        };
+
         let tag = line.tokens.first().and_then(|t| t.tok.as_word()).map(str::to_string);
         // A content line has no tag of its own, so it can never open a block — but it does
         // keep its descendants inside the same content region.
-        let opens_content = content_depth.is_none()
-            && tag.as_deref().is_some_and(|t| reg.children_are_text(t));
+        let opens_content =
+            content_depth.is_none() && tag.as_deref().is_some_and(|t| reg.children_are_text(t));
+        // `js`/`raw` are not in the registry — they are the way out of it — so they are matched by
+        // name here, exactly as the parser matches them before its own registry lookup.
+        let opens_escape = content_depth.is_none()
+            && escape == Escape::No
+            && matches!(tag.as_deref(), Some("js" | "raw"));
 
-        out.push(Info { depth, raw_text_child: content_depth.is_some(), parent_tag });
+        out.push(Info {
+            depth,
+            raw_text_child: content_depth.is_some() || matches!(escape, Escape::Body(_)),
+            parent_tag,
+            extra_indent,
+        });
         stack.push(Frame {
             indent: line.indent,
             depth,
             tag,
-            content_depth: content_depth.or(opens_content.then_some(depth + 1)),
+            content_depth: content_depth
+                .or(opens_content.then_some(depth + 1))
+                .or(opens_escape.then_some(depth + 1)),
+            escape: if opens_escape { Escape::Opened } else { escape },
         });
     }
 

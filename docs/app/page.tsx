@@ -138,6 +138,7 @@ export default function HomePage() {
                 note: "A2UI-shaped JSON IR — 315 tokens minified",
               },
             ]}
+            preview="guml"
           />
         </div>
       </Section>

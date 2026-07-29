@@ -1,0 +1,275 @@
+---
+source: crates/guml-compiler/tests/snapshots.rs
+expression: "emitted(\"b.guml\", \"json\")"
+---
+// ---- Tasks.ui.json ----
+{
+  "page": "Tasks",
+  "state": [
+    {
+      "name": "draft",
+      "init": "",
+      "domain": []
+    },
+    {
+      "name": "filter",
+      "init": "all",
+      "domain": [
+        "all",
+        "open",
+        "done"
+      ]
+    }
+  ],
+  "resources": [
+    {
+      "name": "tasks",
+      "ty": "Task[]",
+      "method": "GET",
+      "url": "/api/tasks",
+      "mutations": [
+        {
+          "name": "add",
+          "method": "POST",
+          "url": "/api/tasks",
+          "body": [
+            "title"
+          ],
+          "optimistic": "prepend"
+        },
+        {
+          "name": "save",
+          "method": "PATCH",
+          "url": "/api/tasks/{id}",
+          "body": [
+            "done"
+          ],
+          "optimistic": "replace"
+        },
+        {
+          "name": "drop",
+          "method": "DELETE",
+          "url": "/api/tasks/{id}",
+          "body": [],
+          "optimistic": "replace"
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "tag": "head",
+      "el": "p",
+      "class": "text-2xl font-semibold text-slate-900 dark:text-slate-100",
+      "text": "Tasks — {tasks.open.count} open",
+      "label": null,
+      "bind": null,
+      "props": [],
+      "actions": [],
+      "source": null,
+      "filter": null,
+      "ariaFrom": null,
+      "lines": [],
+      "children": []
+    },
+    {
+      "tag": "form",
+      "el": "form",
+      "class": "mt-6 flex gap-2",
+      "text": null,
+      "label": null,
+      "bind": null,
+      "props": [],
+      "actions": [
+        "tasks.add{title:draft}; draft=\"\""
+      ],
+      "source": null,
+      "filter": null,
+      "ariaFrom": null,
+      "lines": [],
+      "children": [
+        {
+          "tag": "input",
+          "el": "input",
+          "class": "flex-1 rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm outline-none bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100 disabled:opacity-40",
+          "text": null,
+          "label": "draft",
+          "bind": "draft",
+          "props": [
+            {
+              "name": "type",
+              "value": "text",
+              "bound": false
+            },
+            {
+              "name": "placeholder",
+              "value": "Add a task…",
+              "bound": false
+            }
+          ],
+          "actions": [],
+          "source": null,
+          "filter": null,
+          "ariaFrom": null,
+          "lines": [],
+          "children": []
+        },
+        {
+          "tag": "btn",
+          "el": "button",
+          "class": "rounded-md px-4 py-2 text-sm font-medium transition-colors bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-200 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100 disabled:opacity-40",
+          "text": null,
+          "label": "Add",
+          "bind": null,
+          "props": [
+            {
+              "name": "type",
+              "value": "submit",
+              "bound": false
+            },
+            {
+              "name": "disabled",
+              "value": "!draft.trim()",
+              "bound": true
+            },
+            {
+              "name": "busy",
+              "value": "Adding…",
+              "bound": false
+            }
+          ],
+          "actions": [],
+          "source": null,
+          "filter": null,
+          "ariaFrom": null,
+          "lines": [],
+          "children": []
+        }
+      ]
+    },
+    {
+      "tag": "tabs",
+      "el": null,
+      "class": "",
+      "text": null,
+      "label": "filter",
+      "bind": "filter",
+      "props": [],
+      "actions": [],
+      "source": null,
+      "filter": null,
+      "ariaFrom": null,
+      "lines": [],
+      "children": []
+    },
+    {
+      "tag": "list",
+      "el": null,
+      "class": "mt-6 divide-y divide-slate-200 dark:divide-slate-800 rounded-md border border-slate-200 dark:border-slate-800",
+      "text": null,
+      "label": "tasks",
+      "bind": null,
+      "props": [
+        {
+          "name": "where",
+          "value": "filter",
+          "bound": true
+        }
+      ],
+      "actions": [],
+      "source": "tasks",
+      "filter": "filter",
+      "ariaFrom": "title",
+      "lines": [],
+      "children": [
+        {
+          "tag": "check",
+          "el": "input",
+          "class": "h-4 w-4 rounded border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100 disabled:opacity-40",
+          "text": null,
+          "label": null,
+          "bind": "done",
+          "props": [
+            {
+              "name": "type",
+              "value": "checkbox",
+              "bound": false
+            }
+          ],
+          "actions": [
+            "tasks.save"
+          ],
+          "source": null,
+          "filter": null,
+          "ariaFrom": null,
+          "lines": [],
+          "children": []
+        },
+        {
+          "tag": "text",
+          "el": "span",
+          "class": "flex-1 text-sm text-slate-900 dark:text-slate-100",
+          "text": null,
+          "label": null,
+          "bind": "title",
+          "props": [
+            {
+              "name": "strike",
+              "value": "done",
+              "bound": true
+            }
+          ],
+          "actions": [],
+          "source": null,
+          "filter": null,
+          "ariaFrom": null,
+          "lines": [],
+          "children": []
+        },
+        {
+          "tag": "btn",
+          "el": "button",
+          "class": "rounded-md px-4 py-2 text-sm font-medium transition-colors text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100 disabled:opacity-40",
+          "text": null,
+          "label": "Delete",
+          "bind": null,
+          "props": [
+            {
+              "name": "type",
+              "value": "button",
+              "bound": false
+            },
+            {
+              "name": "aria-label",
+              "value": "Delete {title}",
+              "bound": false
+            }
+          ],
+          "actions": [
+            "tasks.drop"
+          ],
+          "source": null,
+          "filter": null,
+          "ariaFrom": null,
+          "lines": [],
+          "children": []
+        },
+        {
+          "tag": "empty",
+          "el": "p",
+          "class": "mt-10 text-center text-sm text-slate-500 dark:text-slate-400",
+          "text": "Nothing here yet.",
+          "label": null,
+          "bind": null,
+          "props": [],
+          "actions": [],
+          "source": null,
+          "filter": null,
+          "ariaFrom": null,
+          "lines": [],
+          "children": []
+        }
+      ]
+    }
+  ]
+}

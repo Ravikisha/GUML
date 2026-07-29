@@ -10,5 +10,8 @@ description = "Pluggable code generators for GUML (React first)"
 guml-ast = { workspace = true }
 guml-diagnostics = { workspace = true }
 guml-registry = { workspace = true }
+# The expression grammar, so codegen lowers a parsed tree instead of re-parsing text. This is
+# the lexer crate, not the parser — no cycle (invariant 7).
+guml-syntax = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

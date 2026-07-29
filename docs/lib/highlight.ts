@@ -202,17 +202,26 @@ function gumlLine(line: string): Tok[] {
  * line* — raw text, however much it looks like an element. `3 projects` is prose, not the
  * tag `3` followed by a word. The compiler learns this from the registry via its nesting
  * analysis; here it needs only the one rule, tracked with a single open-block indent.
+ *
+ * A `js`/`raw` body is the same kind of region with one extra rule: `//` inside it is the host
+ * language's comment, not GUML's, so the line is body text rather than a comment. The Rust
+ * highlighter reaches the same answer through `Info::raw_text_child`, and
+ * `scripts/check-highlight-parity.mjs` holds the two to a span-for-span match.
  */
 function gumlDocument(lines: string[]): Tok[][] {
   let contentIndent: number | null = null;
+  let inEscape = false;
 
   return lines.map((line) => {
     const indent = line.length - line.trimStart().length;
     const body = line.trim();
 
-    if (contentIndent !== null && body && indent <= contentIndent) contentIndent = null;
+    if (contentIndent !== null && body && indent <= contentIndent) {
+      contentIndent = null;
+      inEscape = false;
+    }
 
-    if (contentIndent !== null && body && !body.startsWith("//")) {
+    if (contentIndent !== null && body && (inEscape || !body.startsWith("//"))) {
       const out: Tok[] = [];
       if (indent) out.push({ text: line.slice(0, indent), cls: C.plain });
       for (const piece of line.slice(indent).replace(/\s+$/, "").split(/(\{[^}]*\})/g)) {
@@ -223,7 +232,13 @@ function gumlDocument(lines: string[]): Tok[][] {
 
     if (body && !body.startsWith("//")) {
       const head = body.split(/[\s|=:]/)[0];
-      if (CONTENT_TAGS.has(head)) contentIndent = indent;
+      // `js`/`raw` are not registry components — they are the way out of the vocabulary — so they
+      // are matched by name, exactly as the parser matches them before its registry lookup.
+      const escape = head === "js" || head === "raw";
+      if (CONTENT_TAGS.has(head) || escape) {
+        contentIndent = indent;
+        inEscape = escape;
+      }
     }
     return gumlLine(line);
   });

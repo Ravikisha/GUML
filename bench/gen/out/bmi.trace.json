@@ -1,0 +1,47 @@
+{
+  "app": "bmi",
+  "model": "meta/llama-3.1-8b-instruct",
+  "trace": [
+    {
+      "layer": "raw",
+      "errors": 8,
+      "codes": [
+        "GUML0003",
+        "GUML0004",
+        "GUML0020",
+        "GUML0065"
+      ]
+    },
+    {
+      "layer": "sanitize",
+      "errors": 2,
+      "codes": [
+        "GUML0065"
+      ],
+      "fenced": false,
+      "separators": 0,
+      "droppedLines": 4
+    },
+    {
+      "layer": "format",
+      "errors": 2,
+      "codes": [
+        "GUML0065"
+      ]
+    },
+    {
+      "layer": "fix",
+      "errors": 2,
+      "codes": [
+        "GUML0065"
+      ]
+    },
+    {
+      "layer": "model",
+      "errors": 0,
+      "codes": [],
+      "accepted": true,
+      "trial": 2
+    }
+  ]
+}

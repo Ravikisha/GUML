@@ -12,6 +12,7 @@ path = "src/main.rs"
 
 [dependencies]
 guml-compiler = { workspace = true }
+guml-codegen = { workspace = true }
 guml-fmt = { workspace = true }
 guml-diagnostics = { workspace = true }
 guml-registry = { workspace = true }

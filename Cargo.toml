@@ -10,6 +10,7 @@ members = [
     "crates/guml-fmt",
     "crates/guml-compiler",
     "crates/guml-cli",
+    "crates/guml-lsp",
     "crates/guml-wasm",
 ]
 

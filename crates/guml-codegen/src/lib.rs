@@ -14,13 +14,22 @@ use guml_ast::{Element, Positional, Program};
 use guml_diagnostics::{Diagnostics, Severity, Span};
 
 pub mod expr;
+pub mod html;
 pub mod json;
 pub mod react;
+pub mod sourcemap;
+pub mod theme;
 
 #[derive(Debug, Clone)]
 pub struct OutFile {
     pub path: String,
     pub contents: String,
+    /// Line provenance, when the backend recorded it. The driver serialises this to Source Map
+    /// v3, because serialising needs the source *text* and only the driver has it.
+    ///
+    /// Without a map, every stack trace and breakpoint points at generated code the author never
+    /// wrote — which the report names as an adoption blocker rather than a nicety (§12.2).
+    pub source_map: Option<crate::sourcemap::SourceMap>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -39,12 +48,16 @@ pub fn backend(name: &str) -> Option<Box<dyn Backend>> {
     match name {
         "react" => Some(Box::new(react::ReactBackend)),
         "json" => Some(Box::new(json::JsonBackend)),
+        "html" => Some(Box::new(html::HtmlBackend { style: html::Style::Inline })),
+        // Same backend, styled by the Tailwind CDN. A separate name rather than a flag, so the
+        // preview path is visible in `--help` and never becomes the default by accident.
+        "html-cdn" => Some(Box::new(html::HtmlBackend { style: html::Style::Cdn })),
         _ => None,
     }
 }
 
 pub fn backend_names() -> &'static [&'static str] {
-    &["react", "json"]
+    &["react", "json", "html", "html-cdn"]
 }
 
 // ------------------------------------------------------------------ shared helpers
@@ -81,21 +94,35 @@ pub(crate) fn component_name(raw: &str) -> String {
     }
 }
 
-
-pub(crate) fn unsupported(diags: &mut Diagnostics, span: Span, what: impl AsRef<str>) {
+/// Invariant 3: a construct a backend cannot lower is *reported*, never silently dropped.
+///
+/// The backend names itself, because "cannot lower" now means different things in different
+/// backends. In React it is a gap to be filled later; in `html` it is permanent and architectural —
+/// there is no JavaScript, so there will never be an `onClick`. A message that said "does not yet"
+/// about the second case would be telling the reader to wait for something that is not coming.
+pub(crate) fn unsupported_in(
+    diags: &mut Diagnostics,
+    backend: &str,
+    span: Span,
+    what: impl AsRef<str>,
+) {
     let mut d = guml_diagnostics::Diagnostic::warning(
         guml_diagnostics::Code::UnknownTag,
-        format!("v0.1 React backend does not yet lower {}", what.as_ref()),
+        format!("`{backend}` backend: {}", what.as_ref()),
         span,
     );
     d.severity = Severity::Warning;
-    d.help =
-        Some("tracked in ROADMAP.md Phase 3; the emitted file marks the gap with a TODO".into());
+    d.help = Some(match backend {
+        "html" => "the emitted markup marks the gap with `data-guml-inert`; a construct that needs a runtime cannot work in a no-JavaScript backend".into(),
+        _ => "tracked in ROADMAP.md Phase 3; the emitted file marks the gap with a TODO".to_string(),
+    });
     diags.push(d);
 }
 
-
-
+/// The React backend's shorthand, kept so its call sites read unchanged.
+pub(crate) fn unsupported(diags: &mut Diagnostics, span: Span, what: impl AsRef<str>) {
+    unsupported_in(diags, "react", span, format!("does not yet lower {}", what.as_ref()));
+}
 
 pub(crate) fn modifiers_of(el: &Element) -> Vec<&str> {
     el.positionals
@@ -123,6 +150,4 @@ mod tests {
         assert_eq!(component_name("task list"), "TaskList");
         assert_eq!(component_name("landing-page"), "LandingPage");
     }
-
-
 }

@@ -1,0 +1,181 @@
+Lines, indentation, and the prose-versus-structure decision.
+
+The rule a second implementation is most likely to get wrong is the last one: whether the remainder of
+a line is a label plus modifiers or free prose depends on the tag's kind in the registry, and no
+tokeniser can decide it alone.
+
+:::: a page directive names the document
+--- guml
+page Counter
+--- ast
+page=Counter
+--- diagnostics
+::::
+
+:::: children are lines with a strictly greater indent
+--- guml
+page P
+card A
+  p One
+    p Two
+  p Three
+card B
+--- ast
+page=P
+card text="A"
+  p content="One"
+    p content="Two"
+  p content="Three"
+card text="B"
+--- diagnostics
+::::
+
+:::: a one-space step is still a child
+Ragged as it looks. The indent stack decides depth, not the space count — an implementation that
+guessed "these are siblings" would change the tree.
+--- guml
+page P
+card A
+  p One
+   p Two
+--- ast
+page=P
+card text="A"
+  p content="One"
+    p content="Two"
+--- diagnostics
+::::
+
+:::: a tab is an error, not an indent unit
+--- guml
+page P
+card A
+	p One
+--- diagnostics
+GUML0001 3
+::::
+
+:::: an indented line with no parent is an error
+--- guml
+page P
+  card A
+--- diagnostics
+GUML0011 2
+::::
+
+:::: comment lines are dropped and affect nothing
+--- guml
+page P
+// a note
+card A
+  // another
+  p One
+--- ast
+page=P
+card text="A"
+  p content="One"
+--- diagnostics
+::::
+
+:::: a text tag takes its whole remainder as prose
+--- guml
+page P
+p Press the buttons to change the value.
+--- ast
+page=P
+p content="Press the buttons to change the value."
+--- diagnostics
+::::
+
+:::: prose is never reflowed or respaced
+Runs of spaces inside prose are content. Collapsing them would be silently editing the document.
+--- guml
+page P
+p Two  spaces   inside
+--- ast
+page=P
+p content="Two  spaces   inside"
+--- diagnostics
+::::
+
+:::: prose containing an equals sign stays prose
+An `=` is not enough to make a line structured. This parsed as a positional, an attribute `x=1`, and
+four discarded words — deleting most of the sentence and emitting an invalid DOM prop.
+--- guml
+page P
+p Set x=1 to enable the flag.
+--- ast
+page=P
+p content="Set x=1 to enable the flag."
+--- diagnostics
+::::
+
+:::: a registry attribute on a text tag is structured
+The other direction. `strike` is a `text` attribute, so the registry — not the presence of `=` — is
+what distinguishes this from the case above.
+--- guml
+page P
+type T {id, title, done:bool}
+data rows:T[] GET /api/r
+list rows
+  text {title} strike={done}
+--- ast
+page=P
+type T {id:string, title:string, done:bool}
+data rows T[] GET /api/r
+list text="rows"
+  text bind={title} strike={done}
+--- diagnostics
+::::
+
+:::: a container's first quoted positional is its title and `|` is its prose
+--- guml
+page P
+card "Ship in minutes" | Describe the page, get a deployable build.
+--- ast
+page=P
+card text="Ship in minutes" content="Describe the page, get a deployable build."
+--- diagnostics
+::::
+
+:::: an action takes the rest of the line
+--- guml
+page P
+state count=0
+btn Decrement ghost >count--
+--- ast
+page=P
+state count
+btn text="Decrement" mod=ghost action="count--"
+--- diagnostics
+::::
+
+:::: a modifier written after an action is swallowed by it
+Which is why the action must come last. The compiler reports the common case rather than silently
+losing the modifier.
+--- guml
+page P
+state count=0
+btn Go >count++ primary
+--- diagnostics
+GUML0022 3
+::::
+
+:::: an unknown tag is an error with a suggestion
+--- guml
+page P
+crad sm center
+--- diagnostics
+GUML0030 2
+::::
+
+:::: a file with no page directive still compiles
+--- guml
+card A
+  p One
+--- ast
+card text="A"
+  p content="One"
+--- diagnostics
+GUML0041 1
+::::

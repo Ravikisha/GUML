@@ -1,0 +1,45 @@
+[package]
+name = "guml-python"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Python bindings for the GUML compiler"
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+readme = "README.md"
+# A build input for the `guml` PyPI wheel, not a library anyone should depend on from Rust — the
+# useful crate for that is `guml-compiler`.
+publish = false
+
+[lib]
+name = "_guml"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+guml-compiler = { workspace = true }
+guml-codegen = { workspace = true }
+guml-diagnostics = { workspace = true }
+guml-fmt = { workspace = true }
+guml-registry = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# `abi3-py39`: one wheel per platform covering Python 3.9 through every later 3.x, rather than one
+# per interpreter version. The cost is the stable C API only, which is no constraint here — this
+# module hands back strings and nothing else.
+#
+# **`extension-module` is deliberately not a default feature.** It tells the linker that Python's
+# symbols will be supplied by the interpreter at load time, which is correct for a `.so`/`.pyd` and
+# fatal for a test binary: `cargo test --workspace` fails to link on Linux and macOS with undefined
+# `Py_*` symbols. maturin turns it on via `[tool.maturin] features` in `pyproject.toml`, so the
+# extension gets it and `cargo test` does not.
+[dependencies.pyo3]
+version = "0.27"
+features = ["abi3-py39"]
+
+[features]
+extension-module = ["pyo3/extension-module"]

@@ -9,8 +9,13 @@ node_modules/
 /bench/runs/
 /spec/phase0-raw/
 
-# The npm build output is regenerable and only needed to publish. The wasm is different —
-# see below.
+# The npm build output is regenerable. It is NOT only needed to publish: the docs site imports
+# `@guml/core` through its `exports` map, which points at `dist/`, so a fresh clone cannot build the
+# site until this exists. `docs`'s `build:deps` script regenerates it, which is why `pnpm --filter
+# docs build` works on a machine that has never published anything. Deleting that script reproduces
+# a green local build and a `Module not found: @guml/core` on the deployment host, because the only
+# difference between the two is whether this directory happens to be lying around. The wasm is
+# different — see below.
 /packages/guml/dist/
 
 # The built wasm IS committed: the docs site needs it at build time and its host

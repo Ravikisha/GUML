@@ -3,8 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "node scripts/gen-fixtures.mjs && next build",
+    "dev": "pnpm build:deps && next dev",
+    "build": "pnpm build:deps && node scripts/gen-fixtures.mjs && next build",
+    "build:deps": "pnpm --filter @guml/core build:ts && pnpm --filter @guml/highlight build",
     "start": "next start",
     "lint": "eslint",
     "gen:fixtures": "node scripts/gen-fixtures.mjs",
@@ -12,7 +13,7 @@
     "check:theme": "node scripts/gen-theme-classes.mjs --check",
     "check:highlight": "node --experimental-strip-types --no-warnings scripts/check-highlight-parity.mjs",
     "check:previews": "node --experimental-strip-types --no-warnings scripts/check-doc-previews.mjs",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "pnpm build:deps && tsc --noEmit",
     "check:packages": "node --experimental-strip-types --no-warnings scripts/check-packages.mjs"
   },
   "dependencies": {

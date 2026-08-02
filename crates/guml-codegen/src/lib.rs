@@ -645,10 +645,28 @@ pub fn backend(name: &str) -> Option<Box<dyn Backend>> {
     match name {
         "react" => Some(Box::new(react::ReactBackend)),
         "json" => Some(Box::new(json::JsonBackend)),
-        "html" => Some(Box::new(html::HtmlBackend { style: html::Style::Inline })),
+        "html" => {
+            Some(Box::new(html::HtmlBackend { style: html::Style::Inline, ..Default::default() }))
+        }
         // Same backend, styled by the Tailwind CDN. A separate name rather than a flag, so the
         // preview path is visible in `--help` and never becomes the default by accident.
-        "html-cdn" => Some(Box::new(html::HtmlBackend { style: html::Style::Cdn })),
+        "html-cdn" => {
+            Some(Box::new(html::HtmlBackend { style: html::Style::Cdn, ..Default::default() }))
+        }
+        // Classes, no stylesheet. `Style::None` had existed in the backend for a while with no way to
+        // reach it — the right choice whenever the host already runs Tailwind over the output, which is
+        // most of them.
+        "html-bare" => {
+            Some(Box::new(html::HtmlBackend { style: html::Style::None, ..Default::default() }))
+        }
+        // Content only: no doctype, no `<head>`, and no `<main>` — a document may hold exactly one
+        // `main` landmark, so a fragment carrying its own would create a second the moment it were
+        // embedded. For a Jinja include, a Django block, an htmx swap target. With the inline style the
+        // stylesheet comes out as a second file rather than being repeated per fragment or, worse,
+        // dropped in silence.
+        "html-fragment" => {
+            Some(Box::new(html::HtmlBackend { style: html::Style::None, fragment: true }))
+        }
         "svelte" => Some(Box::new(svelte::SvelteBackend)),
         // A custom element, no framework and no build step. The portability target: a compiled document
         // that a browser runs as-is, embeddable where a framework is not on the table.
@@ -662,7 +680,18 @@ pub fn backend(name: &str) -> Option<Box<dyn Backend>> {
 }
 
 pub fn backend_names() -> &'static [&'static str] {
-    &["react", "json", "html", "html-cdn", "svelte", "wc", "a2ui", "mcp-ui"]
+    &[
+        "react",
+        "json",
+        "html",
+        "html-cdn",
+        "html-bare",
+        "html-fragment",
+        "svelte",
+        "wc",
+        "a2ui",
+        "mcp-ui",
+    ]
 }
 
 /// HTML elements with no closing tag.

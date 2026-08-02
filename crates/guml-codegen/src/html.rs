@@ -45,6 +45,14 @@ pub enum Style {
 #[derive(Debug, Default)]
 pub struct HtmlBackend {
     pub style: Style,
+    /// Emit the content only — no `<!doctype>`, no `<html>`, no `<head>`, and **no `<main>`**.
+    ///
+    /// For embedding in a page the host already owns: a Jinja template, a Django block, an htmx swap
+    /// target. The dropped `<main>` is the part worth stating, because it looks like a loss and is the
+    /// opposite: a document may contain exactly one `main` landmark, so a fragment that carried its own
+    /// would produce a second one the moment it were embedded in any real page. Landmarks belong to
+    /// whoever owns the document, and in fragment mode that is not us.
+    pub fragment: bool,
 }
 
 impl Backend for HtmlBackend {
@@ -122,6 +130,50 @@ impl Backend for HtmlBackend {
         let mut g = Gen { program, diags: &mut out.diagnostics };
         for el in &program.tree {
             body.push_str(&g.element(el, 3));
+        }
+
+        // Fragment mode: the content, and nothing that belongs to a document.
+        //
+        // The stylesheet is the part that needs care. A fragment has no `<head>`, and repeating a
+        // 20 KB theme inline in every fragment would be absurd — but *silently* dropping it would be
+        // invariant 3 in its purest form: a page that renders unstyled and reports nothing. So it is
+        // emitted as a second file the host includes once, and `Style::None` is the way to say you
+        // already have it.
+        if self.fragment {
+            let content = if body.trim().is_empty() {
+                "<!-- the document has no renderable elements -->\n".to_string()
+            } else {
+                dedent(&body)
+            };
+            out.files.push(OutFile {
+                path: format!("{name}.html"),
+                contents: content,
+                source_map: None,
+            });
+
+            if style == Style::Inline {
+                match crate::theme::active().css.as_deref() {
+                    Some(css) => out.files.push(OutFile {
+                        path: format!("{name}.css"),
+                        contents: css.to_string(),
+                        source_map: None,
+                    }),
+                    None => unsupported_in(
+                        &mut out.diagnostics,
+                        "html",
+                        program
+                            .page
+                            .as_ref()
+                            .map(|p| p.span)
+                            .unwrap_or(guml_diagnostics::Span::point(0, 1, 1)),
+                        format!(
+                            "theme `{}` ships no stylesheet, so this fragment has no styling; give the theme a `css` field, or ask for the `none` style if the host already provides it",
+                            crate::theme::active().name
+                        ),
+                    ),
+                }
+            }
+            return out;
         }
 
         let mut src = String::new();
@@ -768,6 +820,30 @@ impl Gen<'_> {
 ///
 /// `div` remains the fallback for a tag no table knows, since this backend has nothing better to do
 /// with an unknown container and `sema` has already rejected an unknown *tag*.
+/// Strip the indentation the body was generated with, so a fragment starts at column 0.
+///
+/// The element writer is told depth 3 because in a full document the content sits inside
+/// `<html><body><main>`. A fragment has none of those, so six leading spaces on every line is just
+/// wrong — and it is not cosmetic once the fragment lands inside a `<pre>`, where leading whitespace
+/// is content.
+///
+/// Removes a *common* prefix rather than a fixed six, so nesting inside the fragment is preserved and
+/// the function stays correct if the caller's depth ever changes.
+fn dedent(body: &str) -> String {
+    let indent = body
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .map(|l| l.len() - l.trim_start().len())
+        .min()
+        .unwrap_or(0);
+
+    body.lines()
+        .map(|l| if l.len() >= indent { &l[indent..] } else { l.trim_start() })
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n"
+}
+
 fn html_tag(tag: &str) -> &'static str {
     crate::element_for(tag).unwrap_or("div")
 }

@@ -221,7 +221,10 @@ card Hi
   p body
 ",
     );
-    let cdn = guml_codegen::html::HtmlBackend { style: guml_codegen::html::Style::Cdn };
+    let cdn = guml_codegen::html::HtmlBackend {
+        style: guml_codegen::html::Style::Cdn,
+        ..Default::default()
+    };
     let out = &cdn.emit(&program).files[0].contents;
     assert!(out.contains("cdn.tailwindcss.com"), "{out}");
     assert!(
@@ -249,7 +252,10 @@ fn the_host_can_take_over_styling_entirely() {
 card Hi
 ",
     );
-    let bare = guml_codegen::html::HtmlBackend { style: guml_codegen::html::Style::None };
+    let bare = guml_codegen::html::HtmlBackend {
+        style: guml_codegen::html::Style::None,
+        ..Default::default()
+    };
     let out = &bare.emit(&program).files[0].contents;
     assert!(!out.contains("<style>"), "{out}");
     assert_eq!(out.matches("<script").count(), 0, "{out}");
@@ -286,4 +292,72 @@ p Body.
         "the page name is the fallback title:
 {out}"
     );
+}
+
+/// Fragment mode: what a Jinja template, a Django block or an htmx swap target actually needs.
+///
+/// The `<main>` assertion is the one that matters and it looks backwards. A document may contain
+/// exactly one `main` landmark, so a fragment carrying its own would produce a second the instant it
+/// were embedded in any real page — a genuine accessibility fault, and one nothing else here would
+/// catch, because the fragment is valid in isolation.
+#[test]
+fn a_fragment_carries_content_and_nothing_that_belongs_to_a_document() {
+    let (program, _) = check(
+        "page P
+card
+  h Hello
+  p World
+",
+    );
+    let frag =
+        guml_codegen::html::HtmlBackend { style: guml_codegen::html::Style::None, fragment: true };
+    let out = &frag.emit(&program).files[0].contents;
+
+    for forbidden in ["<!doctype", "<html", "<head", "<body", "<main"] {
+        assert!(
+            !out.contains(forbidden),
+            "a fragment must not carry `{forbidden}`:
+{out}"
+        );
+    }
+    assert!(out.contains("Hello") && out.contains("World"), "{out}");
+    // Column 0: the body is generated at the depth a full document needs, and six leading spaces stop
+    // being cosmetic the moment the fragment lands inside a `<pre>`.
+    assert!(out.starts_with('<'), "expected no leading indentation, got {:?}", &out[..20]);
+}
+
+/// A fragment cannot hold a `<head>`, so an inline stylesheet has nowhere to go. Silently dropping it
+/// is invariant 3 in its purest form — a page that renders unstyled and reports nothing — and
+/// repeating 20 KB of theme in every fragment is not an option either. It comes out as a second file.
+#[test]
+fn a_fragment_with_the_inline_style_emits_its_stylesheet_separately() {
+    let (program, _) = check(
+        "page P
+card Hi
+",
+    );
+    let frag = guml_codegen::html::HtmlBackend {
+        style: guml_codegen::html::Style::Inline,
+        fragment: true,
+    };
+    let out = frag.emit(&program);
+
+    assert_eq!(
+        out.files.len(),
+        2,
+        "expected the fragment and its stylesheet: {:?}",
+        out.files.iter().map(|f| &f.path).collect::<Vec<_>>()
+    );
+    assert!(out.files[0].path.ends_with(".html"));
+    assert!(out.files[1].path.ends_with(".css"));
+    assert!(!out.files[0].contents.contains("<style>"), "the fragment must stay content-only");
+    assert!(out.files[1].contents.contains("--background"), "expected the theme tokens");
+}
+
+/// Every name the resolver offers must resolve, or the CLI advertises a backend it cannot run.
+#[test]
+fn every_advertised_backend_name_resolves() {
+    for name in guml_codegen::backend_names() {
+        assert!(guml_codegen::backend(name).is_some(), "`{name}` is advertised but unknown");
+    }
 }

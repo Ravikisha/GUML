@@ -7,9 +7,39 @@ plain static hosting are ruled out. It needs a Node runtime.
 
 ## The build context is the repository root, not `docs/`
 
-`next.config.ts` sets `turbopack.root` to the parent directory and `transpilePackages: ["guml"]`,
-because the site imports the `guml` workspace package — TypeScript source plus a wasm module — rather
-than a published build. So `pnpm install` has to run at the root for the workspace link to exist.
+`next.config.ts` sets `turbopack.root` to the parent directory and `transpilePackages: ["@guml/core"]`,
+because the site imports the `@guml/core` workspace package — a compiled `dist/` plus a wasm module —
+rather than a published build. So `pnpm install` has to run at the root for the workspace link to exist.
+
+## The workspace packages have to be built first
+
+`@guml/core`'s `exports` map points at `dist/`, and `dist/` is gitignored. The link `pnpm install`
+creates therefore points at a package whose entry points do not exist yet, and `next build` fails with
+`Module not found: Can't resolve '@guml/core'` on `chat.tsx`, `playground.tsx` and `live-preview.tsx`.
+
+This is the failure mode worth knowing by name, because **it cannot happen on a machine that has ever
+built the package.** Locally `dist/` is left over from the last `pnpm --filter @guml/core build:ts`, so
+the site builds; on a fresh clone — CI, or a deployment host — there is nothing there. The difference
+between green and red is a directory that is not in the repository.
+
+`docs`'s `build` script therefore runs `build:deps` first:
+
+```jsonc
+"build:deps": "pnpm --filter @guml/core build:ts && pnpm --filter @guml/highlight build",
+"build":      "pnpm build:deps && node scripts/gen-fixtures.mjs && next build",
+```
+
+Two details in that line are load-bearing:
+
+- **`build:ts`, not `build`.** `@guml/core`'s full `build` runs `wasm-pack` first, and the deployment
+  host has neither Rust nor `wasm-pack`. It does not need them: the wasm is committed precisely so that
+  it does not (see `.gitignore`).
+- **It is inlined into `build`, not a `prebuild` script.** pnpm 10 ships with `enable-pre-post-scripts`
+  defaulting to false, so a `prebuild` would be silently skipped and the deployment would fail exactly
+  as before, with nothing in the log to say a step had been dropped.
+
+`typecheck` runs `build:deps` too — `release.yml` typechecks *before* it builds, so it would otherwise
+hit the same missing declarations.
 
 `vercel.json` at the repository root encodes exactly that:
 

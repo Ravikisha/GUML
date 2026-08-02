@@ -452,8 +452,11 @@ impl Backend for McpUiBackend {
             // The script is a module defining a custom element, which the host mounts.
             ("application/vnd.mcp-ui.remote-dom+javascript", emitted.files[0].contents.clone())
         } else {
-            let emitted =
-                crate::html::HtmlBackend { style: crate::html::Style::Inline }.emit(program);
+            let emitted = crate::html::HtmlBackend {
+                style: crate::html::Style::Inline,
+                ..Default::default()
+            }
+            .emit(program);
             out.diagnostics.extend(emitted.diagnostics);
             ("text/html", emitted.files[0].contents.clone())
         };

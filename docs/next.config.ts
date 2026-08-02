@@ -120,8 +120,10 @@ const nextConfig: NextConfig = {
     root: fileURLToPath(new URL("..", import.meta.url)),
   },
 
-  // `guml` ships TypeScript source plus a wasm module, so Next compiles it
-  // rather than treating it as a prebuilt dependency.
+  // `@guml/core` resolves to a workspace `dist/` plus a wasm module, so Next compiles it rather than
+  // treating it as an ordinary prebuilt dependency. That `dist/` is gitignored and built by the
+  // `build:deps` step in `package.json` — without it this specifier does not resolve at all on a
+  // fresh clone. See DEPLOYMENT.md.
   transpilePackages: ["@guml/core"],
 
   // No `typescript`/`eslint` escape hatches here: this Next version dropped both keys from the config

@@ -194,8 +194,11 @@ fn the_html_backend_says_it_cannot_run_them() {
     // Invariant 3. A static page with a declared refetch renders as it was on first paint; silence
     // here would look like the effect was honoured.
     let (program, _) = check(&doc("on {filter} >tasks.list"));
-    let out =
-        guml_codegen::html::HtmlBackend { style: guml_codegen::html::Style::Inline }.emit(&program);
+    let out = guml_codegen::html::HtmlBackend {
+        style: guml_codegen::html::Style::Inline,
+        ..Default::default()
+    }
+    .emit(&program);
     let msgs: Vec<&str> = out.diagnostics.items.iter().map(|d| d.message.as_str()).collect();
     assert!(
         msgs.iter().any(|m| m.contains("declared effect")),

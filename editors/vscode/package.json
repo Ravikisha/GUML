@@ -3,18 +3,28 @@
   "displayName": "GUML",
   "description": "GUML language support: the compiler's own diagnostics, formatting and highlighting.",
   "version": "0.1.0",
-  "license": "Apache-2.0",
+  "license": "MIT",
   "private": true,
-  "engines": { "vscode": "^1.85.0" },
-  "categories": ["Programming Languages", "Formatters", "Linters"],
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Formatters",
+    "Linters"
+  ],
   "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
     "languages": [
       {
         "id": "guml",
-        "aliases": ["GUML"],
-        "extensions": [".guml"],
+        "aliases": [
+          "GUML"
+        ],
+        "extensions": [
+          ".guml"
+        ],
         "configuration": "./language-configuration.json"
       }
     ],
@@ -36,15 +46,38 @@
         "guml.formatOnSave": {
           "type": "boolean",
           "default": true,
-          "description": "Format with the compiler's own formatter on save. Never changes meaning: an AST-preservation test enforces that."
+          "markdownDescription": "Format with the compiler's own formatter on save. Never changes meaning: an AST-preservation test enforces that."
+        },
+        "guml.fixAllOnSave": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Apply every unambiguous compiler suggestion on save. Equivalent to setting `\"editor.codeActionsOnSave\": { \"source.fixAll.guml\": \"explicit\" }` yourself — the server publishes the fix under the standard `source.fixAll` kind, so this is a convenience rather than a second mechanism.\n\nDeliberately **off** by default: it rewrites the document, and a first-run surprise is worse than a keystroke. `guml.repair` is never run on save, because it also *deletes* (a code fence, trailing prose) and silently removing lines on save is indefensible."
         }
       }
-    }
+    },
+    "commands": [
+      {
+        "command": "guml.fixAll",
+        "title": "GUML: Fix all (apply every unambiguous suggestion)",
+        "category": "GUML"
+      },
+      {
+        "command": "guml.repair",
+        "title": "GUML: Repair (strip packaging, format, fix)",
+        "category": "GUML"
+      },
+      {
+        "command": "guml.restartServer",
+        "title": "GUML: Restart language server",
+        "category": "GUML"
+      }
+    ]
   },
   "scripts": {
     "gen:grammar": "node scripts/gen-grammar.mjs",
     "compile": "tsc -p .",
-    "vscode:prepublish": "npm run gen:grammar && npm run compile"
+    "vscode:prepublish": "npm run gen:grammar && npm run compile",
+    "typecheck": "tsc -p . --noEmit"
   },
   "devDependencies": {
     "@types/vscode": "^1.85.0",

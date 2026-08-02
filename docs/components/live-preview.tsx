@@ -1,7 +1,7 @@
 "use client";
 
-import { Guml, useGumlTree } from "guml/react";
-import type { Diagnostic } from "guml";
+import { Guml, useGumlTree } from "@guml/core/react";
+import type { Diagnostic } from "@guml/core";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -66,6 +66,10 @@ export function LivePreview({
         <Guml
           source={source}
           data={data}
+          // The docs site serves no `/api/*` routes for these examples, so a mutation would 404 and the
+          // optimistic rollback would undo it — a new row appearing and vanishing, which reads as a bug
+          // in the language rather than a missing server. Offline applies the update and stops there.
+          offline
           onDiagnostics={setDiagnostics}
           fallback={
             <div className="flex items-center gap-2 py-8 text-sm text-slate-500 dark:text-slate-400">

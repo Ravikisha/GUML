@@ -1,4 +1,4 @@
-import { CLASS_STYLE, highlight, type Lang } from "@/lib/highlight";
+import { CLASS_STYLE, highlight, type Lang } from "@guml/highlight";
 import { cn } from "@/lib/utils";
 import { CopyButton } from "./copy-button";
 

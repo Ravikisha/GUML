@@ -2,11 +2,18 @@
 
 import { Monitor, Moon, Sun } from "lucide-react";
 import { useSyncExternalStore } from "react";
+import { THEME_KEY } from "@/lib/inline-scripts";
 import { cn } from "@/lib/utils";
 
 export type Theme = "light" | "dark" | "system";
 
-export const THEME_KEY = "guml-theme";
+// Imported and re-exported, not `export { THEME_KEY } from "…"` — that form creates no local binding,
+// and this module reads the value itself three times below.
+//
+// The definition moved to `lib/inline-scripts.ts`, which `next.config.ts` also imports to hash the
+// inline script that reads this key. A client component cannot be imported from the Node-side config,
+// so the shared constant cannot live in this file.
+export { THEME_KEY };
 
 /** Same-tab notification; the `storage` event only fires in *other* tabs. */
 const THEME_EVENT = "guml-theme-change";
@@ -105,4 +112,3 @@ export function ThemeToggle() {
  * never sees a dark frame first. Inlined in the document head deliberately: any
  * deferred script is too late to prevent the flash.
  */
-export const themeScript = `try{var t=localStorage.getItem("${THEME_KEY}");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}`;

@@ -9,8 +9,11 @@ use guml_codegen::{Backend, Emitted, OutFile};
 use guml_diagnostics::Diagnostics;
 use guml_registry::Registry;
 
+pub mod capabilities;
 pub mod expand;
 pub mod fix;
+pub mod repair;
+pub mod sanitize;
 mod sema;
 pub mod types;
 pub mod validate;
@@ -83,6 +86,16 @@ pub fn check(src: &str) -> (Program, Diagnostics) {
 /// The registry carries the conformance level, so a core-only host passes `Registry::core()` here and
 /// every app-level construct in the document is reported — rather than the level being a second flag
 /// that some call site forgets to thread through.
+/// Everything `check` does after parsing, exposed so the benchmark can attribute time to a stage
+/// without re-listing the pass order — a second copy of that order would drift and the numbers would
+/// quietly stop describing the real pipeline.
+pub fn analyse_for_bench(program: &mut Program, reg: &Registry, diagnostics: &mut Diagnostics) {
+    expand::expand(program, diagnostics);
+    sema::analyse(program, reg, diagnostics);
+    validate::validate(program, reg, diagnostics);
+    types::check(program, diagnostics);
+}
+
 pub fn check_with(src: &str, reg: &Registry) -> (Program, Diagnostics) {
     let parsed = guml_parser::parse(src, reg);
     let mut program = parsed.program;
@@ -96,7 +109,7 @@ pub fn check_with(src: &str, reg: &Registry) -> (Program, Diagnostics) {
     sema::analyse(&program, reg, &mut diagnostics);
     // Validation runs unconditionally in the same pass: the repair loop should see every
     // problem at once, and a second command it might forget to call is not a validator.
-    validate::validate(&program, &mut diagnostics);
+    validate::validate(&program, reg, &mut diagnostics);
     // Inference runs last: it reads the same parsed expressions the validator does, and reporting
     // a type error on syntax that was already rejected would be noise.
     types::check(&program, &mut diagnostics);

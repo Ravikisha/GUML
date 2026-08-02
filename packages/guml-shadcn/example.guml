@@ -1,0 +1,37 @@
+// The package's own example: one document using tags from every kind the registry declares.
+//
+// Compiled and typechecked against the real components by `pnpm typecheck:example`, which is the check that
+// matters — a registry can declare props a component does not accept, and only the emitted TSX shows it.
+
+page Console title="shadcn console" description="Every kind the package declares, in one document." lang=en
+
+state note=""
+state size=small|medium|large
+state volume=50
+state when="2026-08-01"
+state confirming=false
+
+section
+  h1 Console
+
+  col
+    label Notes
+    textarea note placeholder="What happened?" rows=4
+
+    radio size aria="Size"
+    slider volume aria="Volume" min=0 max=100
+    datepicker when aria="Effective date"
+
+  row
+    btngroup "Row actions"
+      btn Save primary
+      btn Discard outline
+    spinner "Saving"
+    kbd Ctrl+S
+
+  collapsible "Advanced" open=1
+    p Everything here is optional.
+
+  confirm "Delete this?" if={confirming}
+    p This cannot be undone.
+    btn Delete danger >confirming = false

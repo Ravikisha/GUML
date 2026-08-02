@@ -29,7 +29,7 @@
         { "action": "set", "target": "draft", "value": "" }
       ],
       "children": [
-        { "component": "Input", "bind": "draft", "placeholder": "Add a task…" },
+        { "component": "Input", "bind": "draft", "aria": "New task", "placeholder": "Add a task…" },
         {
           "component": "Button",
           "label": "Add",

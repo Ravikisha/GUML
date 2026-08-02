@@ -1,0 +1,69 @@
+// Reference answer for GUML-Bench task `s02-billing`.
+//
+// Two resources on one page, which nothing else in the set exercises, and both get their own loading and
+// error handling for free.
+//
+// The seat-usage warning is a threshold over two fetched numbers — `{sub.seatsUsed * 100 / sub.seats > 90}`
+// — so it is a binding rather than code. The current plan is marked with a `badge` and its button is
+// disabled rather than removed, because a plan that vanishes from the grid when you are on it is a worse
+// answer than one that is visibly current.
+
+page Billing title="Billing" description="Your plan, seats and invoices." lang=en
+
+type Subscription {id, plan, seats:number, seatsUsed:number, renewsOn:date, amount:number}
+type Invoice {id, date:date, amount:number, status}
+
+// `Subscription[]` and not `Subscription`, because a resource is a collection: everything `data`
+// generates assumes rows. A single-object endpoint is `GUML0103` now — it used to compile and emit
+// `useState<Subscription[]>([])`, so every `{sub.plan}` read a property off an array and only
+// `tsc --strict` noticed. The first row, taken in a `js` block, is the expressible answer and it keeps the
+// fetch, the cache, the retry and the error state.
+data subscription:Subscription[] GET /api/subscription
+  setPlan POST /api/subscription/plan {plan} optimistic
+data invoices:Invoice[] GET /api/invoices
+
+js
+  const sub = subscription[0] ?? { plan: "", seats: 0, seatsUsed: 0, renewsOn: "", amount: 0 };
+
+section
+  h1 Billing
+
+  card "Current plan"
+    metric {sub.plan}
+    p £{sub.amount} a month, renewing {sub.renewsOn}.
+    divider
+    stat "Seats" {sub.seatsUsed} delta="of {sub.seats}"
+    progress value={sub.seatsUsed} max={sub.seats} aria="Seats in use"
+    alert danger if={sub.seatsUsed * 100 / sub.seats > 90}
+      p You are nearly out of seats. Adding one mid-cycle is pro-rated.
+
+// `tier` is the wrong construct here and the compiler says so: its call to action is a link built from
+// `cta` and a route, so `tier … >subscription.setPlan` used to emit a plain anchor and change nothing.
+// That drop is `GUML0030` now. A plan the user can *switch to* is a card with a button in it.
+section "Change plan"
+  grid cols=3
+    card Starter
+      metric £19
+      note per month, one seat
+      p Three projects and community support. Enough for one developer shipping side projects.
+      btn "Choose Starter" outline disabled={sub.plan == "starter"} >subscription.setPlan{plan:"starter"}
+      badge Current if={sub.plan == "starter"}
+    card Team
+      metric £49
+      note per month, ten seats
+      p Unlimited projects and email support answered within one working day. The plan most teams stay on.
+      btn "Choose Team" primary disabled={sub.plan == "team"} >subscription.setPlan{plan:"team"}
+      badge Current primary if={sub.plan == "team"}
+    card Scale
+      metric £149
+      note per month, unlimited seats
+      p A shared Slack channel and a named engineer, with an annual invoice if you prefer one.
+      btn "Choose Scale" outline disabled={sub.plan == "scale"} >subscription.setPlan{plan:"scale"}
+      badge Current if={sub.plan == "scale"}
+
+section "Invoices"
+  table invoices cols="Date, Amount, Status"
+    text {date}
+    text {amount}
+    badge {status}
+    empty No invoices yet — the first one is issued at the end of your trial.

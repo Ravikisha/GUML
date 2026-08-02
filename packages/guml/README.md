@@ -1,20 +1,26 @@
-# guml
+# @guml/core
 
 Compile [GUML](https://github.com/guml-lang/guml) in the browser and render it in React.
 
 This package ships the **actual Rust compiler** built to WebAssembly — not a re-implementation —
-so diagnostics and generated classes are identical to what the `guml` CLI produces. 298 KB of
-wasm, loaded lazily on first use.
+so diagnostics and generated classes are identical to what the `guml` CLI produces. 787 KB of
+wasm, loaded lazily on first use — nothing is fetched until you compile something.
 
 ```sh
-pnpm add guml
+pnpm add @guml/core
 ```
+
+> **Browser and bundlers only.** The wasm is built for the web target, so it loads itself with
+> `fetch()`. That works in Next.js, Vite, and anything else that serves assets over HTTP; it does
+> *not* work in plain Node, where the failure surfaces as an undici `fetch failed` on a `file://`
+> URL with nothing in the message about WebAssembly. To compile GUML from Node or a shell, use the
+> CLI — `cargo install guml-cli` — which is the same compiler without the wasm layer.
 
 ## Render GUML
 
 ```tsx
 "use client";
-import { Guml } from "guml/react";
+import { Guml } from "@guml/core/react";
 
 const source = `page Counter
 state count=0
@@ -109,4 +115,4 @@ markup. `useGumlTree` gives you the diagnostics if you want to handle that diffe
 pnpm build:wasm   # needs a Rust toolchain + wasm-pack
 ```
 
-Apache-2.0.
+MIT.

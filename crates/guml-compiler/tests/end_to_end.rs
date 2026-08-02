@@ -78,11 +78,35 @@ fn fixtures_b_and_c_parse_without_errors() {
 }
 
 #[test]
-fn unsupported_features_warn_rather_than_miscompile() {
+fn the_task_fixture_compiles_with_no_diagnostics_at_all() {
+    // This test used to assert the opposite: that fixture B *must* produce a warning, because the v0.1
+    // React backend could not lower resources. That gap closed, and the only warning left was a real
+    // accessibility defect — an input named only by its placeholder, which the paired React and JSON
+    // representations shared. Fixing all three closed the Phase 3 gate item, and inverted this test.
     let res = compile(FIXTURE_B, &Options::default());
-    assert!(!res.diagnostics.is_empty(), "resource lowering gap must be reported");
+    assert!(
+        res.diagnostics.items.is_empty(),
+        "fixture B should be clean:
+{}",
+        res.diagnostics.render(FIXTURE_B, "fixtures/b.guml")
+    );
+    assert!(!res.files.is_empty(), "and it should still emit");
+}
+
+#[test]
+fn a_genuine_lowering_gap_warns_rather_than_miscompiling() {
+    // The invariant the old test was reaching for, against a construct that really is unsupported: an
+    // action in the no-JavaScript backend. Reported, marked in the output, and not silently dropped.
+    let res = compile(FIXTURE_B, &Options { backend: "html".to_string(), ..Default::default() });
+    assert!(
+        res.diagnostics.items.iter().any(|d| d.id == "GUML0030"),
+        "the gap must be reported: {:?}",
+        res.diagnostics.items
+    );
     assert!(
         !res.diagnostics.has_errors(),
-        "gaps are warnings so the rest of the pipeline still runs"
+        "a gap is a warning, so the rest of the pipeline still runs"
     );
+    let html = &res.files[0].contents;
+    assert!(html.contains("data-guml-inert"), "the gap must be visible in the output too");
 }

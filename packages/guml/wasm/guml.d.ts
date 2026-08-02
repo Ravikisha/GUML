@@ -39,6 +39,19 @@ export function highlight(source: string): any;
 export function registry(tags?: string | null): any;
 
 /**
+ * The whole free repair pipeline: sanitise, format, fix. No model call.
+ *
+ * `fix` only applies edits the compiler described. This also *removes* what a model wrapped around the
+ * document — a ``` fence, markdown rules, trailing commentary — which is a different promise and so a
+ * different function rather than a flag.
+ *
+ * Exposed to the browser for the same reason `fix` is: a playground or a chat surface that shows
+ * "generation failed" before running the free layers is reporting a failure the tool could have
+ * repaired itself.
+ */
+export function repair(source: string, rounds?: number | null): any;
+
+/**
  * The render tree, for the runtime renderer. Diagnostics come along so a preview
  * can show the problem instead of rendering something misleading.
  */
@@ -59,6 +72,7 @@ export interface InitOutput {
     readonly format: (a: number, b: number, c: number) => [number, number, number];
     readonly highlight: (a: number, b: number) => [number, number, number];
     readonly registry: (a: number, b: number) => [number, number, number];
+    readonly repair: (a: number, b: number, c: number) => [number, number, number];
     readonly tree: (a: number, b: number) => [number, number, number];
     readonly version: () => [number, number];
     readonly __wbindgen_malloc: (a: number, b: number) => number;

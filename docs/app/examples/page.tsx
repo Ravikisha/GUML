@@ -20,14 +20,14 @@ export default function Page() {
 
   return (
     <>
-      <div className="border-b border-line px-6 py-16 md:px-10">
-        <div className="mx-auto max-w-6xl">
+      <div className="px-6 pt-16 pb-8 md:px-10">
+        <div className="mx-auto max-w-(--container-page)">
           <Meter
             label="fixtures"
             value={`${commas(totalReact)} → ${commas(totalGuml)} tokens`}
             tone="mint"
           />
-          <h1 className="display-narrow mt-6 text-4xl font-extrabold tracking-[-0.02em] text-chalk md:text-5xl">
+          <h1 className="display-narrow mt-6 text-heading text-chalk">
             Examples
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-relaxed text-fog">
@@ -37,7 +37,7 @@ export default function Page() {
             retyped.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <ButtonLink href="/docs/research/measurements" variant="outline">
+            <ButtonLink href="/research/measurements" variant="outline">
               How they were measured
               <ArrowRight className="size-4" />
             </ButtonLink>
@@ -48,7 +48,7 @@ export default function Page() {
         </div>
       </div>
 
-      {FIXTURES.map((f, i) => {
+      {FIXTURES.map((f) => {
         const cut = reduction(f.tokens.react, f.tokens.guml);
         return (
           <Section
@@ -63,14 +63,11 @@ export default function Page() {
             <Reveal>
               <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-start">
                 <div className="lg:sticky lg:top-24">
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-sm text-fog-dim">
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    <h2 className="display-narrow text-2xl font-bold tracking-tight text-chalk">
-                      {f.title}
-                    </h2>
-                  </div>
+                  {/* No `01 / 02 / 03` marker. These three fixtures are a set, not a sequence —
+                      nothing about the counter comes before the task list — so a numeral would be
+                      ordering information the content does not have. The quantity that *is* true of
+                      each one is its token count, and that already has a place below. */}
+                  <h2 className="display-narrow text-2xl font-medium text-chalk">{f.title}</h2>
                   <p className="mt-4 leading-relaxed text-fog">{f.blurb}</p>
 
                   <dl className="mt-7 space-y-3 font-mono text-sm">
@@ -154,7 +151,7 @@ export default function Page() {
                             lang: "json" as const,
                             code: f.json,
                             tokens: f.tokens.json,
-                            note: "A2UI-shaped spec — 315 tokens minified",
+                            note: "A2UI-shaped spec — 324 tokens minified",
                           },
                         ]
                       : []),
@@ -174,7 +171,7 @@ export default function Page() {
       })}
 
       <Section className="text-center">
-        <h2 className="display-narrow mx-auto max-w-xl text-display font-bold leading-[0.95] tracking-tight">
+        <h2 className="display-narrow mx-auto max-w-xl text-heading font-medium">
           Run them yourself.
         </h2>
         <p className="mx-auto mt-5 max-w-lg text-fog">

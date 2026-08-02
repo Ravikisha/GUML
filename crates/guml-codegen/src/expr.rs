@@ -35,11 +35,31 @@ pub struct Ctx {
     /// `user.name.count`, where `.count` is a string length. Without the distinction one of the
     /// two has to be lowered wrongly, and guessing produces code that does not compile.
     pub collections: Vec<String>,
+    /// Each collection's single boolean field, so `.open`/`.done` can name it.
+    ///
+    /// These used to lower to a hardcoded `!it.done`. That worked for a fixture whose field happened to
+    /// be called `done` and was silently wrong for everything else: a Phase 0 example modelling invoices
+    /// with `paid:bool` emitted `!it.done` on a field that does not exist, so the count was always zero
+    /// and nothing said so. A convention the compiler owns cannot depend on the author guessing the name
+    /// the compiler had in mind.
+    pub row_bool: Vec<(String, String)>,
+    /// Common-subexpression substitutions: lowered JavaScript → the memo variable holding it.
+    ///
+    /// `{tasks.open.count}` lowers to `tasks.filter((it) => !it.done).length`, an O(n) scan. Used three
+    /// times on a page, that is three scans per render for one value. The backend hoists the repeated
+    /// ones into a `useMemo` and records the mapping here, so lowering substitutes the variable instead.
+    ///
+    /// Applied at the *lowered* string rather than at the source, because two spellings can lower to the
+    /// same JavaScript and both should share the memo.
+    pub cse: Vec<(String, String)>,
+    /// Prefix for a non-row identifier — `this.#state.` for a backend holding state in an object.
+    /// Empty for the frameworks where a state name is simply in scope. See [`Ctx::with_scope`].
+    pub scope: String,
 }
 
 impl Ctx {
     pub fn item(fields: &[String]) -> Self {
-        Self { item_fields: fields.to_vec(), item_var: "item".to_string(), collections: Vec::new() }
+        Self { item_fields: fields.to_vec(), item_var: "item".to_string(), ..Self::default() }
     }
 
     /// Records which names are arrays, for the field-aggregate rule.
@@ -48,16 +68,61 @@ impl Ctx {
         self
     }
 
+    pub fn with_row_bool(mut self, pairs: &[(String, String)]) -> Self {
+        self.row_bool = pairs.to_vec();
+        self
+    }
+
+    pub fn with_cse(mut self, cse: &[(String, String)]) -> Self {
+        self.cse = cse.to_vec();
+        self
+    }
+
+    /// Prefix every non-row identifier with this, for a backend that keeps state in an object rather
+    /// than in scope.
+    ///
+    /// # Why this belongs here and not in the backend
+    ///
+    /// The Web Components backend needs `count` to become `this.#state.count`, and the first version did
+    /// it by rewriting the *lowered string* — walking the JavaScript and prefixing every bare word. That
+    /// cannot work, and the output said so:
+    ///
+    /// ```text
+    /// `s.Invoices — ${…} s.awaiting s.payment`   // every word of the literal text
+    /// (s.a, s.b) => s.a + Number(s.b)           // the lambda's own parameters
+    /// s.view === "s.all"                        // inside a string literal
+    /// ```
+    ///
+    /// Three different kinds of thing that are not identifier reads, and no amount of tightening the
+    /// word-boundary rules distinguishes them from one — that information exists only in the parse tree.
+    /// So the prefix is applied at the one place that knows it is looking at a path head.
+    pub fn with_scope(mut self, prefix: &str) -> Self {
+        self.scope = prefix.to_string();
+        self
+    }
+
     fn qualify(&self, head: &str) -> String {
         if self.item_fields.iter().any(|f| f == head) {
             let var = if self.item_var.is_empty() { "item" } else { &self.item_var };
             return format!("{var}.{head}");
+        }
+        if !self.scope.is_empty() {
+            return format!("{}{head}", self.scope);
         }
         head.to_string()
     }
 
     fn is_collection(&self, head: &str) -> bool {
         self.collections.iter().any(|c| c == head)
+    }
+
+    /// The boolean field `.open`/`.done` filter on, for the collection `head`.
+    ///
+    /// Falls back to `done` when the collection is unknown — a `Ctx` built without row types (the
+    /// expression unit tests, a snippet lowered on its own) then behaves as it always did, and the
+    /// analyser has already rejected the case where no such field exists.
+    pub(crate) fn row_bool_field(&self, head: &str) -> &str {
+        self.row_bool.iter().find(|(c, _)| c == head).map(|(_, f)| f.as_str()).unwrap_or("done")
     }
 }
 
@@ -77,6 +142,19 @@ pub fn lower_expr(expr: &Expr, ctx: &Ctx) -> String {
 }
 
 fn emit(expr: &Expr, ctx: &Ctx) -> String {
+    let out = emit_raw(expr, ctx);
+    // Substitution happens after lowering, and only on a whole expression: replacing a fragment of a
+    // larger expression would produce `tasksOpenCount > 0` correctly but also corrupt any expression
+    // that merely contains the same substring.
+    for (lowered, name) in &ctx.cse {
+        if out == *lowered {
+            return name.clone();
+        }
+    }
+    out
+}
+
+fn emit_raw(expr: &Expr, ctx: &Ctx) -> String {
     match expr {
         Expr::Num(n) => {
             if n.fract() == 0.0 {
@@ -115,8 +193,16 @@ fn path(head: &str, steps: &[Step], ctx: &Ctx) -> String {
                 collection = false;
             }
             // `it` rather than a single letter: the emitted code is read by people.
-            Step::Agg(Aggregate::Open) => out = format!("{out}.filter((it) => !it.done)"),
-            Step::Agg(Aggregate::Done) => out = format!("{out}.filter((it) => it.done)"),
+            // The field name comes from the row type, not from a guess. `head` is the collection the
+            // path started at, so a `.open` deeper in a chain still resolves against the right rows.
+            Step::Agg(Aggregate::Open) => {
+                let field = ctx.row_bool_field(head);
+                out = format!("{out}.filter((it) => !it.{field})");
+            }
+            Step::Agg(Aggregate::Done) => {
+                let field = ctx.row_bool_field(head);
+                out = format!("{out}.filter((it) => it.{field})");
+            }
             Step::Agg(Aggregate::Sum) => {
                 out = format!("{out}.reduce((a, b) => a + Number(b), 0)");
                 collection = false;
@@ -125,20 +211,39 @@ fn path(head: &str, steps: &[Step], ctx: &Ctx) -> String {
             Step::Agg(Aggregate::Lower) => out = format!("{out}.toLowerCase()"),
             Step::Agg(Aggregate::Upper) => out = format!("{out}.toUpperCase()"),
             Step::Field(name) => {
-                // `projects.live.count` — a field of the row, then an aggregate over it. Only
-                // applied to a known array, so `user.name.count` still means string length.
-                let next_aggregates = matches!(
-                    steps.get(i + 1),
-                    Some(Step::Agg(Aggregate::Count)) | Some(Step::Agg(Aggregate::Sum))
-                );
-                if collection && next_aggregates {
-                    out = match steps.get(i + 1) {
-                        Some(Step::Agg(Aggregate::Sum)) => format!("{out}.map((it) => it.{name})"),
-                        _ => format!("{out}.filter((it) => it.{name})"),
-                    };
-                } else {
-                    out = format!("{out}.{name}");
-                    collection = false;
+                // `projects.live.count` — a field of the row, then an aggregate over it. Only applied to
+                // a known array, so `user.name.count` still means string length.
+                //
+                // # The two-field chain, and the mis-lowering it used to be
+                //
+                // `invoices.paid.amount.sum` — "the sum of the amounts of the paid invoices" — is the
+                // shape every dashboard and cart total in GUML-Bench needs, and it emitted
+                // `invoices.paid.amount.reduce(…)`. `.paid` on an *array* is `undefined`, so that throws
+                // at runtime, and the compiler said nothing: only the field immediately before the
+                // aggregate was recognised, and anything earlier fell through to a plain property read.
+                //
+                // A field on a collection with an aggregate still to come is a filter, because that is the
+                // only reading under which the chain means anything: you cannot sum a boolean and the
+                // aggregate needs rows to work on. So the collection survives the step.
+                let aggregate_still_to_come = steps[i + 1..]
+                    .iter()
+                    .any(|s| matches!(s, Step::Agg(Aggregate::Count) | Step::Agg(Aggregate::Sum)));
+                match (collection, steps.get(i + 1)) {
+                    // The last field before the aggregate. `.sum` needs the values, `.count` the rows.
+                    (true, Some(Step::Agg(Aggregate::Sum))) => {
+                        out = format!("{out}.map((it) => it.{name})");
+                    }
+                    (true, Some(Step::Agg(Aggregate::Count))) => {
+                        out = format!("{out}.filter((it) => it.{name})");
+                    }
+                    // A field earlier in the chain, narrowing the rows the aggregate will see.
+                    (true, _) if aggregate_still_to_come => {
+                        out = format!("{out}.filter((it) => it.{name})");
+                    }
+                    _ => {
+                        out = format!("{out}.{name}");
+                        collection = false;
+                    }
                 }
             }
         }
@@ -249,6 +354,30 @@ mod tests {
         );
         // Not a collection, so `.count` is a string length and `.name` is a field.
         assert_eq!(lower_in("user.name.count", &ctx), "user.name.length");
+    }
+
+    #[test]
+    fn a_field_chain_filters_then_aggregates() {
+        // The mis-lowering: `invoices.paid.amount.sum` emitted `invoices.paid.amount.reduce(…)`, and
+        // `.paid` on an array is `undefined`, so the emitted code threw at runtime with no diagnostic.
+        // Only the field immediately before the aggregate was recognised.
+        let ctx = Ctx::default().with_collections(&["invoices".to_string()]);
+        assert_eq!(
+            lower_in("invoices.paid.amount.sum", &ctx),
+            "invoices.filter((it) => it.paid).map((it) => it.amount).reduce((a, b) => a + Number(b), 0)"
+        );
+        // The one-field forms are unchanged: `.sum` wants the values, `.count` wants the rows.
+        assert_eq!(
+            lower_in("invoices.amount.sum", &ctx),
+            "invoices.map((it) => it.amount).reduce((a, b) => a + Number(b), 0)"
+        );
+        assert_eq!(
+            lower_in("invoices.paid.count", &ctx),
+            "invoices.filter((it) => it.paid).length"
+        );
+        // And a chain with no aggregate at the end is still a plain property read, so a document that
+        // means `user.address.city` is not turned into a filter.
+        assert_eq!(lower_in("invoices.client.name", &ctx), "invoices.client.name");
     }
 
     #[test]

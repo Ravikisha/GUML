@@ -10,8 +10,17 @@
     "sourceMap": true,
     "outDir": "dist",
     "rootDir": "src",
-    // The published entry points must not carry `.ts` specifiers.
-    "allowImportingTsExtensions": false,
+    // The published entry points must not carry `.ts` specifiers — and now they don't have to be
+    // *written* with `.js` either. `rewriteRelativeImportExtensions` (TS 5.7+) rewrites `./eval.ts`
+    // to `./eval.js` on emit, so the source says the extension of the file that exists and the
+    // published ESM says the extension of the file it ships.
+    //
+    // Before this, library source used `.js` specifiers for files that were `.ts`, which meant
+    // `node --test` could run `eval.test.ts` (it imports `./eval.ts`) but could not run any test that
+    // imported `index.ts`, because that re-exports `./eval.js`. The package's public entry point was
+    // therefore the one module with no test coverage.
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
     "types": ["react"]
   },
   "include": ["src"],

@@ -1,0 +1,38 @@
+// Reference answer for GUML-Bench task `d02-revenue`.
+//
+// Every figure on the page is derived from the fetched rows, which is the task's hardest checklist item
+// and the one a direct-React arm most often fails by hardcoding a total. Four of them are two-step
+// aggregates — `invoices.paid.amount.sum` is "the sum of the amounts of the paid invoices" — and that
+// chain used to lower to `invoices.paid.amount.reduce(…)`, which throws.
+
+page Revenue title="Revenue" description="Billing performance for the current period." lang=en
+
+type Invoice {id, client, amount:number, paid:bool, due:date}
+data invoices:Invoice[] GET /api/invoices
+
+state period=month|quarter|year
+
+// The period is a server-side window, so changing it re-fetches rather than filtering in the browser.
+on {period} >invoices.list
+
+head Revenue — {invoices.paid.count} of {invoices.count} invoices collected
+
+toolbar
+  select period aria="Reporting period"
+
+grid cols=4
+  stat "Billed" {invoices.amount.sum}
+  stat "Collected" {invoices.paid.amount.sum}
+  stat "Outstanding" {invoices.amount.sum - invoices.paid.amount.sum}
+  stat "Collection rate" {invoices.paid.amount.sum * 100 / invoices.amount.sum}
+
+card "Collection rate"
+  progress value={invoices.paid.amount.sum} max={invoices.amount.sum} aria="Share of billed revenue collected"
+  note Measured against everything billed in the selected period, paid or not.
+
+table invoices cols="Client, Amount, Due, Paid"
+  text {client}
+  text {amount}
+  text {due}
+  check {paid} readonly aria="Paid"
+  empty Nothing was billed in this period.

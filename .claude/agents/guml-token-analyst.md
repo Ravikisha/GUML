@@ -36,10 +36,10 @@ You produce the numbers the entire project's credibility rests on. Your bias is 
 | Fixture | React | GUML | Cut |
 |---|---:|---:|---:|
 | a — counter card | 368 | 64 | 82.6% |
-| b — task CRUD | 1,434 | 173 | 87.9% |
+| b — task CRUD | 1,441 | 178 | 87.6% |
 | c — landing page | 1,648 | 376 | 77.2% |
 
-Also: GUML vs minified JSON UI IR on fixture b = 173 vs 315 (45% fewer). Landing-page content
+Also: GUML vs minified JSON UI IR on fixture b = 178 vs 324 (45% fewer). Landing-page content
 floor = 232/376 irreducible prose. Spec amortisation ≈ 20:1 under prompt caching.
 
 These are *authored*, not model-generated. Any claim about what models actually produce needs

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { CodeBlock } from "@/components/code-block";
 import { DocPage } from "@/components/doc-page";
-import { A, C, H2, H3, LI, Note, P, Table, UL } from "@/components/prose";
+import { A, C, H2, H3, LI, Note, P, Pkg, Table, UL } from "@/components/prose";
+import { PACKAGES } from "@/lib/packages";
 
 export const metadata: Metadata = {
   title: "Install",
@@ -20,6 +21,7 @@ export default function Page() {
         { id: "build", title: "Build" },
         { id: "verify", title: "Verify" },
         { id: "install-the-binary", title: "Install the binary" },
+        { id: "npm", title: "The npm packages" },
         { id: "optional", title: "Optional tools" },
         { id: "editor", title: "Editor setup" },
       ]}
@@ -80,6 +82,44 @@ cargo run -q -p guml-cli -- build fixtures/a.guml
         works in a fresh clone without installing anything.
       </P>
 
+      <H2 id="npm">The npm packages</H2>
+      <P>
+        Nothing above is needed to <em>use</em> GUML from JavaScript. Five packages are published under
+        the <C>@guml</C> scope, and which one you want depends on how much of the compiler you actually
+        need.
+      </P>
+      {/* Rows come from `lib/packages.ts`, which `pnpm check:packages` compares against the registry —
+          so a size here cannot quietly drift from the size npm reports. */}
+      <Table
+        head={["package", "for", "unpacked", "Node"]}
+        rows={PACKAGES.map((p) => [
+          <Pkg key={p.name} name={p.name} />,
+          p.purpose,
+          p.size,
+          p.node ? "yes" : "no",
+        ])}
+      />
+      <CodeBlock
+        lang="bash"
+        filename="terminal"
+        code={`pnpm add @guml/core        # compile and render in the browser
+pnpm add @guml/fmt         # just the formatter, 231 KB, works in Node
+pnpm add @guml/highlight   # just highlighting, 49 KB, no WebAssembly`}
+      />
+      <Note tone="warn" title="The unscoped name `guml` is not us">
+        <p>
+          npm refuses it: its similarity check rejects <C>guml</C> against <C>gulp</C>, <C>gm</C>,{" "}
+          <C>xml</C>, <C>toml</C>, <C>yaml</C> and others. Everything is under the <C>@guml</C> scope,
+          and anything published as bare <C>guml</C> is not this project.
+        </p>
+      </Note>
+      <P>
+        <Pkg name="@guml/core" /> is the only one that does <em>not</em> run in Node — its wasm is built
+        for the web target and loads itself with <C>fetch</C>, which has no <C>file://</C> support. Use
+        the CLI above to compile from a shell, or <Pkg name="@guml/fmt" /> if formatting is all you
+        need. See <A href="/docs/library">the library page</A> for the full API.
+      </P>
+
       <H2 id="optional">Optional tools</H2>
       <H3>just</H3>
       <CodeBlock
@@ -113,9 +153,10 @@ cargo clippy --workspace --all-targets -- -D warnings`}
           <strong className="text-chalk">
             <C>.guml</C> files:
           </strong>{" "}
-          no editor support yet. A tree-sitter grammar and a <C>tower-lsp</C> language server are
-          Phase 7 on the <A href="/docs/research/roadmap">roadmap</A>; the language server will
-          surface the same diagnostics the compiler gives a model.
+          install the VS Code extension from <C>editors/vscode</C>. It uses the tree-sitter grammar
+          for highlighting and the <C>tower-lsp</C> language server for diagnostics — the same
+          diagnostics the compiler gives a model, from the same analysis, so the squiggles and{" "}
+          <C>guml check</C> cannot disagree. See <A href="/docs/compiler/editors">editor support</A>.
         </LI>
         <LI>
           <strong className="text-chalk">Indentation:</strong> two spaces, spaces only. Tabs are a

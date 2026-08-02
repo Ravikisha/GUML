@@ -2,10 +2,13 @@
 /**
  * Phase 0 runner.
  *
- * 10 tasks × 3 models × {0, 3} examples × {guml, react} arms = 120 generations at
- * one repeat. Every run is written to its own file under results/raw and is skipped
- * if that file already exists, so the sweep is resumable and a crash costs one run
- * rather than the batch.
+ * 10 tasks × 3 models × ({0, 3} examples for `guml`, one condition for `react`) = **90 generations** at
+ * one repeat, which is the number `ROADMAP.md` commits to. This comment said 120 for a while: it multiplied
+ * the two example-counts across both arms, and the React arm sees no spec and no examples, so it has one
+ * condition rather than two. A planning number nobody checks is how a sweep's cost gets misquoted.
+ *
+ * Every run is written to its own file under results/raw and a **successful** run is skipped on a re-run, so
+ * the sweep is resumable and a crash costs one generation rather than the batch.
  *
  * Thinking is off deliberately. Phase 0 measures the tokens of the *artifact*; if
  * extended thinking is enabled, thinking tokens land in the same output counter and
@@ -17,7 +20,7 @@
  *   node run.mjs --tasks t01-crud --models sonnet --examples 3
  *   node run.mjs --repeats 3               # variance across identical prompts
  */
-import { mkdirSync, existsSync, writeFileSync } from "node:fs";
+import { mkdirSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { BENCH, MODELS, buildPrompt, runId } from "./lib/prompt.mjs";
 import { TASKS } from "./tasks/index.mjs";
@@ -113,9 +116,27 @@ let skipped = 0;
 for (const c of plan) {
   const id = runId({ task: c.task.id, arm: c.arm, model: c.model, examples: c.examples, repeat: c.repeat });
   const file = join(args.out, `${id}.json`);
+  // Resume past *successful* runs only.
+  //
+  // This was `existsSync(file)` alone, which is wrong in the direction that costs the most: a failed run
+  // writes its error to the same path, so re-running the sweep skipped it forever. A rate limit, a dropped
+  // connection or an expired card would be baked into the results as a permanent hole — and the scoring step
+  // would then report a smaller `n` than the sweep was supposed to produce, with nothing saying why.
+  //
+  // Found by the first live call: the key authenticated and the account had no credit, so every run would
+  // have written an error file and a later retry with credit would have skipped all 90 of them.
   if (existsSync(file)) {
-    skipped++;
-    continue;
+    let previous = null;
+    try {
+      previous = JSON.parse(readFileSync(file, "utf8"));
+    } catch {
+      // An unreadable or truncated file is not a result. Re-run it.
+    }
+    if (previous && !previous.error) {
+      skipped++;
+      continue;
+    }
+    console.log(`  retrying ${id} (previous attempt failed)`);
   }
 
   const prompt = buildPrompt({
@@ -153,6 +174,16 @@ for (const c of plan) {
       JSON.stringify({ id, ...describe(c), error: String(e), latencyMs: Date.now() - started }, null, 2),
     );
     console.error(`✗ ${id}: ${e.message}`);
+    // Some failures will not clear by trying the next condition, and grinding through 89 more of them wastes
+    // wall-clock and fills `results/raw` with files a human then has to delete. Credit and authentication are
+    // both account-level: stop and say so.
+    if (/credit balance|authentication_error|invalid x-api-key|permission/i.test(e.message)) {
+      console.error(
+        "\nthis is an account-level failure, not a transient one — the remaining runs would all fail the " +
+          "same way.\nfix the account and re-run: completed generations are skipped, failed ones are retried.",
+      );
+      process.exit(1);
+    }
     continue;
   }
   const latencyMs = Date.now() - started;

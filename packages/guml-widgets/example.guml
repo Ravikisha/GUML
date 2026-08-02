@@ -1,0 +1,29 @@
+// The package's own example, compiled by `packages_guml_widgets` in `crates/guml-compiler/tests/registry.rs`.
+//
+// Every tag here comes from `guml.registry.json` and none of them is builtin — which is the point. The
+// compiler emits `<Chart …>` with an import and does not pretend to know what a chart is.
+
+page Insights title="Insights" description="What the five package components look like in use." lang=en
+
+type Point {id, month, revenue:number}
+type Command {id, name}
+
+data points:Point[] GET /api/revenue
+data commands:Command[] GET /api/commands
+
+state from="2026-01-01"
+state picked="2026-07-15"
+state palette=false
+
+section
+  h1 Insights
+
+  chart "Revenue by month" rows={points} of=revenue label=month kind=line
+
+  row
+    date from aria="From"
+    calendar "Pick a day" value={picked}
+    upload "Attach a report" accept=".csv"
+
+  btn "Open palette" primary >palette = true
+  command "Commands" rows={commands} label=name if={palette}

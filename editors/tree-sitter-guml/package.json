@@ -1,0 +1,17 @@
+{
+  "name": "tree-sitter-guml",
+  "version": "0.1.0",
+  "description": "tree-sitter grammar for GUML",
+  "main": "bindings/node",
+  "private": true,
+  "scripts": {
+    "gen:tags": "node scripts/gen-tags.mjs",
+    "check:tags": "node scripts/gen-tags.mjs --check",
+    "check:fixtures": "node scripts/check-fixtures.mjs",
+    "build": "npm run gen:tags && tree-sitter generate",
+    "test": "tree-sitter test && node scripts/check-fixtures.mjs"
+  },
+  "devDependencies": {
+    "tree-sitter-cli": "^0.24.0"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  // Emits `dist/` for publishing.
+  //
+  // This package originally shipped raw `.ts` — the same choice `@guml/widgets` and `@guml/shadcn`
+  // make, and the wrong one here. Node refuses to strip types under `node_modules`
+  // (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`), so a package whose entire point is running
+  // synchronously in Node and during server rendering did not run in Node at all. It worked under a
+  // bundler, which is exactly why it survived a build and a typecheck.
+  //
+  // Component packages ship source because their source is meant to be read and edited. A library is
+  // not, so it gets built.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    // Source says `./vocabulary.generated.ts`; emitted ESM says `.js`. Keeps one specifier working
+    // under a bundler, under `tsc`, and under Node's loader — which is how the parity gate runs it.
+    "rewriteRelativeImportExtensions": true
+  },
+  "include": ["src"]
+}

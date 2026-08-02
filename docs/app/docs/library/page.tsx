@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { CodeBlock } from "@/components/code-block";
 import { DocPage } from "@/components/doc-page";
 import { LivePreview } from "@/components/live-preview";
-import { A, C, H2, LI, Note, P, Table, UL } from "@/components/prose";
+import { A, C, H2, LI, Note, P, Pkg, Table, UL } from "@/components/prose";
 import { FIXTURES } from "@/lib/fixtures.generated";
+import { PACKAGES } from "@/lib/packages";
 
 export const metadata: Metadata = {
   title: "React library",
@@ -17,11 +18,12 @@ export default function Page() {
   return (
     <DocPage
       pathname="/docs/library"
-      meter={{ label: "package", value: "guml · 298 KB wasm", tone: "iris" }}
+      meter={{ label: "package", value: "@guml/core · 787 KB wasm", tone: "iris" }}
       title="React library"
       lede="The compiler compiled: the same Rust that powers the CLI, built to WebAssembly, with a React runtime that renders its output. No build step in your app, no server."
       toc={[
         { id: "install", title: "Install" },
+        { id: "smaller", title: "Smaller packages" },
         { id: "render", title: "Render GUML" },
         { id: "compile", title: "Compile without rendering" },
         { id: "repair", title: "Mechanical repair" },
@@ -32,17 +34,59 @@ export default function Page() {
       ]}
     >
       <H2 id="install">Install</H2>
-      <CodeBlock lang="bash" filename="terminal" code={`pnpm add guml`} />
+      <CodeBlock lang="bash" filename="terminal" code={`pnpm add @guml/core`} />
       <P>
-        One package, two entry points: <C>guml</C> for the compiler API and <C>guml/react</C> for
-        the renderer. React is an optional peer dependency, so the compiler works in a plain script,
-        a Node process, or a worker.
+        Two entry points: <Pkg name="@guml/core" /> for the compiler API and <C>@guml/core/react</C> for the
+        renderer. React is an optional peer dependency, so the compiler works in a plain script or a
+        worker without it.
+      </P>
+      <Note tone="warn" title="Browser and bundlers, not Node">
+        <p>
+          The wasm is built for the web target, so it loads itself with <C>fetch</C>. That works in
+          Next.js, Vite and anything else serving assets over HTTP. It does <em>not</em> work in plain
+          Node, where the failure surfaces as an undici <C>fetch failed</C> on a <C>file://</C> URL
+          with nothing in the message about WebAssembly.
+        </p>
+        <p className="mt-3">
+          To compile GUML from Node or a shell, use the CLI — <C>cargo install guml-cli</C> — or{" "}
+          <Pkg name="@guml/fmt" /> below, which does load in Node.
+        </p>
+      </Note>
+
+      <H2 id="smaller">Smaller packages, if you need less</H2>
+      <P>
+        The compiler is 787 KB of WebAssembly. Two of the things people most often want from it do not
+        need the compiler at all, so they ship separately rather than making everyone pay for the whole
+        thing.
+      </P>
+      {/* Rows come from `lib/packages.ts` so the sizes here and the sizes on the registry are one
+          number, checked by `pnpm check:packages`. A hand-written table of sizes is stale the first
+          time anything is republished, and nothing about the page would show it. */}
+      <Table
+        head={["package", "for", "unpacked", "Node"]}
+        rows={PACKAGES.filter((p) => !p.name.includes("widgets") && !p.name.includes("shadcn")).map(
+          (p) => [<Pkg key={p.name} name={p.name} />, p.purpose, p.size, p.node ? "yes" : "no"],
+        )}
+      />
+      <P>
+        The split follows the compiler&rsquo;s own shape rather than being a packaging convenience.{" "}
+        <C>guml-fmt</C> sits <em>below the parser</em> — it needs the lexer, the registry and the
+        diagnostic codes, and nothing else — so building only that is 178 KB instead of 787. A
+        pre-commit hook that formats GUML has no reason to download the code generator for seven
+        backends.
+      </P>
+      <P>
+        <Pkg name="@guml/highlight" /> goes further and has no wasm at all. It is a hand-written tokeniser held
+        to the compiler&rsquo;s classifier by a parity test that compares the two span for span over
+        every fixture — 936 spans across 10 documents. That is what makes a second implementation safe
+        rather than a second source of truth, and it buys something the wasm cannot offer: highlighting
+        that runs synchronously during server rendering, and in Node.
       </P>
       <Note tone="info" title="Why the whole compiler ships to the browser">
         <p>
           A re-implementation in TypeScript would drift from the Rust one, and the moment a preview
-          disagrees with <C>guml build</C> the preview is worse than nothing. Compiling the real
-          thing to wasm32 costs 298 KB and removes that class of bug entirely.
+          disagrees with <C>guml build</C> the preview is worse than nothing. Compiling the real thing
+          to wasm32 costs 787 KB and removes that class of bug entirely.
         </p>
       </Note>
 
@@ -51,7 +95,7 @@ export default function Page() {
         lang="tsx"
         filename="app/page.tsx"
         code={`"use client";
-import { Guml } from "guml/react";
+import { Guml } from "@guml/core/react";
 
 const source = \`page Counter
 state count=0
@@ -80,7 +124,7 @@ export default function Page() {
       <CodeBlock
         lang="tsx"
         filename="anywhere"
-        code={`import { check, compile, tree, registry } from "guml";
+        code={`import { check, compile, tree, registry } from "@guml/core";
 
 const { ok, diagnostics } = await check(source);
 
@@ -111,7 +155,7 @@ const slice = await registry(["btn", "card", "list"]); // prompt-sized vocabular
       <CodeBlock
         lang="tsx"
         filename="repair.ts"
-        code={`import { check, applyAllSuggestions } from "guml";
+        code={`import { check, applyAllSuggestions } from "@guml/core";
 
 let source = modelOutput;
 for (let round = 0; round < 3; round++) {
@@ -204,7 +248,7 @@ for (let round = 0; round < 3; round++) {
           ["list, with seeded or fetched rows", "yes"],
           ["optimistic mutations with rollback", "yes"],
           ["form, tabs, faq, tier", "renders a labelled gap"],
-          ["route, auth, js/raw", "not yet lowered"],
+          ["route, auth, js/raw", "not lowered — reported as a gap"],
         ]}
       />
       <P>

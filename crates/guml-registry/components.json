@@ -1,0 +1,552 @@
+{
+  "$comment": [
+    "The builtin tag vocabulary, as data.",
+    "",
+    "This was a `const COMPONENTS: &[Builtin]` compiled into the binary. Moving it here is the same",
+    "argument `guml-codegen::theme` makes about the class table: a vocabulary written into a compiler",
+    "is a vocabulary nobody can inspect, diff or publish. It also means the builtin registry now",
+    "travels the *same* load path a third-party package does, which is the strongest available test",
+    "of that path — if `from_json` ever regresses, every builtin tag disappears and 400 tests say so.",
+    "",
+    "`level` defaults to `core`, so an entry that omits it is markup. `children`, `slots`,",
+    "`capabilities` and `since` are all optional and default to the permissive answer.",
+    "",
+    "Adding an entry here also requires a line in `crates/guml-compiler/tests/stability.rs`, a theme",
+    "rule in `crates/guml-codegen/themes/slate.json`, its CSS in `slate.css`, and lowering in each",
+    "backend. Tests fail on each omission — that is deliberate."
+  ],
+  "version": "0.2",
+  "components": [
+    {
+      "name": "card",
+      "kind": "container",
+      "doc": "Bordered surface grouping related content. Optional title as first positional.",
+      "since": "0.1",
+      "positionals": [
+        "title"
+      ]
+    },
+    {
+      "name": "row",
+      "kind": "container",
+      "doc": "Horizontal layout. Use `center`/`between` to align instead of flex utilities.",
+      "since": "0.1"
+    },
+    {
+      "name": "col",
+      "kind": "container",
+      "doc": "Vertical layout.",
+      "since": "0.1"
+    },
+    {
+      "name": "section",
+      "kind": "container",
+      "doc": "Page section. Takes an optional #anchor and a title positional.",
+      "since": "0.1",
+      "positionals": [
+        "title"
+      ]
+    },
+    {
+      "name": "nav",
+      "kind": "container",
+      "doc": "Top navigation bar. First positional is the brand name.",
+      "since": "0.1",
+      "positionals": [
+        "brand"
+      ]
+    },
+    {
+      "name": "hero",
+      "kind": "container",
+      "doc": "Above-the-fold block: headline, subcopy, calls to action.",
+      "since": "0.1"
+    },
+    {
+      "name": "footer",
+      "kind": "container",
+      "doc": "Page footer. First positional is the copyright line.",
+      "since": "0.1",
+      "positionals": [
+        "copyright"
+      ]
+    },
+    {
+      "name": "form",
+      "kind": "container",
+      "doc": "Submits on enter and on its primary button; its action runs on submit.",
+      "since": "0.1"
+    },
+    {
+      "name": "tier",
+      "kind": "container",
+      "attrs": [
+        "cta"
+      ],
+      "doc": "Pricing tier. Positionals: name, price, blurb. Children are perk lines.",
+      "since": "0.1",
+      "positionals": [
+        "name",
+        "price",
+        "blurb"
+      ]
+    },
+    {
+      "name": "faq",
+      "kind": "container",
+      "attrs": [
+        "open"
+      ],
+      "doc": "Accordion. Each child line is `question | answer`.",
+      "since": "0.1"
+    },
+    {
+      "name": "tabs",
+      "kind": "container",
+      "a11y": {
+        "role": "tablist",
+        "focusable": true,
+        "announces_state": true
+      },
+      "doc": "Segmented control bound to an enumerated state; options come from its domain.",
+      "capabilities": {
+        "needs_runtime": true
+      },
+      "since": "0.1",
+      "positionals": [
+        "state"
+      ]
+    },
+    {
+      "name": "h",
+      "kind": "text",
+      "doc": "Section heading.",
+      "since": "0.1"
+    },
+    {
+      "name": "h1",
+      "kind": "text",
+      "doc": "Page headline. One per page.",
+      "since": "0.1"
+    },
+    {
+      "name": "h2",
+      "kind": "text",
+      "doc": "Subheading.",
+      "since": "0.1"
+    },
+    {
+      "name": "p",
+      "kind": "text",
+      "doc": "Paragraph of prose.",
+      "since": "0.1"
+    },
+    {
+      "name": "text",
+      "kind": "text",
+      "attrs": [
+        "strike"
+      ],
+      "doc": "Inline text, usually a binding inside a repeater.",
+      "since": "0.1"
+    },
+    {
+      "name": "metric",
+      "kind": "text",
+      "doc": "Large single number, for counters and KPI tiles.",
+      "since": "0.1"
+    },
+    {
+      "name": "head",
+      "kind": "text",
+      "doc": "Page header line; may include a binding for a live count.",
+      "since": "0.1"
+    },
+    {
+      "name": "empty",
+      "kind": "text",
+      "doc": "Empty-state message for the enclosing repeater.",
+      "since": "0.1"
+    },
+    {
+      "name": "btn",
+      "kind": "control",
+      "attrs": [
+        "busy",
+        "type"
+      ],
+      "a11y": {
+        "requires_label": true,
+        "focusable": true
+      },
+      "doc": "Button. First positional is the label; `>` gives the action.",
+      "since": "0.1",
+      "positionals": [
+        "label"
+      ]
+    },
+    {
+      "name": "link",
+      "kind": "control",
+      "a11y": {
+        "requires_label": true,
+        "focusable": true
+      },
+      "doc": "Navigational link to a /route or #anchor.",
+      "since": "0.1",
+      "positionals": [
+        "label"
+      ]
+    },
+    {
+      "name": "check",
+      "kind": "control",
+      "a11y": {
+        "requires_label": true,
+        "focusable": true,
+        "announces_state": true
+      },
+      "doc": "Checkbox bound to a boolean; its action runs on change.",
+      "since": "0.1",
+      "positionals": [
+        "label"
+      ]
+    },
+    {
+      "name": "toggle",
+      "kind": "control",
+      "a11y": {
+        "requires_label": true,
+        "role": "switch",
+        "focusable": true,
+        "announces_state": true
+      },
+      "doc": "On/off switch bound to a boolean.",
+      "since": "0.1",
+      "positionals": [
+        "label"
+      ]
+    },
+    {
+      "name": "input",
+      "kind": "field",
+      "attrs": [
+        "placeholder",
+        "kind",
+        "min",
+        "max"
+      ],
+      "a11y": {
+        "requires_label": true,
+        "focusable": true
+      },
+      "doc": "Text field bound to a state name given as the first positional.",
+      "since": "0.1",
+      "positionals": [
+        "state"
+      ]
+    },
+    {
+      "name": "select",
+      "kind": "field",
+      "attrs": [
+        "placeholder"
+      ],
+      "a11y": {
+        "requires_label": true,
+        "focusable": true
+      },
+      "children": {
+        "allow": [
+          "option"
+        ]
+      },
+      "doc": "Dropdown bound to an enumerated state; options come from its domain or `option` children.",
+      "since": "0.1",
+      "positionals": [
+        "state"
+      ]
+    },
+    {
+      "name": "list",
+      "kind": "repeater",
+      "level": "app",
+      "attrs": [
+        "where",
+        "sort",
+        "of"
+      ],
+      "doc": "Renders one child template per item of a resource. Loading, empty and error states are compiled in.",
+      "capabilities": {
+        "needs_runtime": true,
+        "network": true
+      },
+      "since": "0.1",
+      "positionals": [
+        "resource"
+      ]
+    },
+    {
+      "name": "table",
+      "kind": "repeater",
+      "level": "app",
+      "attrs": [
+        "where",
+        "sort",
+        "of"
+      ],
+      "doc": "Tabular repeater; children describe one row.",
+      "capabilities": {
+        "needs_runtime": true,
+        "network": true
+      },
+      "since": "0.1",
+      "positionals": [
+        "resource"
+      ]
+    },
+    {
+      "name": "slot",
+      "kind": "container",
+      "doc": "Inside a `def` body, the place a call's children are inserted. Meaningless elsewhere.",
+      "since": "0.1"
+    },
+    {
+      "$comment": "--- 0.2: the production vocabulary. Every entry below lowers completely in at least the React, JSON and Svelte backends; the ones needing a runtime say so, and the no-JavaScript `html` backend reports them rather than emitting dead markup.",
+      "name": "option",
+      "kind": "text",
+      "doc": "One choice inside a `select`. The line remainder is the visible label.",
+      "since": "0.2"
+    },
+    {
+      "name": "note",
+      "kind": "text",
+      "doc": "Secondary prose: a hint, a caption, or fine print.",
+      "since": "0.2"
+    },
+    {
+      "name": "badge",
+      "kind": "container",
+      "doc": "Small inline status pill. First positional is the label; `danger`/`primary`/`quiet` set the tone.",
+      "since": "0.2",
+      "positionals": [
+        "label"
+      ],
+      "children": {
+        "deny": [
+          "*"
+        ]
+      },
+      "$note": [
+        "`container` rather than `text`, and it is the one kind correction in 0.2.",
+        "",
+        "As a text tag its remainder was prose taken verbatim, so `badge danger Breaking` rendered the",
+        "string 'danger Breaking' — with no diagnostic, while this entry's own doc told a model to use",
+        "those very modifiers for tone and `themes/slate.json` carried three tone rules keyed on them.",
+        "Both were unreachable. The theme rules fire now, and `GUML0102` warns for the rest of the text",
+        "kind, where the verbatim rule stays and is correct."
+      ]
+    },
+    {
+      "name": "divider",
+      "kind": "text",
+      "doc": "Horizontal rule separating groups. Takes no content.",
+      "children": {
+        "deny": [
+          "*"
+        ]
+      },
+      "since": "0.2"
+    },
+    {
+      "name": "avatar",
+      "kind": "text",
+      "doc": "Round identity chip. The line remainder is the person's name, shown as initials.",
+      "since": "0.2"
+    },
+    {
+      "name": "img",
+      "kind": "text",
+      "attrs": [
+        "src",
+        "alt"
+      ],
+      "a11y": {
+        "requires_label": true
+      },
+      "doc": "Image. `src` is the URL; `alt` is mandatory and describes it.",
+      "since": "0.2"
+    },
+    {
+      "name": "skeleton",
+      "kind": "text",
+      "doc": "Placeholder block shown while content loads. Takes no content.",
+      "since": "0.2"
+    },
+    {
+      "name": "step",
+      "kind": "text",
+      "attrs": [
+        "done",
+        "current"
+      ],
+      "doc": "One stage inside a `stepper`. The line remainder is its label.",
+      "since": "0.2"
+    },
+    {
+      "name": "alert",
+      "kind": "container",
+      "a11y": {
+        "role": "alert"
+      },
+      "doc": "Prominent message the reader must not miss. Use `danger` for errors.",
+      "since": "0.2",
+      "positionals": [
+        "title"
+      ]
+    },
+    {
+      "name": "grid",
+      "kind": "container",
+      "doc": "Equal-width grid. `cols=3` sets the column count; it collapses on small screens.",
+      "since": "0.2"
+    },
+    {
+      "name": "sidebar",
+      "kind": "container",
+      "doc": "Secondary column beside the main content.",
+      "since": "0.2"
+    },
+    {
+      "name": "toolbar",
+      "kind": "container",
+      "a11y": {
+        "role": "toolbar"
+      },
+      "doc": "Row of controls acting on the content below it.",
+      "since": "0.2"
+    },
+    {
+      "name": "breadcrumb",
+      "kind": "container",
+      "children": {
+        "allow": [
+          "link",
+          "text"
+        ]
+      },
+      "doc": "Trail of ancestor links. Children are `link`s, last one is the current page.",
+      "since": "0.2"
+    },
+    {
+      "name": "pagination",
+      "kind": "container",
+      "children": {
+        "allow": [
+          "btn",
+          "link",
+          "text"
+        ]
+      },
+      "doc": "Page navigation controls for a long list.",
+      "since": "0.2"
+    },
+    {
+      "name": "stepper",
+      "kind": "container",
+      "children": {
+        "allow": [
+          "step"
+        ],
+        "require": [
+          "step"
+        ]
+      },
+      "doc": "Ordered progress through stages. Children are `step` lines.",
+      "since": "0.2"
+    },
+    {
+      "name": "menu",
+      "kind": "container",
+      "children": {
+        "allow": [
+          "btn",
+          "link",
+          "divider",
+          "text"
+        ]
+      },
+      "doc": "Vertical list of actions or destinations.",
+      "since": "0.2"
+    },
+    {
+      "name": "stat",
+      "kind": "container",
+      "attrs": [
+        "delta"
+      ],
+      "doc": "KPI tile. Positionals: label then value; `delta` is the change to show beneath.",
+      "since": "0.2",
+      "positionals": [
+        "label",
+        "value"
+      ]
+    },
+    {
+      "name": "progress",
+      "kind": "control",
+      "attrs": [
+        "value",
+        "max"
+      ],
+      "a11y": {
+        "requires_label": true,
+        "role": "progressbar"
+      },
+      "doc": "Determinate progress bar. `value` and `max` are numbers or bindings.",
+      "since": "0.2",
+      "positionals": [
+        "label"
+      ]
+    },
+    {
+      "name": "modal",
+      "kind": "container",
+      "level": "app",
+      "doc": "Dialog over the page, shown while `if=` is true. First positional is its title.",
+      "capabilities": {
+        "needs_runtime": true
+      },
+      "since": "0.2",
+      "positionals": [
+        "title"
+      ]
+    },
+    {
+      "name": "drawer",
+      "kind": "container",
+      "level": "app",
+      "doc": "Panel sliding in from the edge, shown while `if=` is true. First positional is its title.",
+      "capabilities": {
+        "needs_runtime": true
+      },
+      "since": "0.2",
+      "positionals": [
+        "title"
+      ]
+    },
+    {
+      "name": "toast",
+      "kind": "container",
+      "level": "app",
+      "doc": "Transient notification, shown while `if=` is true. Announced politely.",
+      "capabilities": {
+        "needs_runtime": true
+      },
+      "since": "0.2",
+      "positionals": [
+        "title"
+      ]
+    }
+  ]
+}

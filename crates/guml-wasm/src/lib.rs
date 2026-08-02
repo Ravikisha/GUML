@@ -189,6 +189,65 @@ struct FixResult {
     rounds: usize,
 }
 
+/// The whole free repair pipeline: sanitise, format, fix. No model call.
+///
+/// `fix` only applies edits the compiler described. This also *removes* what a model wrapped around the
+/// document — a ``` fence, markdown rules, trailing commentary — which is a different promise and so a
+/// different function rather than a flag.
+///
+/// Exposed to the browser for the same reason `fix` is: a playground or a chat surface that shows
+/// "generation failed" before running the free layers is reporting a failure the tool could have
+/// repaired itself.
+#[wasm_bindgen]
+pub fn repair(source: &str, rounds: Option<usize>) -> Result<JsValue, JsValue> {
+    let out = guml_compiler::repair::repair(
+        source,
+        rounds.unwrap_or(guml_compiler::repair::DEFAULT_ROUNDS),
+    );
+    // Derived values read before anything is moved out of `out`.
+    let (ok, changed, report) = (out.ok(), out.changed(), out.report());
+    to_js(&RepairResult {
+        text: out.text,
+        ok,
+        changed,
+        errors_before: out.errors_before,
+        errors_after: out.errors_after,
+        sanitize: SanitizeReport {
+            fence: out.stripped.fence,
+            rules: out.stripped.rules,
+            trailing: out.stripped.trailing,
+        },
+        reformatted: out.reformatted,
+        applied: out.applied,
+        rounds: out.rounds,
+        report,
+    })
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RepairResult {
+    text: String,
+    ok: bool,
+    changed: bool,
+    errors_before: usize,
+    errors_after: usize,
+    sanitize: SanitizeReport,
+    reformatted: bool,
+    applied: Vec<String>,
+    rounds: usize,
+    /// One human-readable line per layer that did something.
+    report: Vec<String>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SanitizeReport {
+    fence: bool,
+    rules: usize,
+    trailing: usize,
+}
+
 /// Syntax classification from the real lexer and registry, so a browser highlighter cannot
 /// drift from the compiler. Returns one entry per coloured span, in source order.
 #[wasm_bindgen]
@@ -242,7 +301,17 @@ mod tests {
 
     #[test]
     fn unknown_backend_is_rejected() {
-        assert!(guml_compiler::resolve_backend("svelte").is_none());
-        assert!(guml_compiler::resolve_backend("json").is_some());
+        // `svelte` used to be the example of a rejected name here, and the assertion outlived the fact:
+        // adding the backend made a passing test into a false one. A name nothing will ever claim is the
+        // stable way to test the negative.
+        assert!(guml_compiler::resolve_backend("qt-widgets").is_none());
+        assert!(guml_compiler::resolve_backend("").is_none());
+    }
+
+    #[test]
+    fn every_shipped_backend_resolves() {
+        for name in ["json", "react", "svelte", "html"] {
+            assert!(guml_compiler::resolve_backend(name).is_some(), "{name} should resolve");
+        }
     }
 }

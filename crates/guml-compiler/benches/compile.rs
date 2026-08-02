@@ -9,6 +9,22 @@
 //! is built from the same constructs the fixtures use — resources with mutations, repeaters,
 //! bound attributes, prose — because a document of 200 `p` lines would measure the lexer and
 //! nothing else.
+//!
+//! # Why there is a calibration benchmark
+//!
+//! Absolute milliseconds on a developer laptop are not a measurement. On the machine this was
+//! developed on, criterion reported a **100% regression** on `referenced_names` — a function that had
+//! not been touched between the two runs — and on another occasion reported a build doing strictly
+//! *more* work as 22% faster. Thermal state and background load move the numbers by ~2×, which is
+//! larger than any regression worth catching.
+//!
+//! So the budget is expressed as a **ratio** against a fixed reference workload measured in the same
+//! run. `calibration/reference` does a known amount of pure-Rust work that has nothing to do with the
+//! compiler; whatever slows the machine down slows both, so the ratio survives what the absolutes do
+//! not. `just latency` prints it.
+//!
+//! The absolute figures are still reported, because they are what a user experiences — they are simply
+//! not what a regression should be judged on.
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use guml_compiler::{Options, check, compile};
@@ -39,7 +55,10 @@ fn synth(lines: usize) -> String {
     let mut n = 0;
     while out.lines().count() < lines {
         n += 1;
-        out.push_str(&format!("section #s{n} Section {n} cols=3\n"));
+        // Quoted title: a container reads one positional slot, so `Section 1` as two bare words is
+        // `GUML0099`. The bench document has to be valid — it asserts that below — because timing the
+        // error path would measure diagnostic construction rather than compilation.
+        out.push_str(&format!("section #s{n} \"Section {n}\" cols=3\n"));
         out.push_str(&format!("  card \"Card {n}a\" | Prose that is taken verbatim by the lexer, never quoted or escaped.\n"));
         out.push_str(&format!("  card \"Card {n}b\" | A second card so the section has the width its `cols` promises.\n"));
         out.push_str(&format!(
@@ -47,6 +66,26 @@ fn synth(lines: usize) -> String {
         ));
     }
     out
+}
+
+/// A fixed amount of pure-Rust work: string building, hashing, and allocation, in roughly the
+/// proportions the compiler does them.
+///
+/// Deliberately *not* a compiler function. If the reference shared code with `check`, a change to that
+/// code would move both sides and the ratio would hide exactly the regression it exists to catch.
+fn reference_work() -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut acc: u64 = 0;
+    for i in 0..2_000u64 {
+        let s = format!("line {i} of a synthetic document with some prose on it");
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        s.hash(&mut h);
+        acc = acc.wrapping_add(h.finish());
+        // A little allocation churn, which is what the compiler's hot path actually costs.
+        let parts: Vec<&str> = s.split_whitespace().collect();
+        acc = acc.wrapping_add(parts.len() as u64);
+    }
+    acc
 }
 
 fn latency(c: &mut Criterion) {
@@ -59,6 +98,31 @@ fn latency(c: &mut Criterion) {
         let (_, d) = check(src);
         assert!(!d.has_errors(), "{name}-line bench document must be valid: {:?}", d.items);
     }
+
+    // Measured first, in the same run, so the ratio below is taken under the same machine conditions.
+    let mut group = c.benchmark_group("calibration");
+    group.bench_function("reference", |b| b.iter(|| black_box(reference_work())));
+    group.finish();
+
+    // Per stage, so a regression can be attributed instead of argued about. All four measured in the
+    // same run as the calibration above.
+    let reg = guml_registry::Registry::builtin();
+    let mut group = c.benchmark_group("stage");
+    group.bench_function("lex", |b| b.iter(|| guml_syntax::lex(black_box(&target))));
+    group.bench_function("parse", |b| {
+        b.iter(|| guml_parser::parse(black_box(&target), black_box(&reg)))
+    });
+    group.bench_function("analyse", |b| {
+        // Everything `check` does after parsing: expansion, resolution, validation, inference.
+        let parsed = guml_parser::parse(&target, &reg);
+        b.iter(|| {
+            let mut program = parsed.program.clone();
+            let mut diags = guml_diagnostics::Diagnostics::default();
+            guml_compiler::analyse_for_bench(&mut program, &reg, &mut diags);
+            black_box(diags)
+        })
+    });
+    group.finish();
 
     let mut group = c.benchmark_group("check");
     group.bench_function("50 lines", |b| b.iter(|| check(black_box(&small))));

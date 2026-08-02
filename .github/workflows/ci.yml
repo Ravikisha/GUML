@@ -57,23 +57,93 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Formatted
-        run: cargo run -q -p guml-cli -- fmt --check fixtures/*.guml bench/phase0/examples/*.guml
+        run: cargo run -q -p guml-cli -- fmt --check fixtures/*.guml bench/phase0/examples/*.guml bench/guml-bench/reference/*.guml
 
       - name: Valid
-        run: cargo run -q -p guml-cli -- validate fixtures bench/phase0/examples
+        run: cargo run -q -p guml-cli -- validate fixtures bench/phase0/examples bench/guml-bench/reference
+
+      # The escape-hatch budget. A rising rate is the early warning that the vocabulary is hitting an
+      # expressiveness cliff, and a warning nothing fails on is a statistic. Raising this number requires
+      # saying which construct could not be expressed.
+      - name: Escape-hatch budget
+        run: cargo run -q -p guml-cli -- capabilities fixtures bench/phase0/examples --max-escapes 3
 
       # The strongest test of a code generator: emit everything, then typecheck the result under
       # `--strict`. Five silent mis-lowerings have been caught this way and by nothing else.
       - name: Emitted TypeScript typechecks
         run: |
           pnpm install --frozen-lockfile
-          bash scripts/typecheck-emitted.sh
+          node scripts/typecheck-emitted.mjs
         shell: bash
 
       # Typechecking and executing catch different things. `tsc` found a DOM prop React does not
       # have; only rendering can notice a table with no header row or a control with no name.
       - name: Emitted components render
         run: node scripts/render-emitted.mjs
+
+      # The wc backend emits plain JavaScript, so neither `tsc` nor the React renderer sees it. This
+      # runs it: a shimmed `HTMLElement` is enough to execute every binding and every action body, which
+      # is what caught a JSX interpolation leaking into a plain-JS file.
+      - name: Web Components output runs
+        run: node scripts/check-wc.mjs
+
+      # The example registry package. Three checks, and the third earns its place: it typechecks the
+      # *emitted* component against the package's own components. A package declares `attrs` and the compiler
+      # emits them as props; until this ran, nothing verified the component accepted them. It found `of=` and
+      # `kind=` silently dropped, a missing `aria-label`, and a `field`-kind component emitting its state name
+      # as children instead of a two-way binding.
+      - name: the example registry package agrees with its own components
+        run: |
+          cargo run -q -p guml-cli -- registry --validate packages/guml-widgets
+          cd packages/guml-widgets && pnpm typecheck && pnpm typecheck:example
+          cd "$GITHUB_WORKSPACE"
+          cargo run -q -p guml-cli -- registry --validate packages/guml-shadcn
+          cd packages/guml-shadcn && pnpm typecheck && pnpm typecheck:example
+        shell: bash
+
+      # The extension sat outside the pnpm workspace, so its dependencies were never installed and it was
+      # the one piece of first-party TypeScript with no typecheck — and it is the piece users install.
+      - name: VS Code extension typechecks
+        run: cd editors/vscode && pnpm typecheck
+
+      # The mutation-recovery gate. Definitionally-invalid single-token edits injected into every
+      # known-good document in the repository, measured two ways: did the compiler notice, and did the
+      # report stay out of lines the mutation did not touch. Both are `ROADMAP.md` Phase 2 gate criteria,
+      # and neither was measured by anything until this existed.
+      - name: mutation recovery gate
+        run: cargo test -p guml-compiler --test mutation -- --nocapture
+
+      # The tree-sitter scanner's tag lists are generated from the registry. They had gone stale — 8 text
+      # tags against a registry of 16 — which silently broke prose lexing for half the vocabulary.
+      - name: tree-sitter tag lists are current
+        run: cd editors/tree-sitter-guml && node scripts/gen-tags.mjs --check
+
+      # The grammar itself. `npm test` is the 14-case corpus *plus* a parse of every real `.guml` in the
+      # repository, and the second half is the one that earns its keep: three separate scanner bugs were
+      # live while the corpus passed 12 of 12, because a hand-written corpus only contains cases someone
+      # thought of. The grammar is deliberately outside the pnpm workspace — `tree-sitter-cli` fetches a
+      # platform binary on install, which does not belong in the lockfile the docs site builds from.
+      - name: tree-sitter grammar parses every fixture
+        run: cd editors/tree-sitter-guml && npm ci --no-audit --no-fund && npm test
+
+      # The GUML-Bench reference answers get their own escape-hatch budget. **Per document, not a total** —
+      # one `js` block each at most. Six of the nine use exactly one and three use none, and every hatch is
+      # named in its file's header with the construct that could not be expressed. These are whole task
+      # answers, so the count measures how far the vocabulary reaches rather than being a number to drive to
+      # zero; raising it requires saying which construct forced it.
+      - name: reference answers stay inside their escape-hatch budget
+        run: cargo run -q -p guml-cli -- capabilities bench/guml-bench/reference --max-escapes 1
+
+      # GUML-Bench's dataset. Fails on a malformed task — in particular one that would give different arms
+      # different prompts, which is the defect that would make a published number wrong rather than thin.
+      - name: GUML-Bench dataset is well-formed
+        run: node bench/guml-bench/preflight.mjs
+
+      # Arm B4's TOON encoder, round-tripped. The *rival's* arm is the one that most needs a test: a bug
+      # that makes GUML look better is a bug nobody reports, and an encoding that cannot be decoded is not
+      # a smaller serialisation — it is a shorter string.
+      - name: the TOON encoder is lossless
+        run: node bench/guml-bench/selftest.mjs
 
   phase0:
     # The harness that decides whether the project continues. Everything here runs without an
@@ -161,12 +231,48 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Typecheck
-        run: pnpm --filter guml typecheck
+        run: pnpm --filter @guml/core typecheck
 
       # The runtime evaluator is a second implementation of semantics the Rust compiler also
       # owns. Several of these tests exist purely to pin that parity.
       - name: Runtime tests
-        run: pnpm --filter guml test
+        run: pnpm --filter @guml/core test
 
       - name: Build output
-        run: pnpm --filter guml build:ts
+        run: pnpm --filter @guml/core build:ts
+
+      # Two ways a committed build artifact goes wrong, and both were live before this ran.
+      #
+      # It must be IN the tarball: wasm-pack writes a `.gitignore` containing `*` into its out-dir and
+      # npm honours it over the `files` allowlist, so `npm publish` would have shipped a compiler
+      # package with no compiler in it. Invisible to every other gate, because they all run against the
+      # working tree where the file plainly exists.
+      #
+      # It must MATCH its source: `prepublishOnly` ran `build:ts` without `build:wasm`, so a publish
+      # shipped whatever binary happened to be committed. It had drifted by five days.
+      # Split out of the core so a consumer who only formats or only highlights does not download a
+      # compiler: 178 KB against 787 KB. The formatter's tests running under `node --test` is itself the
+      # check — the core wasm is built for the web target and cannot load in Node at all.
+      - name: The split packages
+        run: |
+          pnpm --filter @guml/fmt build
+          pnpm --filter @guml/fmt typecheck && pnpm --filter @guml/fmt test
+          pnpm --filter @guml/highlight typecheck
+
+      - name: The committed wasm ships, and matches its source
+        run: |
+          cargo install wasm-pack --locked
+          node scripts/check-wasm-fresh.mjs
+
+      # The docs site is a deployed artifact with three API routes and a playground that runs the
+      # compiler. Until this ran here, a build break surfaced at deploy time — the one moment you
+      # cannot afford to find it.
+      # A typo'd package name renders as a link to a registry 404, and a stale size keeps asserting a
+      # number that moved at the last publish. Neither is visible to a build.
+      - name: The packages the docs name exist, at the sizes they claim
+        run: pnpm --filter docs check:packages
+
+      - name: Docs site builds
+        run: |
+          pnpm --filter docs typecheck
+          pnpm --filter docs build

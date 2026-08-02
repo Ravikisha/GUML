@@ -163,6 +163,15 @@ fn fingerprint(program: &Program) -> String {
         }
         out.push('\n');
     }
+    // Effects are part of the fingerprint, or an `on` case would pass by asserting nothing: the
+    // declaration produces no element, so a tree-only fingerprint is identical with and without it.
+    for e in &program.effects {
+        let trigger = match &e.trigger {
+            guml_ast::Trigger::Mount => "mount".to_string(),
+            guml_ast::Trigger::Change(expr) => format!("{{{expr}}}"),
+        };
+        out.push_str(&format!("on {trigger} >{}\n", e.actions.join("; ")));
+    }
     for el in &program.tree {
         element(el, 0, &mut out);
     }

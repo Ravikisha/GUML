@@ -1,0 +1,54 @@
+// Reference answer for GUML-Bench task `l02-changelog`.
+//
+// Content-heavy and entirely `core`: no state, no requests, nothing to hydrate. The compression figure
+// for this category is expected to be the lowest of the six, and the reason is visible here — most of
+// these lines are release notes, and prose is incompressible.
+
+page Changelog title="Meridian changelog" description="Every release of Meridian, newest first." lang=en
+
+nav Meridian
+  link Releases #releases
+  link Docs /docs
+
+section #releases
+  h1 Changelog
+  p Every release of Meridian, newest first. Breaking changes carry their migration note on the entry that introduces them, so you never have to read two pages to upgrade one version.
+
+section "July 2026"
+  card "1.6.0 — Concurrent replica promotion"
+    note Released 24 July 2026
+    badge Breaking danger
+    p Promoting a read replica no longer drains the primary first. Promotion now completes in under two seconds on a 400 GB volume, against roughly ninety seconds before.
+    note Replicas created before 1.6 must be re-registered once with `meridian replica adopt`. Promotion of an unadopted replica refuses rather than falling back.
+  card "1.5.2 — Planner estimates for partial indexes"
+    note Released 9 July 2026
+    badge Fix
+    p The planner treated a partial index as covering the whole relation, so a query with a matching predicate was costed as a sequential scan and often got one. Estimates now use the index predicate's selectivity.
+
+divider
+
+section "June 2026"
+  card "1.5.1 — Connection pool no longer leaks on cancelled statements"
+    note Released 27 June 2026
+    badge Fix
+    p A statement cancelled between planning and execution left its pooled connection checked out. A busy analytics workload exhausted a pool of fifty in about four hours.
+  card "1.5.0 — Point-in-time restore to a second"
+    note Released 12 June 2026
+    badge Feature primary
+    p Restore targets are now expressed to the second rather than to the nearest write-ahead-log segment, so recovering from a bad migration no longer costs the writes either side of it.
+
+divider
+
+section "May 2026"
+  card "1.4.1 — Correct row counts after a rolled-back COPY"
+    note Released 29 May 2026
+    badge Fix
+    p A `COPY` that failed part-way left the relation's row estimate at the post-copy figure until the next analyse, which skewed every plan chosen in between.
+  card "1.4.0 — Logical replication to a second region"
+    note Released 6 May 2026
+    badge Feature primary
+    p A publication can now target a subscriber in another region without a bridging instance. Lag is reported per subscription in the console rather than only in the logs.
+
+footer "© 2026 Meridian Data — every release is also tagged in the repository."
+  link Docs /docs
+  link Status /status

@@ -1,0 +1,51 @@
+{
+  "name": "@guml/widgets",
+  "version": "0.1.0",
+  "description": "The five components GUML deliberately does not ship as builtins, as a registry package.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": [
+    "*.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./src/index.tsx",
+      "import": "./src/index.tsx"
+    },
+    "./registry": "./guml.registry.json"
+  },
+  "files": [
+    "src",
+    "guml.registry.json",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "audit": "cargo run -q -p guml-cli -- registry --validate .",
+    "typecheck:example": "node scripts/typecheck-example.mjs"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "typescript": "^5",
+    "@types/node": "^20.19.43"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/guml-lang/guml.git",
+    "directory": "packages/guml-widgets"
+  },
+  "homepage": "https://guml.vercel.app",
+  "bugs": {
+    "url": "https://github.com/guml-lang/guml/issues"
+  },
+  "author": "GUML contributors",
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -98,8 +98,14 @@ pub struct Span {
     pub class: Class,
 }
 
-const DIRECTIVES: &[&str] =
-    &["page", "type", "data", "state", "store", "route", "auth", "def", "js", "raw"];
+/// Words that begin a directive rather than an element.
+///
+/// Public because the docs site's highlighter needs the same list, and a hand-maintained copy there
+/// is the bug this project has already hit three times — the TypeScript highlighter, a duplicated
+/// expression grammar, and a tree-sitter tag list. `guml registry` prints this so the generator reads
+/// it instead of guessing: adding a directive here reaches the site with no second edit.
+pub const DIRECTIVES: &[&str] =
+    &["page", "type", "data", "state", "store", "on", "route", "auth", "def", "js", "raw"];
 
 pub fn classify(src: &str) -> Vec<Span> {
     let reg = Registry::builtin();

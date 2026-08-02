@@ -62,8 +62,13 @@ fn react_emits_the_block_verbatim() {
 
     // `js` is component-body code, so it belongs above the return; `raw` belongs where it sits in
     // the tree. Getting these the wrong way round produces code that parses and does nothing.
+    //
+    // Anchored on the *component's* return. A document using an escape hatch also gets an error boundary
+    // (that is precisely what the boundary is for), and the boundary's own `render()` has a `return (`
+    // before the component — so an unanchored search finds the wrong one and the assertion inverts.
+    let component_at = src.find("export default function").expect("the component");
     let js_at = src.find("const fmt").expect("js block");
-    let return_at = src.find("return (").expect("return");
+    let return_at = component_at + src[component_at..].find("return (").expect("return");
     let raw_at = src.find("<SomeChart").expect("raw block");
     assert!(js_at < return_at, "js block must be hoisted above the return\n{src}");
     assert!(raw_at > return_at, "raw block must stay in the tree\n{src}");

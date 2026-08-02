@@ -13,7 +13,7 @@
 
 use guml_ast::{Element, Positional, Program, Value};
 use guml_diagnostics::{Code, Diagnostic, Diagnostics};
-use guml_registry::Registry;
+use guml_registry::{Registry, TagKind};
 
 /// Names a binding or action may legally reference: declared state, declared
 /// resources, and — inside a repeater — the fields of the iterated type.
@@ -36,10 +36,28 @@ impl Scope {
 pub fn analyse(program: &Program, reg: &Registry, diags: &mut Diagnostics) {
     let mut names: Vec<String> = program.states.iter().map(|s| s.name.clone()).collect();
     names.extend(program.resources.iter().map(|r| r.name.clone()));
+    // A `js` block's own `const`/`let`/`function` names, so the escape hatch composes with the language
+    // instead of being a dead end — see `Element::escape_declares` for the case that forced it.
+    names.extend(js_declarations(program));
 
     let scope = Scope { names };
     for el in &program.tree {
         walk(el, program, reg, &scope, diags);
+    }
+
+    // Declared effects. Both halves are references: `on {filter} >tasks.list` reads `filter` and calls
+    // `tasks`, and either can name something that does not exist. Skipping them meant a typo in an
+    // effect compiled to a call to `undefined` — the whole class of mistake `GUML0033` exists to catch,
+    // silently exempt because the pass only walked the element tree.
+    for e in &program.effects {
+        if let guml_ast::Trigger::Change(expr) = &e.trigger {
+            check_reference(expr, e.span, &scope, diags, "effect trigger");
+        }
+        for action in &e.actions {
+            for target in action_targets(action) {
+                check_reference(&target, e.span, &scope, diags, "effect action");
+            }
+        }
     }
 }
 
@@ -58,13 +76,16 @@ fn walk_in(
     named_by_row: bool,
 ) {
     check_label(el, reg, diags, named_by_row);
+    check_positionals(el, reg, diags);
+    check_children(el, reg, diags);
+    check_modifier_in_prose(el, reg, diags);
 
     for b in bindings_of(el) {
-        check_reference(&b, el, scope, diags, "binding");
+        check_reference(&b, el.span, scope, diags, "binding");
     }
     for action in &el.actions {
         for target in action_targets(action) {
-            check_reference(&target, el, scope, diags, "action");
+            check_reference(&target, el.span, scope, diags, "action");
         }
     }
 
@@ -99,6 +120,276 @@ pub fn row_text_binding(repeater: &Element) -> Option<String> {
     })
 }
 
+/// `GUML0099` — bare positional words the tag has nowhere to put.
+///
+/// # The bug this exists for
+///
+/// `btn Add task primary` parsed as `Text("Add")`, `Text("task")`, `Modifier("primary")`. Codegen calls
+/// `el.label()`, which returns the *first* text positional, so the emitted button read
+/// `<button>Add</button>`. The word `task` was gone: no warning, no `TODO`, exit code 0.
+///
+/// That is the same failure as the older `p Set x=1 to enable the flag` bug — a rule that quietly
+/// discards part of what the author wrote — and it is forbidden by the same reasoning. Prose surviving
+/// verbatim is the content-floor claim, and a compiler that deletes a word from a label is not
+/// compressing, it is losing data.
+///
+/// # Why report instead of joining
+///
+/// Joining the extra words into one label (`"Add task"`) is right for a `btn` and *wrong* for a `tier`,
+/// whose three positionals are name, price and blurb — joining there would turn three slots into one.
+/// So the arity is per-entry registry data (`ComponentDef::positionals`), and where a document exceeds
+/// it the compiler reports rather than guesses. The suggested fix is quoting, which is unambiguous, so
+/// `guml fix` applies it with no model call.
+fn check_positionals(el: &Element, reg: &Registry, diags: &mut Diagnostics) {
+    let Some(def) = reg.get(&el.tag) else { return };
+    // An empty declaration means "unspecified", not "zero". A `TagKind::Text` tag has no positionals at
+    // all — its line remainder is prose — so there is nothing here to count.
+    if def.positionals.is_empty() {
+        return;
+    }
+
+    let texts: Vec<&str> = el
+        .positionals
+        .iter()
+        .filter_map(|p| match p {
+            Positional::Text(t) => Some(t.as_str()),
+            _ => None,
+        })
+        .collect();
+    if texts.len() <= def.positionals.len() {
+        return;
+    }
+
+    // Two readings of the same word, and only one fix can be applied.
+    //
+    // `btn Save primry` has two bare words where one slot exists, so this rule wants to quote them into
+    // `"Save primry"`. But `primry` is a distance-1 miss for the modifier `primary`, and the parser has
+    // already said so as `GUML0031` with its own applicable suggestion. Emitting both leaves `guml fix`
+    // choosing between contradictory edits, and quoting a mistyped modifier into the label is the worse
+    // of the two — it makes the typo permanent and silent.
+    //
+    // So the modifier reading wins, and this stays quiet. If it was the wrong reading, the next re-check
+    // round sees the repaired line and reports whatever is still true; `guml fix` runs bounded rounds
+    // precisely so a fix that reveals another problem is not the end of the story.
+    let overflow_is_a_modifier_typo = texts[def.positionals.len() - 1..]
+        .iter()
+        .any(|w| Registry::suggest_modifier_close(w).is_some());
+    if overflow_is_a_modifier_typo {
+        return;
+    }
+
+    // The overflow words, in order, as the author wrote them.
+    let extra = &texts[def.positionals.len() - 1..];
+    let joined = extra.join(" ");
+    let slots = def.positionals.join(", ");
+    let slot_word = if def.positionals.len() == 1 { "slot" } else { "slots" };
+
+    // The whole element line rewritten with the overflow quoted into the last slot. Reconstructed rather
+    // than patched in place, because the extra words are not necessarily contiguous in the source once
+    // modifiers are interleaved (`btn Add primary task`).
+    //
+    // **Everything on the line has to be reproduced, not just the positionals.** The first version of
+    // this rebuilt only the positionals, so the suggestion for
+    // `section #work Selected work cols=3` was `section #work "Selected work"` — it silently deleted
+    // `cols=3`. A suggestion that drops an attribute while fixing a dropped word is the same defect
+    // wearing a different hat, and `guml fix` applies these unattended.
+    let mut rebuilt = vec![el.tag.clone()];
+    let mut text_seen = 0usize;
+    for p in &el.positionals {
+        match p {
+            Positional::Text(_) => {
+                text_seen += 1;
+                if text_seen < def.positionals.len() {
+                    rebuilt.push(format!("{:?}", texts[text_seen - 1]));
+                } else if text_seen == def.positionals.len() {
+                    rebuilt.push(format!("{joined:?}"));
+                }
+                // Later text positionals were folded into `joined` above.
+            }
+            Positional::Modifier(m) => rebuilt.push(m.clone()),
+            Positional::Route(r) => rebuilt.push(r.clone()),
+            Positional::Anchor(a) => rebuilt.push(format!("#{a}")),
+            Positional::Binding(b) => rebuilt.push(format!("{{{}}}", b.source)),
+        }
+    }
+    for a in &el.attrs {
+        rebuilt.push(match &a.value {
+            Value::Flag => a.name.clone(),
+            v => format!("{}={}", a.name, value_source(v)),
+        });
+    }
+    for action in &el.actions {
+        rebuilt.push(format!(">{action}"));
+    }
+    // `| prose` is last on the line, and only reachable on a tag that takes both positionals and
+    // content — a `card "Title" | blurb`.
+    if let Some(content) = &el.content {
+        rebuilt.push(format!("| {content}"));
+    }
+
+    diags.push(
+        Diagnostic::error(
+            Code::DroppedPositional,
+            format!(
+                "`{}` reads {} positional {slot_word} ({slots}), and this line has {} bare words",
+                el.tag,
+                def.positionals.len(),
+                texts.len()
+            ),
+            el.span,
+        )
+        .with_help(format!(
+            "quote them so they stay one value — otherwise `{joined}` would be dropped from the output"
+        ))
+        .with_suggestion(rebuilt.join(" ")),
+    );
+}
+
+/// An attribute value rendered back as the GUML that would parse to it.
+///
+/// Only used to build the `GUML0099` suggestion, so it has one requirement: round-tripping. A `Str`
+/// re-quotes, a `Binding` reproduces the author's own text rather than the lowered expression — the
+/// source is what belongs in a suggested edit.
+fn value_source(v: &Value) -> String {
+    match v {
+        Value::Str(s) => format!("{s:?}"),
+        Value::Num(n) => {
+            if n.fract() == 0.0 {
+                format!("{}", *n as i64)
+            } else {
+                format!("{n}")
+            }
+        }
+        Value::Bool(b) => b.to_string(),
+        Value::Word(w) => w.clone(),
+        Value::Binding(b) => format!("{{{}}}", b.source),
+        Value::Flag => String::new(),
+    }
+}
+
+/// `GUML0102` — prose on a text tag that begins with a modifier, so the modifier renders as text.
+///
+/// # Why this warns instead of reclassifying the word
+///
+/// A text tag's remainder is prose, verbatim. That rule is frozen and it is load-bearing: the moment the
+/// compiler starts pulling a leading word out of prose when it happens to match the modifier vocabulary,
+/// `p center the label under the field` loses a word. Prose surviving intact is the content-floor claim,
+/// and a rule that silently edits it is data loss dressed as compression.
+///
+/// So the text stays as written and the compiler says what it noticed. The case is not hypothetical:
+/// `badge`'s own registry doc said "use `danger`/`primary`/`quiet` for tone", `themes/slate.json` carried
+/// three tone rules keyed on those modifiers, and `badge danger Breaking` compiled with zero diagnostics
+/// and rendered the literal string "danger Breaking". Two parts of the compiler advertised a feature the
+/// third could not deliver, and the only reason it went unnoticed is that no fixture used it.
+///
+/// `badge` is a positional tag now, so that spelling works. This check covers the rest of the kind.
+fn check_modifier_in_prose(el: &Element, reg: &Registry, diags: &mut Diagnostics) {
+    let Some(def) = reg.get(&el.tag) else { return };
+    if def.kind != TagKind::Text {
+        return;
+    }
+    let Some(prose) = el.content.as_deref() else { return };
+    let mut words = prose.split_whitespace();
+    let Some(first) = words.next() else { return };
+    // Exact match, so it is already case-sensitive: `p Start free today.` is prose, because the modifier
+    // is `start` and the word is `Start`.
+    if !guml_registry::MODIFIERS.contains(&first) {
+        return;
+    }
+
+    // Case, as the discriminator between the two readings — and it is needed, because the first version of
+    // this warned on `p center the label under the field`, which is ordinary prose that happens to begin
+    // with a layout modifier. A warning that fires on legitimate content is worse than no warning: it
+    // trains an author to ignore the code, and it would fire on marketing copy in `fixtures/c.guml`.
+    //
+    // The shape of the mistake is a lowercase modifier followed by *capitalised* content, because the
+    // content was meant to be the label and the modifier was meant to be a modifier — `danger Breaking`,
+    // `quiet Draft`. Sentence prose continues in lowercase. A remainder that is nothing but the modifier
+    // is unambiguous either way.
+    let looks_like_a_lever = match words.next() {
+        None => true,
+        Some(second) => second.starts_with(|c: char| c.is_uppercase() || c == '{'),
+    };
+    if !looks_like_a_lever {
+        return;
+    }
+
+    // The prose is quoted back in the message so it shows exactly what will render.
+    diags.push(
+        Diagnostic::warning(
+            Code::ModifierInProse,
+            format!(
+                "`{}` is a text tag, so its line renders verbatim as `{}` — the leading `{first}` is text, not a modifier",
+                el.tag, prose
+            ),
+            el.span,
+        )
+        .with_help(
+            "a text tag takes its remainder as prose and that rule does not bend; for tone, wrap the \
+             line in a container that accepts modifiers, such as `alert danger`",
+        ),
+    );
+}
+
+/// `GUML0100` — a child the component's registry entry does not admit, or a required child that is
+/// absent.
+///
+/// The constraint is registry data rather than a `match` arm here, which is the only version of the rule
+/// a *loaded* third-party component can use. `select` accepting only `option` and `stepper` requiring at
+/// least one `step` are the same mechanism a host's own `combobox` gets for free.
+fn check_children(el: &Element, reg: &Registry, diags: &mut Diagnostics) {
+    let Some(def) = reg.get(&el.tag) else { return };
+    if def.children.is_unconstrained() {
+        return;
+    }
+
+    for child in &el.children {
+        if def.children.admits(&child.tag) {
+            continue;
+        }
+        let allowed = if def.children.is_leaf() {
+            format!("`{}` takes no children", el.tag)
+        } else if def.children.allow.is_empty() {
+            format!("`{}` does not accept a `{}` child", el.tag, child.tag)
+        } else {
+            format!(
+                "`{}` accepts only {}",
+                el.tag,
+                def.children
+                    .allow
+                    .iter()
+                    .map(|a| format!("`{a}`"))
+                    .collect::<Vec<_>>()
+                    .join(" or ")
+            )
+        };
+        diags.push(
+            Diagnostic::error(
+                Code::BadChild,
+                format!("`{}` is not a valid child of `{}`", child.tag, el.tag),
+                child.span,
+            )
+            .with_help(allowed),
+        );
+    }
+
+    for required in &def.children.require {
+        if el.children.iter().any(|c| &c.tag == required) {
+            continue;
+        }
+        diags.push(
+            Diagnostic::error(
+                Code::BadChild,
+                format!("`{}` needs at least one `{required}` child", el.tag),
+                el.span,
+            )
+            .with_help(format!(
+                "add an indented `{required}` line — without one this renders an empty container"
+            )),
+        );
+    }
+}
+
 /// `GUML0050` / `GUML0051` — accessible names.
 ///
 /// Severity is graded by how much the compiler can recover on the author's
@@ -120,9 +411,16 @@ fn check_label(el: &Element, reg: &Registry, diags: &mut Diagnostics, named_by_r
     let is_field = matches!(el.tag.as_str(), "input" | "select");
     // A field's first positional is the state it binds, not a label.
     let has_text = (!is_field && el.label().is_some()) || el.content.is_some();
+    // `alt` is the accessible name of an image — that is what the attribute *is*, and it is the
+    // spelling every author already knows. Without this, `img src="/logo.png" alt="Our logo"` was
+    // rejected as having no accessible name while carrying one, and the suggestion told the author to
+    // add `aria=""` next to the `alt` they had already written. An empty `alt` is deliberately not
+    // accepted: `alt=""` is the correct, meaningful way to mark an image as decorative, and a decorative
+    // image is exactly the case this check should stay quiet about.
+    let has_alt = el.tag == "img" && el.attr("alt").is_some();
     let has_aria = el.attr("aria").is_some() || el.attr("title").is_some();
 
-    if has_text || has_aria || (named_by_row && !is_field) {
+    if has_text || has_aria || has_alt || (named_by_row && !is_field) {
         return;
     }
 
@@ -158,7 +456,7 @@ fn check_label(el: &Element, reg: &Registry, diags: &mut Diagnostics, named_by_r
 /// `GUML0033` — a binding or action naming something that was never declared.
 fn check_reference(
     reference: &str,
-    el: &Element,
+    span: guml_diagnostics::Span,
     scope: &Scope,
     diags: &mut Diagnostics,
     kind: &str,
@@ -175,7 +473,7 @@ fn check_reference(
     let mut d = Diagnostic::error(
         Code::UnknownState,
         format!("{kind} refers to `{head}`, which is not declared"),
-        el.span,
+        span,
     );
     if let Some(near) = nearest(head, &scope.names) {
         d = d.with_help(format!("did you mean `{near}`?")).with_suggestion(near.clone());
@@ -195,13 +493,25 @@ fn bindings_of(el: &Element) -> Vec<String> {
         }
     }
     for a in &el.attrs {
-        if let Value::Binding(b) = &a.value {
-            out.push(b.source.clone());
+        match &a.value {
+            Value::Binding(b) => out.push(b.source.clone()),
+            // A `{…}` inside a *quoted* attribute value is an interpolation, and it was resolved by
+            // nothing. `aria="Delete {ttle}"` compiled clean and emitted ``aria-label={`Delete
+            // ${item.ttle}`}`` — a read of a field that does not exist, so the accessible name came out as
+            // the string "undefined" at runtime. Codegen had always interpolated these; only the resolver
+            // did not know they were references, which is the asymmetry that let it through.
+            //
+            // Found by the mutation gate in `tests/mutation.rs`: a one-character typo inside an `aria=`
+            // string was one of the mutants the compiler did not detect.
+            Value::Str(s) => out.extend(interpolations(s)),
+            _ => {}
         }
     }
     if let Some(content) = &el.content {
         out.extend(interpolations(content));
     }
+    // A text tag's prose lands in `text_lines` rather than `content` for `tier`/`faq` bodies, and those are
+    // verbatim content lines rather than expressions — deliberately not walked here.
     out
 }
 
@@ -252,14 +562,11 @@ fn head_ident(expr: &str) -> &str {
 
 /// Fields a repeater puts in scope for its children, from its resource's type.
 fn repeater_fields(el: &Element, program: &Program) -> Option<Vec<String>> {
-    if !matches!(el.tag.as_str(), "list" | "table") {
-        return None;
-    }
-    let source = el.label()?;
-    let resource = program.resources.iter().find(|r| r.name == source)?;
-    let ty = resource.ty.trim_end_matches("[]");
-    let decl = program.types.iter().find(|t| t.name == ty)?;
-    Some(decl.fields.iter().map(|f| f.name.clone()).collect())
+    // One shared answer — `Program::repeater_rows` — so the resolver, the type checker and the validator
+    // cannot disagree about what a row is. They each had their own copy, and only the resolver's knew about
+    // `of=`, which would have meant a row field resolving in one pass and not the next.
+    let fields = program.repeater_fields(el);
+    if fields.is_empty() { None } else { Some(fields) }
 }
 
 pub(crate) fn nearest(unknown: &str, candidates: &[String]) -> Option<String> {
@@ -285,6 +592,22 @@ fn distance(a: &str, b: &str) -> usize {
         std::mem::swap(&mut prev, &mut cur);
     }
     prev[b.len()]
+}
+
+/// Every name the document's `js` blocks declare, at any depth in the tree.
+///
+/// One helper, used by this pass and by `types`, so the two cannot disagree about what is in scope: a
+/// name one accepts and the other rejects is a document that fails on a rule nobody can find.
+pub fn js_declarations(program: &Program) -> Vec<String> {
+    fn walk(els: &[Element], out: &mut Vec<String>) {
+        for el in els {
+            out.extend(el.escape_declares());
+            walk(&el.children, out);
+        }
+    }
+    let mut out = Vec::new();
+    walk(&program.tree, &mut out);
+    out
 }
 
 #[cfg(test)]

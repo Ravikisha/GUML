@@ -12,26 +12,45 @@ members = [
     "crates/guml-cli",
     "crates/guml-lsp",
     "crates/guml-wasm",
+    "crates/guml-fmt-wasm",
 ]
+# `fuzz/` needs a nightly toolchain and libFuzzer. Excluding it keeps that requirement out of every
+# `cargo test` — see fuzz/Cargo.toml for why the seeded in-repo fuzzer is the one CI runs.
+exclude = ["fuzz"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
+# **MSRV, and it is a promise.** Raising it is a breaking change for anyone pinned to an older
+# toolchain, so it moves in a minor release with a changelog entry, never quietly.
+#
+# 1.85 is where edition 2024 stabilised, so this is the floor the edition allows rather than a number
+# chosen for convenience. It does exclude distributions shipping an older rustc; `rustup` is the
+# supported way to get a current one.
 rust-version = "1.85"
-license = "Apache-2.0"
+license = "MIT"
 repository = "https://github.com/guml-lang/guml"
+homepage = "https://github.com/guml-lang/guml"
 authors = ["GUML contributors"]
+# `documentation` is deliberately absent: crates.io defaults each crate to its own docs.rs page, and a
+# single shared URL here would point all eleven at one crate's docs.
+keywords = ["ui", "compiler", "codegen", "llm", "dsl"]
+categories = ["compilers", "development-tools", "web-programming"]
 
 [workspace.dependencies]
-guml-diagnostics = { path = "crates/guml-diagnostics" }
-guml-syntax = { path = "crates/guml-syntax" }
-guml-ast = { path = "crates/guml-ast" }
-guml-parser = { path = "crates/guml-parser" }
-guml-registry = { path = "crates/guml-registry" }
-guml-codegen = { path = "crates/guml-codegen" }
-guml-fmt = { path = "crates/guml-fmt" }
-guml-compiler = { path = "crates/guml-compiler" }
-guml-wasm = { path = "crates/guml-wasm" }
+# **Every internal dependency carries a version as well as a path.** crates.io rejects a publish whose
+# dependencies are path-only: the path is meaningful in this workspace and meaningless to anyone who
+# downloads the crate, so the version is what the published artifact actually depends on. Keep these in
+# lockstep with `workspace.package.version` — `cargo publish --dry-run` is what catches a stale one.
+guml-diagnostics = { path = "crates/guml-diagnostics", version = "0.1.0" }
+guml-syntax = { path = "crates/guml-syntax", version = "0.1.0" }
+guml-ast = { path = "crates/guml-ast", version = "0.1.0" }
+guml-parser = { path = "crates/guml-parser", version = "0.1.0" }
+guml-registry = { path = "crates/guml-registry", version = "0.1.0" }
+guml-codegen = { path = "crates/guml-codegen", version = "0.1.0" }
+guml-fmt = { path = "crates/guml-fmt", version = "0.1.0" }
+guml-compiler = { path = "crates/guml-compiler", version = "0.1.0" }
+guml-wasm = { path = "crates/guml-wasm", version = "0.1.0" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

@@ -12,8 +12,8 @@
 //! strictly greater indent. Blank lines and comments were already dropped by the lexer.
 
 use guml_ast::{
-    Attr, Binding, Element, Field, Mutation, PageDecl, Positional, Program, Resource, StateDecl,
-    TypeDecl, Value,
+    Attr, Binding, Effect, Element, Field, Mutation, PageDecl, Positional, Program, Resource,
+    StateDecl, Trigger, TypeDecl, Value,
 };
 use guml_diagnostics::{Code, Diagnostic, Diagnostics, Span};
 use guml_registry::{Registry, TagKind};
@@ -67,13 +67,34 @@ impl<'r> Parser<'r> {
     fn parse_top(&mut self) {
         while self.i < self.lines.len() {
             if self.lines[self.i].indent > 0 {
-                let line = &self.lines[self.i];
-                let span = line.span();
+                // One report per *run*, not per line.
+                //
+                // A single mis-indented `section` takes its whole subtree with it, and reporting each of
+                // those lines produced sixteen diagnostics for one mistake — measured at 15 stray
+                // `GUML0011`s on `v02-cohort.guml` by `tests/mutation.rs`. That is the exact failure
+                // invariant 1 exists to prevent, seen from the other side: a repair loop handed sixteen
+                // errors will edit sixteen lines, fifteen of which were correct and would have been fixed
+                // by the first edit. The economics are the same either way — every round is a full
+                // generation — so over-reporting costs as much as under-reporting.
+                //
+                // The run is skipped rather than re-parsed at top level: a document with a structural error
+                // is not lowered, so nothing downstream needs its subtree, and parsing it anyway would
+                // report the *contents* of a block whose position is the thing that is wrong.
+                let start = self.i;
+                while self.i < self.lines.len() && self.lines[self.i].indent > 0 {
+                    self.i += 1;
+                }
+                let run = self.i - start;
+                let span = self.lines[start].span();
+                let message = if run == 1 {
+                    "unexpected indentation".to_string()
+                } else {
+                    format!("unexpected indentation, and the {run} lines it contains")
+                };
                 self.diagnostics.push(
-                    Diagnostic::error(Code::UnexpectedIndent, "unexpected indentation", span)
+                    Diagnostic::error(Code::UnexpectedIndent, message, span)
                         .with_help("this line is indented but has no parent element above it"),
                 );
-                self.i += 1;
                 continue;
             }
             if self.try_directive() {
@@ -121,6 +142,16 @@ impl<'r> Parser<'r> {
             "def" => {
                 self.i += 1;
                 self.parse_def(&line);
+                true
+            }
+            "on" => {
+                self.i += 1;
+                self.reject_if_core(
+                    "on",
+                    "an effect runs code when something changes",
+                    line.span(),
+                );
+                self.parse_effect(&line);
                 true
             }
             _ => false,
@@ -195,6 +226,69 @@ impl<'r> Parser<'r> {
     /// container works inside a `def` with no special cases — and a construct that is rejected at the
     /// core level is rejected inside a `def` body too, which is how a def inherits its level rather
     /// than declaring one.
+    /// `on mount >tasks.list` / `on {filter} >tasks.list`
+    ///
+    /// One line, no body. The trigger is either the word `mount` or a binding, and the action is the
+    /// same `>` form a button uses — so an author who can write a click handler can write an effect
+    /// without learning anything new.
+    fn parse_effect(&mut self, line: &Line) {
+        let trigger = match line.tokens.get(1).map(|t| &t.tok) {
+            Some(Tok::Word(w)) if w == "mount" => Some(Trigger::Mount),
+            Some(Tok::Brace(e)) => Some(Trigger::Change(e.trim().to_string())),
+            Some(Tok::Word(w)) => {
+                self.diagnostics.push(
+                    Diagnostic::error(
+                        Code::BadEffect,
+                        format!("`on {w}` is not a trigger"),
+                        line.span(),
+                    )
+                    .with_help("the trigger is `mount`, or a binding like `on {filter}`"),
+                );
+                None
+            }
+            _ => {
+                self.diagnostics.push(
+                    Diagnostic::error(
+                        Code::BadEffect,
+                        "`on` needs a trigger".to_string(),
+                        line.span(),
+                    )
+                    .with_help("`on mount >tasks.list`, or `on {filter} >tasks.list`"),
+                );
+                None
+            }
+        };
+
+        let actions: Vec<String> = line
+            .tokens
+            .iter()
+            .filter_map(|t| match &t.tok {
+                Tok::Action(a) => Some(a.clone()),
+                _ => None,
+            })
+            .collect();
+
+        // An effect with no action is not a no-op worth keeping — it is a line the author expected to
+        // do something. Reporting it is cheaper than a silent nothing.
+        if actions.is_empty() {
+            self.diagnostics.push(
+                Diagnostic::error(
+                    Code::BadEffect,
+                    "this effect has no action to run".to_string(),
+                    line.span(),
+                )
+                .with_help("add `>` and what should happen: `on mount >tasks.list`"),
+            );
+            return;
+        }
+
+        // The trigger diagnostic is already reported; dropping the effect here keeps every later pass
+        // from having to represent a half-parsed one.
+        if let Some(trigger) = trigger {
+            self.program.effects.push(Effect { trigger, actions, span: line.span() });
+        }
+    }
+
     fn parse_def(&mut self, line: &Line) {
         let base = line.indent;
         let name = line.tokens.get(1).and_then(|t| t.tok.text()).unwrap_or("").to_string();
@@ -500,6 +594,11 @@ impl<'r> Parser<'r> {
             let mut d = Diagnostic::error(Code::UnknownTag, format!("unknown tag `{tag}`"), span);
             if let Some(s) = self.reg.suggest(&tag) {
                 d = d.with_help(format!("did you mean `{s}`?")).with_suggestion(s.to_string());
+                // An HTML element is not a typo, and the rename alone teaches nothing — the next
+                // document makes the same mistake. The note says why the language has no such tag.
+                if let Some(note) = self.reg.habit_note(&tag) {
+                    d = d.with_help(format!("`{tag}` is HTML; {note}"));
+                }
             } else {
                 d = d.with_help("see the component registry for the available tags");
             }

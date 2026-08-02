@@ -31,20 +31,27 @@ export default function Page() {
    ↓  Lexer          indentation-sensitive, line-oriented, error-recovering
    ↓  Parser         recursive descent, registry-aware
    ↓  AST            typed, span-annotated, serialisable
+   ↓  Expand         def call sites, slots, caller-scope hygiene ✓
    ↓  Resolver       bindings → state / resource / item fields   ✓
    ↓  Semantic       accessible names, undeclared references     ✓
-   ↓                 type check, exhaustiveness                  (Phase 3)
-   ↓  Desugar        conventions: states, rollback, effects, ARIA (Phase 3)
-   ↓  Optimizer      dead state, binding CSE, registry tree-shake (Phase 3)
+   ↓                 type check, aggregates, enumerated domains  ✓
+   ↓  Desugar        conventions: states, rollback, effects, ARIA ✓
+   ↓  Optimizer      dead state, binding CSE, registry tree-shake ✓
    ↓  Codegen        pluggable backend
-   ↓  Emit           React + TS · Svelte · Web Components · static HTML`}
+   ↓  Emit           React + TS · Svelte 5 · static HTML · UI JSON`}
       />
       <P>
-        Everything unmarked is implemented and tested, including the resolver-lite and accessibility
-        passes that emit `GUML0033`, `GUML0050` and `GUML0051`. The desugar pass marked Phase 3 is
-        what turns a parsed resource into fetch code with rollback — until it lands, those constructs
-        parse and then report themselves as unsupported in the React backend. The browser runtime
-        implements them directly instead, which is why the playground can render a task list.
+        Every stage above is implemented and tested. The desugar pass is what turns a parsed resource
+        into fetch code with cancellation, loading, empty and error states, an optimistic apply and a
+        snapshot rollback — none of which appears in the source document.
+      </P>
+      <P>
+        The type checker is the newest stage and the one that has paid for itself most directly:
+        aggregates are checked against the type they are applied to, so <C>.sum</C> on a string field
+        is <C>GUML0065</C> rather than a <C>NaN</C>. It also found a live bug in a published example,
+        where <C>{"{invoices.open.count}"}</C> had been compiling to a filter on a field the type did
+        not declare — always zero, and no test noticed because none of them used a boolean field
+        named anything but <C>done</C>.
       </P>
 
       <H2 id="crates">Crate graph</H2>

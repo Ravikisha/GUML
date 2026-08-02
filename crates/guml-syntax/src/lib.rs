@@ -350,8 +350,25 @@ fn lex_line(
             continue;
         }
 
-        // Route `/path`, only at token start (so `$24/mo` stays a single word).
-        if c == b'/' {
+        // Route `/path`, only at token start (so `$24/mo` stays a single word) — or an absolute
+        // `http(s)://host/path`.
+        //
+        // # Why the absolute case is here and not left to fall through
+        //
+        // It did fall through, and lost the scheme. `https://api.example.com/rows` lexed as the word
+        // `https`, a `:` (the type-annotation separator), and then a route `//api.example.com/rows` —
+        // so the emitted code fetched a *protocol-relative* URL. It happened to work in a browser,
+        // which is why nobody noticed, and it was wrong in three ways: the scheme the author wrote was
+        // silently discarded, the emitted request did not match the document, and `validate::check_url`'s
+        // `starts_with("http")` branch was unreachable dead code claiming support for a form that never
+        // arrived intact.
+        //
+        // Only `http` and `https`. A general "scheme followed by `://`" rule would make `javascript:` and
+        // `data:` lexable as request targets, and a URL a document can name is a URL the compiler will
+        // emit a fetch to — so the allow-list is the security boundary, not a convenience.
+        let absolute = (c == b'h')
+            && ["https://", "http://"].iter().any(|scheme| text[i..].starts_with(scheme));
+        if c == b'/' || absolute {
             let start = i;
             while i < bytes.len() && !bytes[i].is_ascii_whitespace() {
                 i += 1;

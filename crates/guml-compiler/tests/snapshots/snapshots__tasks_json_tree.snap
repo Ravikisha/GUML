@@ -60,7 +60,7 @@ expression: "emitted(\"b.guml\", \"json\")"
     {
       "tag": "head",
       "el": "p",
-      "class": "text-2xl font-semibold text-slate-900 dark:text-slate-100",
+      "class": "text-2xl font-semibold tracking-tight text-foreground",
       "text": "Tasks — {tasks.open.count} open",
       "label": null,
       "bind": null,
@@ -91,7 +91,7 @@ expression: "emitted(\"b.guml\", \"json\")"
         {
           "tag": "input",
           "el": "input",
-          "class": "flex-1 rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm outline-none bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100 disabled:opacity-40",
+          "class": "flex h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-colors placeholder:text-muted-foreground md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none disabled:pointer-events-none disabled:opacity-50",
           "text": null,
           "label": "draft",
           "bind": "draft",
@@ -99,6 +99,11 @@ expression: "emitted(\"b.guml\", \"json\")"
             {
               "name": "type",
               "value": "text",
+              "bound": false
+            },
+            {
+              "name": "aria-label",
+              "value": "New task",
               "bound": false
             },
             {
@@ -117,7 +122,7 @@ expression: "emitted(\"b.guml\", \"json\")"
         {
           "tag": "btn",
           "el": "button",
-          "class": "rounded-md px-4 py-2 text-sm font-medium transition-colors bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-200 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100 disabled:opacity-40",
+          "class": "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all h-9 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none disabled:pointer-events-none disabled:opacity-50",
           "text": null,
           "label": "Add",
           "bind": null,
@@ -165,7 +170,7 @@ expression: "emitted(\"b.guml\", \"json\")"
     {
       "tag": "list",
       "el": null,
-      "class": "mt-6 divide-y divide-slate-200 dark:divide-slate-800 rounded-md border border-slate-200 dark:border-slate-800",
+      "class": "mt-6 divide-y divide-border rounded-md border border-border",
       "text": null,
       "label": "tasks",
       "bind": null,
@@ -185,7 +190,7 @@ expression: "emitted(\"b.guml\", \"json\")"
         {
           "tag": "check",
           "el": "input",
-          "class": "h-4 w-4 rounded border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100 disabled:opacity-40",
+          "class": "size-4 shrink-0 rounded-[4px] border border-input shadow-xs transition-shadow focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none disabled:pointer-events-none disabled:opacity-50",
           "text": null,
           "label": null,
           "bind": "done",
@@ -208,7 +213,7 @@ expression: "emitted(\"b.guml\", \"json\")"
         {
           "tag": "text",
           "el": "span",
-          "class": "flex-1 text-sm text-slate-900 dark:text-slate-100",
+          "class": "flex-1 text-sm text-foreground",
           "text": null,
           "label": null,
           "bind": "title",
@@ -229,7 +234,7 @@ expression: "emitted(\"b.guml\", \"json\")"
         {
           "tag": "btn",
           "el": "button",
-          "class": "rounded-md px-4 py-2 text-sm font-medium transition-colors text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100 disabled:opacity-40",
+          "class": "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all h-9 px-4 py-2 text-primary underline-offset-4 hover:underline focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none disabled:pointer-events-none disabled:opacity-50",
           "text": null,
           "label": "Delete",
           "bind": null,
@@ -257,7 +262,7 @@ expression: "emitted(\"b.guml\", \"json\")"
         {
           "tag": "empty",
           "el": "p",
-          "class": "mt-10 text-center text-sm text-slate-500 dark:text-slate-400",
+          "class": "mt-10 text-center text-sm text-muted-foreground",
           "text": "Nothing here yet.",
           "label": null,
           "bind": null,

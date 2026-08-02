@@ -5,12 +5,19 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 description = "Language server for GUML: the compiler's own diagnostics, in an editor"
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+readme = "README.md"
 
 [[bin]]
 name = "guml-lsp"
 path = "src/main.rs"
 
 [dependencies]
+guml-ast = { workspace = true }
 guml-compiler = { workspace = true }
 guml-diagnostics = { workspace = true }
 guml-fmt = { workspace = true }

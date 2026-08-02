@@ -14,6 +14,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: ["/api/"],
     },
-    sitemap: "https://guml.dev/sitemap.xml",
+    sitemap: "https://guml.vercel.app/sitemap.xml",
   };
 }

@@ -1,0 +1,54 @@
+// Reference answer for GUML-Bench task `e01-cart`.
+//
+// # The one place the vocabulary does not reach, and why it is here rather than hidden
+//
+// A line total is `{unitPrice * quantity}` — an expression over the row, fine. A *subtotal* is the sum of
+// that expression across the rows, and GUML's aggregates apply to a field: `cart.unitPrice.sum` sums a
+// column, and there is no spelling for "sum this expression". Shipping then depends on the subtotal, and
+// the order total on both.
+//
+// So this document uses one `js` block, which is exactly what the spec tells a generator to do when
+// something cannot be expressed — and it is *counted* as `GUML0090` rather than passing quietly. Three
+// derived numbers, one hatch, and the rest of the page is vocabulary.
+//
+// Recorded as a finding, not a defect to route around: an aggregate over an expression
+// (`cart.sum(unitPrice * quantity)`) is the smallest change that would remove this hatch, and it would
+// remove it from every cart, invoice and billing screen at once. That is the kind of evidence a
+// vocabulary decision should rest on.
+
+page Cart title="Your basket" description="Everything in the basket, with the order total." lang=en
+
+type CartLine {id, product, variant, unitPrice:number, quantity:number}
+data cart:CartLine[] GET /api/cart
+  setQty PATCH  /api/cart/{id} {quantity} optimistic
+  drop   DELETE /api/cart/{id}            optimistic
+
+state draftQty=1
+
+head Your basket — {cart.count} lines
+
+js
+  // Money. `subtotal` is the sum of a computed per-row value, which has no binding form; shipping and
+  // the order total both depend on it. See the note at the top of this file.
+  const subtotal = cart.reduce((a, line) => a + line.unitPrice * line.quantity, 0);
+  const shipping = subtotal >= 50 ? 0 : 4.95;
+  const orderTotal = subtotal + shipping;
+
+table cart cols="Product, Variant, Unit price, Quantity, Update, Line total, Remove"
+  text {product}
+  note {variant}
+  text {unitPrice}
+  input draftQty kind=number min=1 aria="Quantity for {product}"
+  btn Update quiet aria="Update quantity for {product}" >cart.setQty{quantity:draftQty}
+  text {unitPrice * quantity}
+  btn Remove quiet danger aria="Remove {product} from the basket" >cart.drop
+  empty Your basket is empty.
+
+card "Order summary"
+  stat "Subtotal" {subtotal}
+  stat "Shipping" {shipping}
+  divider
+  stat "Order total" {orderTotal}
+  note Standard delivery is £4.95 and free on orders of £50 or more.
+  alert if={subtotal < 50}
+    p Spend a little more and delivery is free.

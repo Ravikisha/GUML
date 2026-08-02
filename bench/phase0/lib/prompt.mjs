@@ -10,8 +10,20 @@ export const BENCH = join(HERE, "..");
 /** The three in-context examples. Deliberately none of them is a task's answer. */
 export const EXAMPLE_ORDER = ["e1-counter.guml", "e2-signin.guml", "e3-invoices.guml"];
 
+/**
+ * The spec, with HTML comments stripped.
+ *
+ * Every byte of this file is paid for once per generation, so a maintainer note addressed to a human is
+ * pure overhead in a model's context — and the alternative to allowing them is that the reasoning behind
+ * the spec's shape lives somewhere else and rots. Stripping `<!-- … -->` here lets the file explain
+ * itself for free.
+ *
+ * Not a Markdown parser: the only construct being removed is an HTML comment, and `[\s\S]*?` across a
+ * non-greedy match is exactly the right amount of machinery for that.
+ */
 export function readSpec() {
-  return readFileSync(join(ROOT, "spec", "GUML-SPEC.md"), "utf8");
+  const raw = readFileSync(join(ROOT, "spec", "GUML-SPEC.md"), "utf8");
+  return raw.replace(/<!--[\s\S]*?-->\n?/g, "").trimStart();
 }
 
 export function readExamples(n) {
@@ -31,9 +43,18 @@ export function readExamples(n) {
  * contain exactly the tags the answer needs is a hint the full registry does not
  * give. Both are runnable, and `score.mjs` reports them separately.
  */
-export function registrySlice(tags, { full = false } = {}) {
+export function registrySlice(tags, { full = false, prompt = null } = {}) {
   const args = ["run", "-q", "-p", "guml-cli", "--", "registry"];
-  if (!full && tags) args.push("--tags", tags);
+  if (full) {
+    // The ablation arm: the whole vocabulary, so the slice's contribution is measurable.
+  } else if (prompt) {
+    // The retrieval arm. `--for-prompt` derives the slice from the task description, which is what a
+    // product does — a hand-written `tags` list is an experimental convenience the product does not
+    // have. Measured at 47% fewer tokens than the full registry on the task-app prompt.
+    args.push("--for-prompt", prompt);
+  } else if (tags) {
+    args.push("--tags", tags);
+  }
   return execFileSync("cargo", args, { cwd: ROOT, encoding: "utf8" }).trim();
 }
 
@@ -80,7 +101,7 @@ export function systemPrompt({ tags = null, examples = 0, fullRegistry = false }
   return parts.join("\n\n---\n\n");
 }
 
-export function buildPrompt({ task, arm, examples = 0, fullRegistry = false }) {
+export function buildPrompt({ task, arm, examples = 0, fullRegistry = false, retrieval = false }) {
   if (arm === "react") {
     return {
       system: [

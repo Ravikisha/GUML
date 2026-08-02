@@ -8,14 +8,17 @@ import { cn } from "@/lib/utils";
    -------------------------------------------------------------------------- */
 
 const BUTTON_BASE =
-  "inline-flex items-center justify-center gap-2 rounded-full font-medium " +
+  "inline-flex items-center justify-center gap-2 rounded-button font-medium tracked " +
   "transition-[transform,background-color,border-color,color] duration-150 " +
   "active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40 whitespace-nowrap";
 
 const BUTTON_VARIANT = {
-  primary: "bg-chalk text-ink hover:opacity-90",
-  ember: "bg-ember text-ink hover:brightness-110",
-  outline: "border border-chalk/25 text-chalk hover:border-chalk/30 hover:bg-chalk/5",
+  // The principal action is the accent, filled, with white text. `primary` and `ember` are the same
+  // treatment because there is only one primary treatment — the page has one hue to spend.
+  primary: "bg-ember text-white hover:opacity-90",
+  ember: "bg-ember text-white hover:opacity-90",
+  // Brand outline: accent text, accent hairline, no fill.
+  outline: "border border-ember/40 text-ember hover:border-ember hover:bg-ember-dim",
   quiet: "text-fog hover:text-chalk",
 } as const;
 
@@ -108,7 +111,7 @@ export function Panel({
   return (
     <As
       className={cn(
-        "rounded-panel border border-line bg-ink-raised/70 backdrop-blur-[2px]",
+        "rounded-panel border border-line bg-ink-raised shadow-md",
         className,
       )}
     >
@@ -167,8 +170,8 @@ export function Section({
   id?: string;
 }) {
   return (
-    <section id={id} className={cn("relative border-t border-line px-6 py-20 md:px-10", className)}>
-      <div className="mx-auto max-w-6xl">
+    <section id={id} className={cn("relative px-6 py-20 md:px-10", className)}>
+      <div className="mx-auto max-w-(--container-page)">
         {meter ? (
           <div className="mb-10 flex items-center justify-between">
             <Meter label={meter.label} value={meter.value} tone={meter.tone} />

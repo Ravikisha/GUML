@@ -1,7 +1,7 @@
 "use client";
 
 import * as Tabs from "@radix-ui/react-tabs";
-import { highlight, type Lang, CLASS_STYLE } from "@/lib/highlight";
+import { highlight, type Lang, CLASS_STYLE } from "@guml/highlight";
 import { cn, commas, reduction } from "@/lib/utils";
 import { CopyButton } from "./copy-button";
 import { Play } from "lucide-react";

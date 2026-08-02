@@ -16,12 +16,20 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { tree as compileTree, type Diagnostic, type UiNode, type UiTree } from "./index.js";
-import { evaluate, interpolate, runAction, truthy, type Scope } from "./eval.js";
+import { tree as compileTree, type Diagnostic, type UiNode, type UiTree } from "./index.ts";
+import {
+  evaluate,
+  interpolate,
+  runAction,
+  shouldRequest,
+  truthy,
+  type Scope,
+} from "./eval.ts";
 
 export type GumlProps = {
   /** GUML source. Recompiled when it changes. */
@@ -33,6 +41,19 @@ export type GumlProps = {
   data?: Record<string, unknown[]>;
   /** Prefix for resource URLs, e.g. an API origin. */
   baseUrl?: string;
+  /**
+   * Apply mutations locally and never touch the network. For a demo or a documentation preview.
+   *
+   * Without it, a preview against a host that has no matching endpoints looks broken in a very
+   * specific and confusing way: the optimistic insert appears, the request 404s, and the rollback
+   * removes it again — so a new row flickers and vanishes. That is the `optimistic:` contract working
+   * exactly as specified, which is why nothing reported an error; the request simply had nowhere to go.
+   *
+   * Deliberately explicit rather than inferred from `data` being present. Seeding initial rows and then
+   * mutating against a real server is a legitimate pattern (server-rendered first paint), and silently
+   * disabling the network for it would break a real application to make a demo look better.
+   */
+  offline?: boolean;
   /** Override how a tag renders. Receives the node and its rendered children. */
   components?: Partial<Record<string, (node: UiNode, children: ReactNode) => ReactNode>>;
   className?: string;
@@ -56,6 +77,7 @@ export function Guml({
   source,
   data,
   baseUrl,
+  offline,
   components,
   className,
   style,
@@ -63,7 +85,7 @@ export function Guml({
   fallback = null,
 }: GumlProps) {
   const { tree, diagnostics, status } = useGumlTree(source);
-  const view = useGumlRuntime(tree, { data, baseUrl });
+  const view = useGumlRuntime(tree, { data, baseUrl, offline });
 
   useEffect(() => {
     if (status !== "loading") onDiagnostics?.(diagnostics);
@@ -129,6 +151,8 @@ type Runtime = {
   dispatch: (action: string, local?: Scope) => void;
   set: (name: string, value: unknown) => void;
   pending: Set<string>;
+  /** Re-run a resource's own GET. What `>tasks.list` dispatches to. */
+  refetch: (name: string) => void;
 };
 
 /**
@@ -137,9 +161,9 @@ type Runtime = {
  */
 export function useGumlRuntime(
   tree: UiTree | null,
-  opts: { data?: Record<string, unknown[]>; baseUrl?: string } = {},
+  opts: { data?: Record<string, unknown[]>; baseUrl?: string; offline?: boolean } = {},
 ): Runtime {
-  const { data, baseUrl = "" } = opts;
+  const { data, baseUrl = "", offline = false } = opts;
 
   const initial = useMemo(() => {
     const scope: Scope = {};
@@ -158,6 +182,22 @@ export function useGumlRuntime(
     setScope((prev) => ({ ...prev, [name]: value }));
   }, []);
 
+  // A resource's own GET, callable. `>tasks.list` reaches this, and so does the mount fetch below —
+  // one implementation, so a refetch and the initial load cannot diverge.
+  const refetch = useCallback(
+    (name: string) => {
+      const r = tree?.resources.find((x) => x.name === name);
+      if (!r || !shouldRequest({ offline, url: r.url })) return;
+      void fetch(baseUrl + r.url)
+        .then((res) => (res.ok ? res.json() : []))
+        .then((rows) => {
+          if (Array.isArray(rows)) set(name, rows);
+        })
+        .catch(() => {});
+    },
+    [tree, baseUrl, set, offline],
+  );
+
   const dispatch = useCallback(
     (action: string, local?: Scope) => {
       const merged = local ? { ...scope, ...local } : scope;
@@ -174,6 +214,13 @@ export function useGumlRuntime(
           continue;
         }
 
+        // `list` is the resource's own GET, which no `data` block declares — so it is resolved before
+        // the mutation lookup that would otherwise reject it.
+        if (effect.mutation === "list") {
+          refetch(effect.resource);
+          continue;
+        }
+
         const resource = tree?.resources.find((r) => r.name === effect.resource);
         const mutation = resource?.mutations.find((m) => m.name === effect.mutation);
         if (!resource || !mutation) continue;
@@ -185,7 +232,9 @@ export function useGumlRuntime(
         const next = applyOptimistic(before, mutation, effect.body, item);
         set(resource.name, next);
 
-        if (!mutation.url || typeof fetch === "undefined") continue;
+        // Offline: the optimistic apply above is the whole behaviour. No request, so no failure, so
+        // no rollback — the row stays.
+        if (!shouldRequest({ offline, url: mutation.url })) continue;
 
         const url = baseUrl + fillPath(mutation.url, item);
         const key = `${resource.name}.${mutation.name}`;
@@ -208,15 +257,15 @@ export function useGumlRuntime(
           );
       }
     },
-    [scope, set, tree, baseUrl],
+    [scope, set, tree, baseUrl, offline, refetch],
   );
 
   // Resources with no seeded data fetch themselves on mount.
   useEffect(() => {
-    if (!tree || typeof fetch === "undefined") return;
+    if (!tree || offline || typeof fetch === "undefined") return;
     let cancelled = false;
     for (const r of tree.resources) {
-      if (data?.[r.name] || !r.url) continue;
+      if (data?.[r.name] || !shouldRequest({ offline, url: r.url })) continue;
       void fetch(baseUrl + r.url)
         .then((res) => (res.ok ? res.json() : []))
         .then((rows) => {
@@ -227,9 +276,58 @@ export function useGumlRuntime(
     return () => {
       cancelled = true;
     };
-  }, [tree, data, baseUrl, set]);
+  }, [tree, data, baseUrl, set, offline]);
 
-  return { scope, dispatch, set, pending };
+  // Declared `on mount` effects, once.
+  //
+  // `dispatch` is deliberately absent from the dependency list: it closes over `scope`, so including
+  // it would re-run every mount effect on every state change — the spurious-dependency half of the
+  // bug this directive exists to prevent, reintroduced in the runtime that demonstrates it.
+  const mounted = useRef(false);
+  useEffect(() => {
+    if (!tree || mounted.current) return;
+    mounted.current = true;
+    for (const e of tree.effects ?? []) {
+      if (e.on === "mount") for (const a of e.actions) dispatch(a);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tree]);
+
+  // Declared `on {expr}` effects. The trigger is evaluated against the current scope and compared to
+  // its previous value, which is how one runtime honours a dependency list the emitted React code
+  // gets from the framework.
+  const triggers = useRef<Map<string, unknown>>(new Map());
+  const changing = (tree?.effects ?? []).filter((e) => e.on !== "mount");
+  const signature = changing
+    .map((e) => {
+      try {
+        return JSON.stringify(evaluate(e.on, scope) ?? null);
+      } catch {
+        return "";
+      }
+    })
+    .join(" ");
+  useEffect(() => {
+    if (!tree) return;
+    for (const e of changing) {
+      let value: unknown;
+      try {
+        value = evaluate(e.on, scope);
+      } catch {
+        continue;
+      }
+      const seen = triggers.current;
+      // First observation records the value without firing: the resource has already been fetched on
+      // mount, and firing here would double every page load.
+      if (seen.has(e.on) && seen.get(e.on) !== value) {
+        for (const a of e.actions) dispatch(a);
+      }
+      seen.set(e.on, value);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tree, signature]);
+
+  return { scope, dispatch, set, pending, refetch };
 }
 
 function applyOptimistic(

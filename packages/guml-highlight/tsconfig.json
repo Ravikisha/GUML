@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    // The package ships source, and `index.ts` imports the generated vocabulary by its real
+    // extension so one file resolves under a bundler, under `tsc`, and under Node's
+    // type-stripping loader — which is how the parity gate runs it.
+    "allowImportingTsExtensions": true,
+    // No DOM and no Node types. This has to run during server rendering and under `node --test`,
+    // so reaching for a browser global is the one mistake that would quietly make the package
+    // useless for its main purpose. Leaving them out means the compiler catches it.
+    "types": []
+  },
+  "include": ["src"]
+}

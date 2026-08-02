@@ -1,0 +1,681 @@
+{
+  "$comment": [
+    "Every shadcn/ui component GUML has no builtin for, as a GUML vocabulary.",
+    "",
+    "The components in `src/components/ui/` are the real ones, installed with `shadcn add --all` \u2014 61",
+    "files, 331 exports, on Radix/Base UI, cmdk, embla, recharts and the rest. They are not a",
+    "reimplementation and are not meant to be edited here; `pnpm dlx shadcn@latest add <name>` updates",
+    "one in place, which is shadcn's own model.",
+    "",
+    "WHAT IS AND IS NOT A TAG HERE, because the distinction is the whole design:",
+    "",
+    "  * A builtin already covers most of them. `card`, `btn`, `badge`, `input`, `select`, `table`,",
+    "    `tabs`, `modal`, `drawer`, `sidebar`, `skeleton`, `progress`, `toast`, `avatar`, `breadcrumb`",
+    "    and `pagination` are in the compiler's own vocabulary and already wear shadcn's classes through",
+    "    the default *theme*. A package may not shadow a builtin (`GUML0092`), and a second spelling of",
+    "    each would split every document's vocabulary in two for nothing.",
+    "  * Composition helpers are not document concepts. `Field`, `Item`, `InputGroup`, `ButtonGroup`'s",
+    "    internals, `Direction` \u2014 those arrange other components. GUML expresses arrangement with",
+    "    `row`/`col`/`grid` and modifiers, so exposing them as tags would be two ways to say one thing.",
+    "  * `chart`, `calendar`, `date`, `upload` and `command` belong to `@guml/widgets`, the worked",
+    "    example in `spec/REGISTRY.md`. Two packages declaring one name cannot both load, so they are",
+    "    left there and this package covers everything else.",
+    "",
+    "Every entry is `app` level and `needs_runtime`: these are React components with real behaviour, so",
+    "the no-JavaScript backend reports them rather than emitting markup that silently does nothing."
+  ],
+  "name": "@guml/shadcn",
+  "version": "0.1.0",
+  "components": [
+    {
+      "name": "confirm",
+      "kind": "container",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "Destructive-action confirmation, shown while `if=` is true. First positional is its title.",
+      "element": "AlertDialog",
+      "import": "@guml/shadcn",
+      "capabilities": {
+        "needs_runtime": true,
+        "backends": [
+          "react"
+        ]
+      },
+      "positionals": [
+        "title"
+      ],
+      "attrs": [],
+      "a11y": {
+        "requires_label": true,
+        "role": "alertdialog",
+        "focusable": true
+      }
+    },
+    {
+      "name": "popover",
+      "kind": "container",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "Floating panel anchored to a trigger, shown while `if=` is true.",
+      "element": "Popover",
+      "import": "@guml/shadcn",
+      "capabilities": {
+        "needs_runtime": true,
+        "backends": [
+          "react"
+        ]
+      },
+      "positionals": [
+        "title"
+      ],
+      "attrs": [],
+      "a11y": {
+        "requires_label": true,
+        "focusable": true
+      }
+    },
+    {
+      "name": "hovercard",
+      "kind": "container",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "Preview card shown on hover. Not keyboard-reachable on its own; pair it with a link.",
+      "element": "HoverCard",
+      "import": "@guml/shadcn",
+      "capabilities": {
+        "needs_runtime": true,
+        "backends": [
+          "react"
+        ]
+      },
+      "positionals": [
+        "title"
+      ],
+      "a11y": {
+        "requires_label": true
+      }
+    },
+    {
+      "name": "tooltip",
+      "kind": "container",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "Short hint attached to a control. `for` names the control it describes.",
+      "element": "Tooltip",
+      "import": "@guml/shadcn",
+      "capabilities": {
+        "needs_runtime": true,
+        "backends": [
+          "react"
+        ]
+      },
+      "positionals": [
+        "text"
+      ],
+      "attrs": [
+        "for"
+      ],
+      "children": {
+        "deny": [
+          "*"
+        ]
+      },
+      "a11y": {
+        "requires_label": true,
+        "role": "tooltip"
+      }
+    },
+    {
+      "name": "dropdown",
+      "kind": "container",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "Menu of actions opened from a button. Children are `link` or `btn`.",
+      "element": "DropdownMenu",
+      "import": "@guml/shadcn",
+      "capabilities": {
+        "needs_runtime": true,
+        "backends": [
+          "react"
+        ]
+      },
+      "positionals": [
+        "label"
+      ],
+      "a11y": {
+        "requires_label": true,
+        "focusable": true
+      }
+    },
+    {
+      "name": "contextmenu",
+      "kind": "container",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "Menu opened by right-click. Children are `link` or `btn`.",
+      "element": "ContextMenu",
+      "import": "@guml/shadcn",
+      "capabilities": {
+        "needs_runtime": true,
+        "backends": [
+          "react"
+        ]
+      },
+      "positionals": [
+        "label"
+      ],
+      "a11y": {
+        "requires_label": true,
+        "focusable": true
+      }
+    },
+    {
+      "name": "menubar",
+      "kind": "container",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "Application menu bar. Children are `menu`.",
+      "element": "Menubar",
+      "import": "@guml/shadcn",
+      "capabilities": {
+        "needs_runtime": true,
+        "backends": [
+          "react"
+        ]
+      },
+      "positionals": [
+        "label"
+      ],
+      "a11y": {
+        "requires_label": true,
+        "focusable": true
+      }
+    },
+    {
+      "name": "navmenu",
+      "kind": "container",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "Site navigation with grouped panels. Children are `link`.",
+      "element": "NavigationMenu",
+      "import": "@guml/shadcn",
+      "capabilities": {
+        "needs_runtime": true,
+        "backends": [
+          "react"
+        ]
+      },
+      "positionals": [
+        "label"
+      ],
+      "a11y": {
+        "requires_label": true,
+        "focusable": true,
+        "role": "navigation"
+      }
+    },
+    {
+      "name": "collapsible",
+      "kind": "container",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "Section that expands and collapses. First positional is the summary.",
+      "element": "Collapsible",
+      "import": "@guml/shadcn",
+      "capabilities": {
+        "needs_runtime": true,
+        "backends": [
+          "react"
+        ]
+      },
+      "positionals": [
+        "summary"
+      ],
+      "attrs": [
+        "open"
+      ],
+      "a11y": {
+        "requires_label": true,
+        "focusable": true,
+        "announces_state": true
+      }
+    },
+    {
+      "name": "carousel",
+      "kind": "container",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "Horizontally paged content. Children are the slides.",
+      "element": "Carousel",
+      "import": "@guml/shadcn",
+      "capabilities": {
+        "needs_runtime": true,
+        "backends": [
+          "react"
+        ]
+      },
+      "positionals": [
+        "label"
+      ],
+      "a11y": {
+        "requires_label": true,
+        "focusable": true
+      }
+    },
+    {
+      "name": "resizable",
+      "kind": "container",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "Panels the reader can resize. Children are the panels.",
+      "element": "ResizablePanelGroup",
+      "import": "@guml/shadcn",
+      "capabilities": {
+        "needs_runtime": true,
+        "backends": [
+          "react"
+        ]
+      },
+      "positionals": [
+        "label"
+      ],
+      "attrs": [
+        "direction"
+      ],
+      "a11y": {
+        "requires_label": true,
+        "focusable": true
+      }
+    },
+    {
+      "name": "scrollarea",
+      "kind": "container",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "Scrollable region with a styled scrollbar.",
+      "element": "ScrollArea",
+      "import": "@guml/shadcn",
+      "capabilities": {
+        "needs_runtime": true,
+        "backends": [
+          "react"
+        ]
+      },
+      "positionals": [
+        "label"
+      ],
+      "attrs": [
+        "height"
+      ],
+      "a11y": {
+        "requires_label": true,
+        "focusable": true
+      }
+    },
+    {
+      "name": "ratio",
+      "kind": "container",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "Box holding a fixed aspect ratio. `ratio=1.777` is 16:9.",
+      "element": "AspectRatio",
+      "import": "@guml/shadcn",
+      "capabilities": {
+        "needs_runtime": true,
+        "backends": [
+          "react"
+        ]
+      },
+      "attrs": [
+        "ratio"
+      ]
+    },
+    {
+      "name": "btngroup",
+      "kind": "container",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "Buttons joined into one control. Children are `btn`.",
+      "element": "ButtonGroup",
+      "import": "@guml/shadcn",
+      "capabilities": {
+        "needs_runtime": true,
+        "backends": [
+          "react"
+        ]
+      },
+      "positionals": [
+        "label"
+      ],
+      "children": {
+        "allow": [
+          "btn",
+          "link"
+        ]
+      },
+      "a11y": {
+        "requires_label": true
+      }
+    },
+    {
+      "name": "togglegroup",
+      "kind": "container",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "Mutually exclusive or multi-select toggles bound to a state.",
+      "element": "ToggleGroup",
+      "import": "@guml/shadcn",
+      "capabilities": {
+        "needs_runtime": true,
+        "backends": [
+          "react"
+        ]
+      },
+      "positionals": [
+        "state"
+      ],
+      "attrs": [
+        "multiple"
+      ],
+      "a11y": {
+        "requires_label": true,
+        "focusable": true,
+        "announces_state": true
+      }
+    },
+    {
+      "name": "textarea",
+      "kind": "field",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "Multi-line text field bound to a state.",
+      "element": "Textarea",
+      "import": "@guml/shadcn",
+      "capabilities": {
+        "needs_runtime": true,
+        "backends": [
+          "react"
+        ]
+      },
+      "positionals": [
+        "state"
+      ],
+      "attrs": [
+        "placeholder",
+        "rows"
+      ],
+      "children": {
+        "deny": [
+          "*"
+        ]
+      },
+      "a11y": {
+        "requires_label": true,
+        "focusable": true
+      }
+    },
+    {
+      "name": "radio",
+      "kind": "field",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "One-of-many choice bound to an enumerated state; options come from its domain.",
+      "element": "RadioGroup",
+      "import": "@guml/shadcn",
+      "capabilities": {
+        "needs_runtime": true,
+        "backends": [
+          "react"
+        ]
+      },
+      "positionals": [
+        "state"
+      ],
+      "a11y": {
+        "requires_label": true,
+        "focusable": true,
+        "announces_state": true
+      }
+    },
+    {
+      "name": "slider",
+      "kind": "field",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "Numeric range bound to a state.",
+      "element": "Slider",
+      "import": "@guml/shadcn",
+      "capabilities": {
+        "needs_runtime": true,
+        "backends": [
+          "react"
+        ]
+      },
+      "positionals": [
+        "state"
+      ],
+      "attrs": [
+        "min",
+        "max",
+        "step"
+      ],
+      "children": {
+        "deny": [
+          "*"
+        ]
+      },
+      "a11y": {
+        "requires_label": true,
+        "focusable": true,
+        "announces_state": true
+      }
+    },
+    {
+      "name": "otp",
+      "kind": "field",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "One-time-code field. `length` is the number of digits.",
+      "element": "InputOTP",
+      "import": "@guml/shadcn",
+      "capabilities": {
+        "needs_runtime": true,
+        "backends": [
+          "react"
+        ]
+      },
+      "positionals": [
+        "state"
+      ],
+      "attrs": [
+        "length"
+      ],
+      "children": {
+        "deny": [
+          "*"
+        ]
+      },
+      "a11y": {
+        "requires_label": true,
+        "focusable": true
+      }
+    },
+    {
+      "name": "combobox",
+      "kind": "field",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "Filterable single-select bound to a state; options come from its domain.",
+      "element": "Combobox",
+      "import": "@guml/shadcn",
+      "capabilities": {
+        "needs_runtime": true,
+        "backends": [
+          "react"
+        ]
+      },
+      "positionals": [
+        "state"
+      ],
+      "attrs": [
+        "placeholder"
+      ],
+      "a11y": {
+        "requires_label": true,
+        "focusable": true
+      }
+    },
+    {
+      "name": "datepicker",
+      "kind": "field",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "Calendar-backed date field bound to a state holding an ISO date.",
+      "element": "DatePicker",
+      "import": "@guml/shadcn",
+      "capabilities": {
+        "needs_runtime": true,
+        "backends": [
+          "react"
+        ]
+      },
+      "positionals": [
+        "state"
+      ],
+      "attrs": [
+        "min",
+        "max"
+      ],
+      "children": {
+        "deny": [
+          "*"
+        ]
+      },
+      "a11y": {
+        "requires_label": true,
+        "focusable": true
+      }
+    },
+    {
+      "name": "attachment",
+      "kind": "control",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "A file attached to a message or form, with its name and size.",
+      "element": "Attachment",
+      "import": "@guml/shadcn",
+      "capabilities": {
+        "needs_runtime": true,
+        "backends": [
+          "react"
+        ]
+      },
+      "positionals": [
+        "label"
+      ],
+      "attrs": [
+        "src",
+        "size"
+      ],
+      "children": {
+        "deny": [
+          "*"
+        ]
+      },
+      "a11y": {
+        "requires_label": true
+      }
+    },
+    {
+      "name": "kbd",
+      "kind": "text",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "A key or chord, rendered as a keycap.",
+      "element": "Kbd",
+      "import": "@guml/shadcn",
+      "capabilities": {
+        "needs_runtime": true,
+        "backends": [
+          "react"
+        ]
+      },
+      "children": {
+        "deny": [
+          "*"
+        ]
+      }
+    },
+    {
+      "name": "spinner",
+      "kind": "container",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "Indeterminate busy indicator. Announced politely.",
+      "element": "Spinner",
+      "import": "@guml/shadcn",
+      "capabilities": {
+        "needs_runtime": true,
+        "backends": [
+          "react"
+        ]
+      },
+      "positionals": [
+        "label"
+      ],
+      "children": {
+        "deny": [
+          "*"
+        ]
+      },
+      "a11y": {
+        "requires_label": true,
+        "role": "status"
+      }
+    },
+    {
+      "name": "bubble",
+      "kind": "container",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "One turn in a conversation. `from` is the speaker.",
+      "element": "Bubble",
+      "import": "@guml/shadcn",
+      "capabilities": {
+        "needs_runtime": true,
+        "backends": [
+          "react"
+        ]
+      },
+      "positionals": [
+        "text"
+      ],
+      "attrs": [
+        "from"
+      ]
+    },
+    {
+      "name": "label",
+      "kind": "text",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "Caption bound to a control. `for` names it.",
+      "element": "Label",
+      "import": "@guml/shadcn",
+      "capabilities": {
+        "needs_runtime": true,
+        "backends": [
+          "react"
+        ]
+      },
+      "attrs": [
+        "for"
+      ],
+      "children": {
+        "deny": [
+          "*"
+        ]
+      }
+    }
+  ]
+}

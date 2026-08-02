@@ -1,0 +1,46 @@
+// Reference answer for GUML-Bench task `e02-product`.
+//
+// The interesting part of this task is that the stock indicator depends on *two* selections together, and
+// "Add to basket" has to be disabled from that pair. Both are enumerated states, so the disabled condition
+// is a binding over them and needs no code.
+//
+// One `js` block, for the same reason as the cart: the selected variant's stock is a lookup into the
+// fetched list keyed on two values, and a binding indexes a path rather than searching a collection.
+
+page Product title="Meridian Studio headphones" description="Over-ear headphones for long sessions." lang=en
+
+type Variant {id, colour, size, stock:number}
+data variants:Variant[] GET /api/product/hp-1
+  addToCart POST /api/cart {colour, size}
+
+state colour=graphite|sand|ink
+state size=standard|large
+
+js
+  // The stock count for the selected pair. A binding walks a path; it does not search a collection for a
+  // row matching two values, so this is the hatch — and it is one line.
+  const selected = variants.find((v) => v.colour === colour && v.size === size);
+  const inStock = selected ? selected.stock : 0;
+
+section
+  img src="/img/hp-1.jpg" alt="Meridian Studio headphones in graphite, three-quarter view"
+  h1 Meridian Studio
+  p £249
+  p Closed-back over-ear headphones built for eight-hour sessions rather than for a demo. The clamp is set light enough to wear through an afternoon, the pads are replaceable without tools, and the cable is a plain detachable 3.5 mm rather than anything proprietary.
+
+  row
+    select colour aria="Colour"
+    select size aria="Size"
+
+  stat "In stock" {inStock}
+  alert danger if={inStock == 0}
+    p That combination is out of stock. Try another colour or size.
+
+  btn "Add to basket" primary disabled={inStock == 0} busy="Adding…" >variants.addToCart{colour:colour, size:size}
+  note Free returns within 30 days, in any condition, including opened.
+
+section "Shipping and returns"
+  faq open=1
+    When will it arrive? | Orders placed before 4pm ship the same working day, and next-day delivery is free above £50.
+    Can I return them if I have used them? | Yes. Within 30 days, opened and used is fine — the pads are replaceable and we refurbish returns.
+    Is there a warranty? | Two years, covering the drivers and the headband. Pads and cables are consumables and are sold separately.

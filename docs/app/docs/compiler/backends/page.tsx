@@ -7,7 +7,7 @@ import { FIXTURES } from "@/lib/fixtures.generated";
 
 export const metadata: Metadata = {
   title: "Backends",
-  description: "What the React backend covers today, what it refuses to guess, and what is planned.",
+  description: "What the React backend covers, what it refuses to guess, and how the seven targets stay in agreement.",
 };
 
 const counter = FIXTURES.find((f) => f.id === "counter")!;
@@ -16,16 +16,17 @@ export default function Page() {
   return (
     <DocPage
       pathname="/docs/compiler/backends"
-      meter={{ label: "shipping", value: "3 of 7" }}
+      meter={{ label: "shipping", value: "4 of 7" }}
       title="Backends"
-      lede="A backend turns the AST into source text. Three exist — React, a JSON UI tree, and static HTML — and they share one design-system table, which is what makes “GUML is an IR” a claim about the language rather than about one emitter."
+      lede="A backend turns the AST into source text. Seven exist — React, Svelte 5, static HTML, Web Components, a JSON UI tree, and the A2UI and MCP-UI agent formats — and they share one element table, one design-system table, one expression lowering and one liveness answer. That sharing is what makes “GUML is an IR” a claim about the language rather than about one emitter, and all four of those tables have drifted at least once."
       toc={[
         { id: "coverage", title: "What v0.1 covers" },
+        { id: "retry", title: "Retry and the deferred cache" },
         { id: "example", title: "Source and output" },
         { id: "html", title: "Static HTML" },
         { id: "gaps", title: "What it refuses to guess" },
         { id: "design-system", title: "The design-system table" },
-        { id: "planned", title: "Planned backends" },
+        { id: "targets", title: "Every backend" },
         { id: "writing", title: "Writing one" },
       ]}
     >
@@ -49,16 +50,70 @@ export default function Page() {
           [
             "data resources",
             "lowered",
-            "fetch on mount with AbortController cancellation, loading / empty / error slots, optimistic apply and rollback",
+            "fetch on mount with AbortController cancellation, loading / empty / error slots, optimistic apply and rollback, and a callable .list refetch",
           ],
-          ["list / table", "lowered", "keyed map, where= filtering via useMemo, aggregates like tasks.open.count"],
+          [
+            "list / table",
+            "lowered",
+            "keyed map, where= filtering on the row's own boolean field, aggregates like tasks.open.count",
+          ],
+          [
+            "on mount / on {expr}",
+            "lowered",
+            "useEffect with the trigger as its dependency; onMount and $effect + untrack in Svelte",
+          ],
           ["form / tabs / faq / tier", "lowered", "submit wiring with a pending flag, segmented control from a domain, faq as <details>"],
           ["js / raw blocks", "lowered", "emitted verbatim; reported as GUML0090 so the escape-hatch rate is countable"],
           ["Source maps", "lowered", "every declaration and element, nested ones included"],
-          ["Retry, backoff, response cache", "not yet", "the resource layer stops at cancellation"],
-          ["def user components", "not yet", "no user-defined tags"],
+          [
+            "Retry with backoff",
+            "lowered",
+            "idempotent methods only, on 5xx and transport failures; emitted once per file, never imported",
+          ],
+          ["def user components", "lowered", "expanded at compile time, so every backend gets them free"],
+          [
+            "Response cache",
+            "lowered",
+            "in-flight deduplication, stale-while-revalidate, invalidation on mutation, and serving stale on a network failure",
+          ],
+          [
+            "Error boundary",
+            "lowered",
+            "only for a document using a js or raw block — generated render code has nothing in it to throw",
+          ],
         ]}
       />
+
+      <H2 id="retry">Retry, and the cache that is not built yet</H2>
+      <P>
+        Every fetch and every mutation goes through a generated <C>retrying</C> helper — emitted once
+        per file, never imported, because a compiled page has no GUML runtime dependency. Its policy is
+        deliberately narrow, and each part of it is a mistake the hand-written version usually makes:
+      </P>
+      <Table
+        head={["rule", "why"]}
+        rows={[
+          [
+            "idempotent methods only",
+            "a repeated POST with no idempotency key creates two rows, so the decision belongs to the method rather than to a flag a caller can set on the wrong request",
+          ],
+          [
+            "5xx and transport failures only",
+            "a 404 or a 422 answers the same way next time; retrying it only delays the error the author needs to see",
+          ],
+          ["an abort is not retried", "that is the leak the AbortController existed to prevent"],
+          ["exponential, from 300 ms, three attempts", "a fixed delay converts one slow backend into a thundering herd"],
+        ]}
+      />
+      <Note tone="warn" title="A response cache is deferred on purpose">
+        <p>
+          Retry needed no new syntax, so it is on by default and invisible. A cache does need syntax,
+          because its <em>lifetime</em> is not something the compiler can infer — a price list and an
+          unread-message count want opposite answers, and a module-level cache shared across component
+          instances changes what a second mount sees. Guessing a default here would be a decision
+          disguised as a convenience, so the language waits for the decision instead.
+        </p>
+      </Note>
 
       <H2 id="example">Source and output</H2>
       <P>Same fixture, both sides — the second tab is what the compiler actually wrote.</P>
@@ -196,9 +251,9 @@ warning[GUML0030]: \`html\` backend: \`btn Decrement\` has an action, and the \`
         turn <C>&amp;</C> and <C>&lt;</C> into entities.
       </P>
 
-      <H2 id="planned">Planned backends</H2>
+      <H2 id="targets">Every backend, and why it exists</H2>
       <Table
-        head={["target", "why it exists", "phase"]}
+        head={["target", "why it exists", "state"]}
         rows={[
           ["React + TS + Tailwind", "ecosystem gravity; easiest hand-off to a human; benchmark baseline", "shipping"],
           [
@@ -211,16 +266,28 @@ warning[GUML0030]: \`html\` backend: \`btn Decrement\` has an action, and the \`
             "no JavaScript at all: the right output for a content page, and the proof that presentation belongs to the compiler rather than to a backend",
             "shipping",
           ],
-          ["Svelte", "the compile-away-the-framework and bundle-size story", "7"],
-          ["Web Components", "portability and embedding", "7"],
-          ["A2UI", "emit into Google's agent-UI format", "7"],
-          ["MCP-UI", "emit into the MCP UI resource format", "7"],
+          ["Svelte 5", "the compile-away-the-framework and bundle-size story; runes, not stores", "shipping"],
+          [
+            "Web Components",
+            "portability: a file a browser runs as-is, embeddable where a framework is not on the table",
+            "shipping",
+          ],
+          [
+            "A2UI",
+            "the agent-UI format. Targets the documented shape, and says so in the payload rather than claiming conformance it has not validated",
+            "shipping",
+          ],
+          [
+            "MCP-UI",
+            "composes the html and wc backends into the protocol's two rendering modes; invents no format",
+            "shipping",
+          ],
         ]}
       />
       <P>
         The A2UI and MCP-UI emitters are strategic as much as technical: they turn the closest
         standards competitor into a distribution channel and a benchmark baseline. See{" "}
-        <A href="/docs/research/prior-art">prior art</A>.
+        <A href="/research/prior-art">prior art</A>.
       </P>
 
       <H2 id="writing">Writing one</H2>

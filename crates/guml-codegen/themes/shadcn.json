@@ -1,0 +1,440 @@
+{
+  "$comment": [
+    "shadcn/ui as a GUML theme. The default one.",
+    "",
+    "Class strings and tokens taken from shadcn/ui's own `registry/new-york-v4/ui/*.tsx` \u2014 the button's",
+    "variant set, the input's border and ring treatment, the badge's tone set, the table's cell metrics.",
+    "The token names are shadcn's exactly: `--background`/`--foreground` pairs, `--primary`,",
+    "`--secondary`, `--muted`, `--accent`, `--destructive`, `--border`, `--input`, `--ring`, `--card`,",
+    "`--popover`, `--sidebar`, `--radius`. So a host that already runs shadcn drops this in and its own",
+    "palette applies with no further work: the variables are the interface.",
+    "",
+    "WHAT IS DELIBERATELY NOT CARRIED, because a class table cannot:",
+    "",
+    "  * Radix behaviour. shadcn's dialog traps focus, its select is a listbox with keyboard navigation,",
+    "    its tooltip positions itself. Those are components, not classes. GUML's `modal`, `select` and",
+    "    `drawer` get shadcn's *appearance* and the compiler's own semantics \u2014 a real `<select>`, a",
+    "    `<template>` in the no-JavaScript build. A host that wants Radix behaviour points a registry",
+    "    package at its own components with `element`/`import`; that is what `packages/guml-widgets`",
+    "    demonstrates.",
+    "  * `data-[state=...]` and `aria-invalid:` variants. They key off attributes Radix sets, and this",
+    "    compiler does not emit them, so a rule for them would be dead.",
+    "  * `[&_svg]` descendant selectors. GUML has no icon primitive yet, so there is nothing to select.",
+    "",
+    "Every class here has a rule in `shadcn.css`, enforced by",
+    "`every_class_the_builtin_theme_emits_has_a_rule_in_its_stylesheet`. That is not decoration: the",
+    "static-HTML backend has no build step, so it inlines this stylesheet, and a class with no rule is a",
+    "silently unstyled no-JavaScript page."
+  ],
+  "name": "shadcn",
+  "contract": {
+    "focus_visible": "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none",
+    "min_contrast": 4.8,
+    "disabled": "disabled:pointer-events-none disabled:opacity-50"
+  },
+  "rules": [
+    {
+      "tag": "card",
+      "base": "rounded-xl border border-border bg-card text-card-foreground shadow-sm p-6"
+    },
+    {
+      "tag": "card",
+      "when": [
+        "sm"
+      ],
+      "add": "mx-auto mt-10 w-full max-w-sm"
+    },
+    {
+      "tag": "card",
+      "when": [
+        "center"
+      ],
+      "add": "text-center"
+    },
+    {
+      "tag": "row",
+      "base": "flex items-center gap-2"
+    },
+    {
+      "tag": "row",
+      "when": [
+        "center"
+      ],
+      "add": "justify-center",
+      "group": "align"
+    },
+    {
+      "tag": "row",
+      "when": [
+        "between"
+      ],
+      "add": "justify-between",
+      "group": "align"
+    },
+    {
+      "tag": "row",
+      "when": [
+        "end"
+      ],
+      "add": "justify-end",
+      "group": "align"
+    },
+    {
+      "tag": "row",
+      "when": [
+        "wrap"
+      ],
+      "add": "flex-wrap"
+    },
+    {
+      "tag": "col",
+      "base": "flex flex-col gap-2"
+    },
+    {
+      "tag": "col",
+      "when": [
+        "center"
+      ],
+      "add": "items-center",
+      "group": "align"
+    },
+    {
+      "tag": "section",
+      "base": "mt-10 scroll-mt-16"
+    },
+    {
+      "tag": "nav",
+      "base": "flex items-center justify-between border-b border-border pb-4"
+    },
+    {
+      "tag": "hero",
+      "base": "mt-12 flex flex-col items-center gap-4 text-center"
+    },
+    {
+      "tag": "footer",
+      "base": "mt-16 border-t border-border pt-6 text-sm text-muted-foreground"
+    },
+    {
+      "tag": "form",
+      "base": "mt-6 flex gap-2"
+    },
+    {
+      "tag": "grid",
+      "base": "grid gap-6"
+    },
+    {
+      "tag": "sidebar",
+      "base": "rounded-lg border border-border bg-sidebar text-sidebar-foreground p-4"
+    },
+    {
+      "tag": "toolbar",
+      "base": "flex items-center gap-2 border-b border-border pb-3"
+    },
+    {
+      "tag": "h1",
+      "base": "scroll-m-20 text-4xl font-extrabold tracking-tight text-foreground"
+    },
+    {
+      "tag": "h2",
+      "base": "mt-8 scroll-m-20 border-b border-border pb-2 text-2xl font-semibold tracking-tight text-foreground"
+    },
+    {
+      "tag": "h",
+      "base": "mt-8 scroll-m-20 border-b border-border pb-2 text-2xl font-semibold tracking-tight text-foreground"
+    },
+    {
+      "tag": "p",
+      "base": "leading-7 text-foreground"
+    },
+    {
+      "tag": "head",
+      "base": "text-2xl font-semibold tracking-tight text-foreground"
+    },
+    {
+      "tag": "text",
+      "base": "flex-1 text-sm text-foreground"
+    },
+    {
+      "tag": "metric",
+      "base": "mt-6 text-center text-5xl font-bold tabular-nums text-foreground"
+    },
+    {
+      "tag": "note",
+      "base": "mt-1 text-xs text-muted-foreground"
+    },
+    {
+      "tag": "empty",
+      "base": "mt-10 text-center text-sm text-muted-foreground"
+    },
+    {
+      "tag": "option",
+      "base": "text-sm text-foreground"
+    },
+    {
+      "tag": "step",
+      "base": "text-sm text-muted-foreground"
+    },
+    {
+      "tag": "btn",
+      "base": "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all h-9 px-4 py-2"
+    },
+    {
+      "tag": "btn",
+      "when": [
+        "primary"
+      ],
+      "add": "bg-primary text-primary-foreground hover:bg-primary/90",
+      "group": "intent"
+    },
+    {
+      "tag": "btn",
+      "when": [
+        "secondary"
+      ],
+      "add": "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+      "group": "intent"
+    },
+    {
+      "tag": "btn",
+      "when": [
+        "danger"
+      ],
+      "add": "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+      "group": "intent"
+    },
+    {
+      "tag": "btn",
+      "when": [
+        "outline"
+      ],
+      "add": "border border-input bg-background shadow-xs hover:bg-accent hover:text-accent-foreground",
+      "group": "intent"
+    },
+    {
+      "tag": "btn",
+      "when": [
+        "ghost"
+      ],
+      "add": "hover:bg-accent hover:text-accent-foreground",
+      "group": "intent"
+    },
+    {
+      "tag": "btn",
+      "when": [
+        "quiet"
+      ],
+      "add": "text-primary underline-offset-4 hover:underline",
+      "group": "intent"
+    },
+    {
+      "tag": "btn",
+      "add": "border border-input bg-background shadow-xs hover:bg-accent hover:text-accent-foreground",
+      "group": "intent"
+    },
+    {
+      "tag": "btn",
+      "when": [
+        "xs"
+      ],
+      "add": "h-6 gap-1 px-2 text-xs",
+      "group": "size"
+    },
+    {
+      "tag": "btn",
+      "when": [
+        "sm"
+      ],
+      "add": "h-8 gap-1.5 px-3",
+      "group": "size"
+    },
+    {
+      "tag": "btn",
+      "when": [
+        "lg"
+      ],
+      "add": "h-10 px-6",
+      "group": "size"
+    },
+    {
+      "tag": "link",
+      "base": "text-sm font-medium text-primary underline-offset-4 hover:underline"
+    },
+    {
+      "tag": "input",
+      "base": "flex h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-colors placeholder:text-muted-foreground md:text-sm"
+    },
+    {
+      "tag": "select",
+      "base": "flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs"
+    },
+    {
+      "tag": "check",
+      "base": "size-4 shrink-0 rounded-[4px] border border-input shadow-xs transition-shadow"
+    },
+    {
+      "tag": "toggle",
+      "base": "peer inline-flex h-[1.15rem] w-8 shrink-0 items-center rounded-full border border-transparent bg-input shadow-xs transition-all"
+    },
+    {
+      "tag": "progress",
+      "base": "relative h-2 w-full overflow-hidden rounded-full bg-primary/20"
+    },
+    {
+      "tag": "alert",
+      "base": "relative mt-6 grid w-full items-start gap-2 rounded-lg border border-border px-4 py-3 text-sm bg-card text-card-foreground"
+    },
+    {
+      "tag": "alert",
+      "when": [
+        "danger"
+      ],
+      "add": "text-destructive bg-card border-destructive/50",
+      "group": "tone"
+    },
+    {
+      "tag": "badge",
+      "base": "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap"
+    },
+    {
+      "tag": "badge",
+      "when": [
+        "primary"
+      ],
+      "add": "border-transparent bg-primary text-primary-foreground",
+      "group": "tone"
+    },
+    {
+      "tag": "badge",
+      "when": [
+        "secondary"
+      ],
+      "add": "border-transparent bg-secondary text-secondary-foreground",
+      "group": "tone"
+    },
+    {
+      "tag": "badge",
+      "when": [
+        "danger"
+      ],
+      "add": "border-transparent bg-destructive text-destructive-foreground",
+      "group": "tone"
+    },
+    {
+      "tag": "badge",
+      "when": [
+        "quiet"
+      ],
+      "add": "border-border text-foreground",
+      "group": "tone"
+    },
+    {
+      "tag": "badge",
+      "add": "border-border text-foreground",
+      "group": "tone"
+    },
+    {
+      "tag": "toast",
+      "base": "fixed bottom-6 right-6 z-50 rounded-lg border border-border bg-popover text-popover-foreground px-4 py-3 text-sm shadow-lg"
+    },
+    {
+      "tag": "skeleton",
+      "base": "animate-pulse rounded-md bg-accent h-12 w-full"
+    },
+    {
+      "tag": "avatar",
+      "base": "relative flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-medium text-muted-foreground"
+    },
+    {
+      "tag": "divider",
+      "base": "my-4 h-px w-full shrink-0 border-0 bg-border"
+    },
+    {
+      "tag": "img",
+      "base": "block max-w-full rounded-md"
+    },
+    {
+      "tag": "breadcrumb",
+      "base": "flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground"
+    },
+    {
+      "tag": "pagination",
+      "base": "mx-auto flex w-full items-center justify-center gap-1"
+    },
+    {
+      "tag": "stepper",
+      "base": "flex items-center gap-4 text-sm"
+    },
+    {
+      "tag": "menu",
+      "base": "flex w-full min-w-0 flex-col gap-1 text-sm"
+    },
+    {
+      "tag": "modal",
+      "base": "fixed top-1/2 left-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border border-border bg-background p-6 shadow-lg"
+    },
+    {
+      "tag": "drawer",
+      "base": "fixed inset-y-0 right-0 z-50 flex h-full w-3/4 flex-col gap-4 border-l border-border bg-background p-6 shadow-lg sm:max-w-sm"
+    },
+    {
+      "tag": "table",
+      "base": "mt-6 w-full caption-bottom border-collapse text-sm"
+    },
+    {
+      "tag": "th",
+      "base": "h-10 border-b border-border px-2 text-left align-middle font-medium whitespace-nowrap text-muted-foreground"
+    },
+    {
+      "tag": "td",
+      "base": "border-b border-border p-2 align-middle whitespace-nowrap text-foreground"
+    },
+    {
+      "tag": "list",
+      "base": "mt-6 divide-y divide-border rounded-md border border-border"
+    },
+    {
+      "tag": "stat",
+      "base": "rounded-xl border border-border bg-card text-card-foreground p-6 m-0"
+    },
+    {
+      "tag": "stat-label",
+      "base": "text-sm text-muted-foreground"
+    },
+    {
+      "tag": "stat-value",
+      "base": "ml-0 mt-1 text-3xl font-semibold tabular-nums text-foreground"
+    },
+    {
+      "tag": "stat-delta",
+      "base": "mt-1 text-xs text-muted-foreground"
+    },
+    {
+      "tag": "*",
+      "when": [
+        "full"
+      ],
+      "add": "w-full"
+    },
+    {
+      "tag": "*",
+      "when": [
+        "tight"
+      ],
+      "add": "gap-1"
+    },
+    {
+      "tag": "*",
+      "when": [
+        "loose"
+      ],
+      "add": "gap-6"
+    },
+    {
+      "tag": "*",
+      "when": [
+        "start"
+      ],
+      "add": "text-left"
+    }
+  ]
+}

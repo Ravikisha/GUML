@@ -195,7 +195,7 @@ guml theme --classes > src/guml-classes.txt`}
         stylesheet instead, and the emitted document depends on nothing at render time.
       </P>
       <P>
-        The shipped <C>slate</C> theme includes one implementing exactly the utilities it emits, and a test
+        The shipped <C>shadcn</C> theme includes one implementing exactly the utilities it emits, and a test
         fails if a rule gains a class the stylesheet does not have. A theme with no <C>css</C> still works
         for the React backend, where the host&rsquo;s own pipeline processes the classes; asking the HTML
         backend for an inline style without one is reported rather than silently emitting an unstyled page.

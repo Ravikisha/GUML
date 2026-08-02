@@ -2,9 +2,10 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { neighbours } from "@/lib/nav";
+import { DocsToc, type Toc } from "./docs-toc";
 import { Meter } from "./ui";
 
-export type Toc = Array<{ id: string; title: string }>;
+export type { Toc };
 
 /**
  * Shell for a documentation page: title block, on-this-page rail, and a pager
@@ -33,10 +34,13 @@ export function DocPage({
       <article className="min-w-0 flex-1 pb-16">
         {meter ? <Meter label={meter.label} value={meter.value} tone={meter.tone} className="mb-6" /> : null}
 
-        <h1 className="display-narrow text-4xl font-extrabold tracking-[-0.02em] text-chalk md:text-5xl">
+        {/* Larger than the old 44px. A documentation page opens on a title and a lede, and at the
+            landing page's scale that title is the only thing carrying this direction into the docs —
+            at 44px it read as a section heading rather than as the top of a page. */}
+        <h1 className="display-wide max-w-3xl text-heading-lg text-chalk">
           {title}
         </h1>
-        {lede ? <div className="mt-6 max-w-2xl text-lg leading-relaxed text-fog">{lede}</div> : null}
+        {lede ? <div className="mt-6 max-w-[62ch] text-lg leading-relaxed text-fog">{lede}</div> : null}
 
         <div className="mt-12">{children}</div>
 
@@ -45,10 +49,11 @@ export function DocPage({
             {prev ? (
               <Link
                 href={prev.href}
-                className="group rounded-card border border-line p-4 transition-colors hover:border-chalk/30"
+                className="group rounded-card border border-line p-4 transition-[border-color,box-shadow] hover:border-ember/40 hover:shadow-md"
               >
-                <span className="label flex items-center gap-1.5">
-                  <ArrowLeft className="size-3" /> previous
+                <span className="label flex items-center gap-1.5 transition-colors group-hover:text-ember">
+                  <ArrowLeft className="size-3 transition-transform group-hover:-translate-x-0.5" />{" "}
+                  previous
                 </span>
                 <span className="mt-2 block text-sm text-fog transition-colors group-hover:text-chalk">
                   {prev.title}
@@ -60,10 +65,11 @@ export function DocPage({
             {next ? (
               <Link
                 href={next.href}
-                className="group rounded-card border border-line p-4 text-right transition-colors hover:border-chalk/30"
+                className="group rounded-card border border-line p-4 text-right transition-[border-color,box-shadow] hover:border-ember/40 hover:shadow-md"
               >
-                <span className="label flex items-center justify-end gap-1.5">
-                  next <ArrowRight className="size-3" />
+                <span className="label flex items-center justify-end gap-1.5 transition-colors group-hover:text-ember">
+                  next{" "}
+                  <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" />
                 </span>
                 <span className="mt-2 block text-sm text-fog transition-colors group-hover:text-chalk">
                   {next.title}
@@ -74,23 +80,7 @@ export function DocPage({
         )}
       </article>
 
-      {toc && toc.length > 0 ? (
-        <aside className="sticky top-24 hidden h-fit w-52 shrink-0 xl:block">
-          <p className="label mb-3">on this page</p>
-          <ul className="space-y-2 border-l border-line">
-            {toc.map((item) => (
-              <li key={item.id}>
-                <a
-                  href={`#${item.id}`}
-                  className="-ml-px block border-l border-transparent pl-4 text-sm text-fog transition-colors hover:border-chalk/30 hover:text-chalk"
-                >
-                  {item.title}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </aside>
-      ) : null}
+      {toc && toc.length > 0 ? <DocsToc items={toc} /> : null}
     </div>
   );
 }

@@ -1,0 +1,55 @@
+// Reference answer for GUML-Bench task `v02-cohort`.
+//
+// Same shape as `v01-event-filters`, and it used to share that file's deliberate failure: two filters
+// composed client-side had no expressible form, so this document refetched on every change and failed "does
+// not refetch" on purpose. `table signups of=Signup` over a `js`-computed array closes it — one fetch, both
+// filters applied in the browser, and every figure derived from the same array the table renders.
+//
+// One thing this task asks for that nothing else does: "cohort selector populated from the fetched rows".
+// That is still not expressible — a `select`'s options come from a state's declared domain or from `option`
+// children, both static, and there is no form whose options are a projection of a collection. The domain is
+// written out, which is the honest answer and what a real application usually does anyway (cohorts are
+// months, and the set is known in advance).
+//
+// Also worth recording: `retention rate` is a percentage of two counts over the *same* rows, which the
+// two-step aggregate handles — `signups.retained.count` filters and counts, and the arithmetic is a binding.
+// That whole line needed an escape hatch before the field-chain lowering was fixed.
+
+page Cohorts title="Cohort explorer" description="Retention by signup cohort." lang=en
+
+type Signup {id, cohort, plan, country, retained:bool}
+
+data signups:Signup[] GET /api/signups
+
+state cohort=2026-05|2026-06|2026-07
+state plan=all|free|pro
+
+js
+  // Two filters composed, which `where=` cannot express on its own. The `table` below iterates the result.
+  const rows = signups.filter(
+    (s) => s.cohort === cohort && (plan === "all" || s.plan === plan),
+  );
+  // `keptCount`, not `retained`: `retained` is also a field of `Signup`, and inside the table row a row
+  // field shadows a document name. Both readings are correct and the shadowing rule is documented, but a
+  // reference answer should not require the reader to apply it.
+  const keptCount = rows.filter((s) => s.retained).length;
+
+section
+  h1 Cohort explorer
+
+  toolbar
+    select cohort aria="Cohort"
+    tabs plan
+
+  grid cols=4
+    stat "Cohort size" {rows.count}
+    stat "Retained" {keptCount}
+    stat "Churned" {rows.count - keptCount}
+    stat "Retention rate" {keptCount * 100 / rows.count}
+
+  table rows of=Signup cols="Signup, Plan, Country, Retained"
+    text {id}
+    text {plan}
+    text {country}
+    check {retained} readonly aria="Retained"
+    empty Nobody signed up in this cohort.

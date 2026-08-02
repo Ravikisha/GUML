@@ -1,0 +1,294 @@
+name: release
+
+# Tag-driven. `git tag v0.1.0 && git push --tags` is the whole trigger.
+#
+# The ordering below is not cosmetic. Publishing is the one operation in this project that cannot be
+# undone: a crates.io version can be yanked but never replaced, and an npm version can be deprecated but
+# never re-uploaded. So everything reversible happens before anything irreversible, and the two
+# registries are ordered so that the more permanent one goes first.
+#
+# `workflow_dispatch` with `dry_run` runs every gate and every `--dry-run`, and stops before the first
+# real upload. Use it before tagging.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Run every check and dry-run, publish nothing"
+        type: boolean
+        default: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+concurrency:
+  # Two releases at once would interleave publishes into a half-released state that no version number
+  # describes. Never cancel one in flight — a cancelled publish is exactly the half-released state.
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  # ---------------------------------------------------------------------------------------------
+  # 1. Everything reversible.
+  # ---------------------------------------------------------------------------------------------
+  verify:
+    name: Full gate
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: cargo install wasm-pack --locked
+
+      # The tag and the manifests have to agree. A tag saying v0.2.0 over a workspace still at 0.1.0
+      # publishes 0.1.0 and reports success, and the mismatch is only visible months later when someone
+      # asks why the tag does not match the release.
+      - name: Tag matches the workspace version
+        id: version
+        run: |
+          MANIFEST=$(cargo metadata --no-deps --format-version 1 \
+            | python3 -c "import json,sys; print(json.load(sys.stdin)['packages'][0]['version'])")
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG="${GITHUB_REF_NAME#v}"
+            if [ "$TAG" != "$MANIFEST" ]; then
+              echo "::error::tag v$TAG does not match workspace version $MANIFEST"
+              exit 1
+            fi
+          fi
+          echo "version=$MANIFEST" >> "$GITHUB_OUTPUT"
+
+      # A published version is permanent, so a changelog entry that arrives later never quite catches up.
+      - name: The changelog mentions this version
+        run: |
+          grep -q "\[${{ steps.version.outputs.version }}\]" CHANGELOG.md \
+            || { echo "::error::CHANGELOG.md has no entry for ${{ steps.version.outputs.version }}"; exit 1; }
+
+      - name: Rust gates
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --workspace --all-targets -- -D warnings
+          cargo test --workspace
+
+      # The committed wasm must ship, and must match its source. Both were wrong before this existed:
+      # a `.gitignore` that wasm-pack writes excluded the whole directory from the npm tarball, and
+      # `prepublishOnly` skipped `build:wasm` so the artifact had drifted five days from its source.
+      - name: The committed wasm ships, and matches its source
+        run: node scripts/check-wasm-fresh.mjs
+
+      - name: Emitted-output gates
+        run: |
+          cargo run -q -p guml-cli -- validate fixtures bench/phase0/examples bench/guml-bench/reference
+          node scripts/typecheck-emitted.mjs
+          node scripts/render-emitted.mjs
+          node scripts/check-wc.mjs
+
+      - name: Package gates
+        run: |
+          pnpm --filter @guml/core typecheck && pnpm --filter @guml/core test
+          cargo run -q -p guml-cli -- registry --validate packages/guml-widgets
+          pnpm --filter @guml/widgets typecheck && pnpm --filter @guml/widgets typecheck:example
+          cargo run -q -p guml-cli -- registry --validate packages/guml-shadcn
+          pnpm --filter @guml/shadcn typecheck && pnpm --filter @guml/shadcn typecheck:example
+
+      - name: Docs site builds
+        run: pnpm --filter docs typecheck && pnpm --filter docs build
+        env:
+          # The build imports the rate limiter, which refuses to fall back to a constant signing key in
+          # production. A throwaway value satisfies it; the deployment supplies the real one.
+          DEMO_COOKIE_SECRET: ci-build-only-not-a-deployment-secret
+
+      # Verifies packaging, metadata and that every internal dependency carries a version as well as a
+      # path — crates.io rejects a path-only dependency, and this is where that should be found.
+      - name: cargo publish --dry-run
+        run: cargo publish --workspace --dry-run
+
+      - name: npm publish --dry-run
+        run: |
+          pnpm --filter @guml/core build
+          pnpm --filter @guml/fmt build
+          for p in packages/guml packages/guml-fmt packages/guml-highlight packages/guml-widgets packages/guml-shadcn; do
+            ( cd "$p" && npm publish --dry-run --access public )
+          done
+
+  # ---------------------------------------------------------------------------------------------
+  # 2. crates.io. First, because a crates.io version is the least reversible thing here.
+  # ---------------------------------------------------------------------------------------------
+  crates:
+    name: Publish to crates.io
+    needs: verify
+    if: github.event_name == 'push' || !inputs.dry_run
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      # `--workspace` computes the dependency order itself and waits for the index between uploads.
+      # A hand-maintained order is a thing to get wrong: the obvious guess here put `guml-syntax`
+      # first, and it depends on `guml-diagnostics`.
+      #
+      # `guml-wasm` is `publish = false` — a build input for the npm package, not a library.
+      - name: cargo publish --workspace
+        run: cargo publish --workspace --no-verify
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  # ---------------------------------------------------------------------------------------------
+  # 3. npm, with provenance.
+  # ---------------------------------------------------------------------------------------------
+  npm:
+    name: Publish to npm
+    needs: verify
+    if: github.event_name == 'push' || !inputs.dry_run
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      # Required for provenance: npm attests that this tarball was built by this workflow from this
+      # commit, which is the only part of a supply chain a publisher can prove on their own.
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: cargo install wasm-pack --locked
+
+      # Builds the wasm as well as the TypeScript. `prepublishOnly` also does this now, but relying on a
+      # lifecycle hook for the correctness of a permanent artifact is thinner than doing it explicitly.
+      - run: pnpm --filter @guml/core build && pnpm --filter @guml/fmt build
+
+      - name: Publish
+        run: |
+          for p in packages/guml packages/guml-fmt packages/guml-highlight packages/guml-widgets packages/guml-shadcn; do
+            ( cd "$p" && npm publish --access public --provenance )
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # ---------------------------------------------------------------------------------------------
+  # 4. Binaries, so installing does not require a Rust toolchain.
+  # ---------------------------------------------------------------------------------------------
+  binaries:
+    name: ${{ matrix.target }}
+    needs: verify
+    if: github.event_name == 'push'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,  target: x86_64-unknown-linux-gnu,  ext: "" }
+          - { os: ubuntu-24.04-arm, target: aarch64-unknown-linux-gnu, ext: "" }
+          - { os: macos-latest,   target: aarch64-apple-darwin,      ext: "" }
+          - { os: macos-13,       target: x86_64-apple-darwin,       ext: "" }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc,    ext: ".exe" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+
+      - run: cargo build --release -p guml-cli --target ${{ matrix.target }}
+
+      - name: Archive
+        shell: bash
+        run: |
+          BIN="target/${{ matrix.target }}/release/guml${{ matrix.ext }}"
+          test -f "$BIN" || BIN="target/${{ matrix.target }}/release/guml-cli${{ matrix.ext }}"
+          NAME="guml-${{ needs.verify.outputs.version }}-${{ matrix.target }}"
+          mkdir -p "dist/$NAME"
+          cp "$BIN" "dist/$NAME/"
+          cp LICENSE README.md "dist/$NAME/"
+          cd dist
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            7z a "$NAME.zip" "$NAME" > /dev/null
+          else
+            tar czf "$NAME.tar.gz" "$NAME"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.target }}
+          path: dist/*.{tar.gz,zip}
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------------------------
+  # 5. The GitHub release. Last, so it never advertises a version the registries do not have.
+  # ---------------------------------------------------------------------------------------------
+  release:
+    name: GitHub release
+    needs: [verify, crates, npm, binaries]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: binary-*
+          merge-multiple: true
+
+      - name: Checksums
+        run: cd dist && sha256sum * > SHA256SUMS
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          body: |
+            Install:
+
+            ```sh
+            cargo install guml-cli          # or download a binary below
+            npm install guml                # the compiler as wasm, plus a React runtime
+            ```
+
+            See `CHANGELOG.md` for what changed, and the status page for what is stable at 0.x.
+
+  # ---------------------------------------------------------------------------------------------
+  # 6. Docs, pinned to the tag. Truly last: the site should never describe a release that failed to
+  #    publish, and every job above can still fail.
+  # ---------------------------------------------------------------------------------------------
+  docs:
+    name: Deploy docs
+    needs: [verify, release]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Trigger deployment
+        run: |
+          if [ -z "${{ secrets.VERCEL_DEPLOY_HOOK }}" ]; then
+            echo "::warning::VERCEL_DEPLOY_HOOK is not set — deploy the docs manually"
+            exit 0
+          fi
+          curl -fsS -X POST "${{ secrets.VERCEL_DEPLOY_HOOK }}"
+          echo "docs deploy triggered for ${{ needs.verify.outputs.version }}"

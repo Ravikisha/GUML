@@ -89,6 +89,63 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     );
   }
 
+  /**
+   * Run one of the server's document-level source actions.
+   *
+   * Both are ordinary code actions, so this asks the server for them by kind rather than
+   * reimplementing anything: the compiler decides what the edit is, and the extension only applies it.
+   * A reimplementation here would be a second opinion about GUML, which is the one thing this whole
+   * architecture is arranged to prevent.
+   */
+  const runSourceAction = async (kind: string, label: string): Promise<void> => {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor || editor.document.languageId !== "guml") {
+      void vscode.window.showInformationMessage("Open a `.guml` file first.");
+      return;
+    }
+    const whole = new vscode.Range(
+      0,
+      0,
+      editor.document.lineCount,
+      editor.document.lineAt(Math.max(0, editor.document.lineCount - 1)).text.length,
+    );
+    const actions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+      "vscode.executeCodeActionProvider",
+      editor.document.uri,
+      whole,
+      kind,
+    );
+    const action = actions?.find((a) => a.kind?.value === kind && a.edit);
+    if (!action?.edit) {
+      void vscode.window.showInformationMessage(`Nothing to ${label.toLowerCase()}.`);
+      return;
+    }
+    await vscode.workspace.applyEdit(action.edit);
+  };
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("guml.fixAll", () =>
+      runSourceAction("source.fixAll", "fix"),
+    ),
+    // `source` rather than `source.fixAll`: repair also *deletes* — a code fence, trailing prose — so it
+    // must not be reachable by anything a user configured to run on save under the name "fix".
+    vscode.commands.registerCommand("guml.repair", () => runSourceAction("source", "repair")),
+    vscode.commands.registerCommand("guml.restartServer", async () => {
+      await client?.restart();
+    }),
+  );
+
+  if (vscode.workspace.getConfiguration("guml").get<boolean>("fixAllOnSave")) {
+    context.subscriptions.push(
+      vscode.workspace.onWillSaveTextDocument((event) => {
+        if (event.document.languageId !== "guml") return;
+        // Ordered after the formatter's own `onWillSave` above, which is what we want: format first so
+        // spans are where the compiler expects them, then apply the fixes.
+        event.waitUntil(runSourceAction("source.fixAll", "fix").then(() => []));
+      }),
+    );
+  }
+
   context.subscriptions.push({ dispose: () => void client?.stop() });
 }
 

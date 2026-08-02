@@ -17,7 +17,7 @@ export default function NotFound() {
   return (
     <main className="mx-auto flex min-h-[70vh] max-w-3xl flex-col justify-center px-6 py-24">
       <p className="label">404</p>
-      <h1 className="display-narrow mt-4 text-4xl font-extrabold tracking-tight text-chalk md:text-5xl">
+      <h1 className="display-narrow mt-4 text-4xl font-medium text-chalk md:text-5xl">
         No page at this address
       </h1>
       <p className="mt-5 max-w-xl leading-relaxed text-fog">

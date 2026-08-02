@@ -1,0 +1,61 @@
+{
+  "name": "@guml/fmt",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "The GUML formatter and syntax classifier as WebAssembly. 178 KB, and it runs in Node.",
+  "license": "MIT",
+  "author": "GUML contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/guml-lang/guml.git",
+    "directory": "packages/guml-fmt"
+  },
+  "homepage": "https://guml.vercel.app",
+  "bugs": {
+    "url": "https://github.com/guml-lang/guml/issues"
+  },
+  "keywords": [
+    "guml",
+    "formatter",
+    "pretty-print",
+    "wasm",
+    "generative-ui"
+  ],
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./wasm": "./wasm/guml_fmt.js"
+  },
+  "files": [
+    "dist",
+    "src",
+    "wasm",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm build:wasm && pnpm build:ts",
+    "build:wasm": "cd ../../crates/guml-fmt-wasm && wasm-pack build --target web --out-dir ../../packages/guml-fmt/wasm --out-name guml_fmt && node -e \"require('node:fs').rmSync('../../packages/guml-fmt/wasm/.gitignore',{force:true})\"",
+    "build:ts": "pnpm clean && tsc -p tsconfig.build.json",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test src/*.test.ts",
+    "prepublishOnly": "pnpm build && pnpm test"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "typescript": "^5"
+  }
+}

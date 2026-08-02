@@ -37,13 +37,34 @@ are the ones the repair loop and third-party registries key on.
   may not change, because a document's meaning depends on all three: changing `kind` flips
   prose-versus-structure for every line using that tag, and changing `level` can make a valid core
   document invalid.
+
+  **Adding a tag is not free, and this is the one place that says so.** A `def` may not shadow a tag
+  (`GUML0093`), so a document that defined its own `stat` component stops compiling the release `stat`
+  becomes builtin. Growing the vocabulary from 28 to 49 entries in 0.2 broke exactly that, in two
+  places in this repo, both renamed to `kpi`. The failure mode is the acceptable one — compile time,
+  loud, the name in the message, a one-word fix — but it is a breakage, not an addition, for any
+  document that already used the name. The mitigations are that the collision is *detected* rather
+  than silently reinterpreted, and that a host can pin a registry (below) rather than inherit
+  whatever became builtin.
+
+- **Per-entry registry metadata.** `children`, `slots`, `capabilities`, `positionals` and `since` may be
+  added to an entry and may be widened. They may not be *narrowed*: adding a name to `children.deny`, a
+  tag to `children.require`, or removing a `positionals` slot turns a document that compiles into one
+  that does not. Widening — a longer `allow` list, a dropped `require`, an extra positional slot — is
+  additive and always permitted.
+
+  `positionals` is the one whose *absence* was a defect rather than a gap. Without it,
+  `btn Add task primary` compiled with no diagnostic and emitted `<button>Add</button>`: the word `task`
+  was deleted from the output. Four instances existed in this repo's own `portfolio.guml`, one of them
+  truncating the author's name to `Ravi`. It is now `GUML0099` with an applicable quoting suggestion.
 - **The modifier vocabulary.** A modifier may be added. Removing one breaks documents; re-pointing one
   at a different meaning is worse, because it changes what a document *looks like* with no diagnostic.
 - **Per-tag attributes.** May be added. Removing one turns a valid attribute into `GUML0032`.
 - **A `def`'s meaning.** Expansion is by-value substitution into bindings, attributes and prose, with
-  positional parameters and exact arity. Slots may be *added* (a call may not take children today, so
-  allowing it later breaks nothing). What may not change is what an existing `def` already means: making
-  substitution lazy, or making arity flexible, would silently alter documents that compile now.
+  positional parameters and exact arity, and a single `slot` receiving the call's children in the
+  *caller's* scope. What may not change is what an existing `def` already means: making substitution
+  lazy, making arity flexible, or resolving slot children in the def's scope would silently alter
+  documents that compile now. Named slots may be added; the unnamed one keeps its meaning.
 - **Conformance levels.** `core` and `app` exist. A third level may be added between or above them; the
   two that exist keep their names and their meaning.
 
@@ -51,10 +72,11 @@ are the ones the repair loop and third-party registries key on.
 
 - Emitted code shape. The React backend's output is not a stable interface — it is regenerated, and it
   improves. Pin the compiler version if you have vendored its output.
-- The theme rule format and the registry JSON schema. Both are new; the *shapes* may still change, and
-  both carry no version field yet. Adding one is a 1.0 task.
+- The theme rule format and the registry JSON schema. Both are new and the *shapes* may still change.
+  The registry document now carries a top-level `version` (`Registry::builtin_version`) and each entry
+  an optional `since`, so a host can diff two vocabularies and see what a bump added; the theme format
+  still has neither, and giving it one is a 1.0 task.
 - The AST as serialised by `guml ast`. Useful for tooling, not a contract.
-- Slots for `def`. Not implemented, so nothing depends on them yet.
 - Anything marked `PLANNED` in `spec/GUML-SPEC.md`.
 
 ## Deprecation

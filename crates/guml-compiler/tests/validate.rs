@@ -12,6 +12,21 @@ fn codes(src: &str) -> Vec<String> {
     check(src).1.items.iter().map(|d| d.id.to_string()).collect()
 }
 
+/// The React output, for the cases where a *type* rule and its *lowering* must agree. Keeping them in
+/// one test is the point: they were separately consistent and jointly wrong before.
+fn react(src: &str) -> String {
+    use guml_codegen::Backend as _;
+    let (program, diags) = check(src);
+    assert!(!diags.has_errors(), "{:?}", diags.items);
+    guml_codegen::react::ReactBackend.emit(&program).files[0].contents.clone()
+}
+
+/// Diagnostic *messages*, where the wording is the thing being tested — a code alone does not tell an
+/// author which two fields collided.
+fn messages(src: &str) -> Vec<String> {
+    check(src).1.items.iter().map(|d| d.message.clone()).collect()
+}
+
 fn errors(src: &str) -> Vec<String> {
     check(src)
         .1
@@ -319,4 +334,164 @@ fn a_registry_attribute_on_a_text_tag_is_still_structured() {
     assert_eq!(text.tag, "text");
     assert!(text.attrs.iter().any(|a| a.name == "strike"), "attrs: {:?}", text.attrs);
     assert!(text.content.is_none(), "the line should not have become prose: {:?}", text.content);
+}
+
+/// A comparison against a value an enumerated state can never hold.
+///
+/// Assignment was already checked (`>filter="opne"`). Comparison is the more dangerous half: it is not
+/// a type error, it is **dead code** — the branch never runs, the page silently renders the wrong
+/// thing, and nothing else in the pipeline has an opinion. A closed set of values is only worth having
+/// if the compiler holds comparisons to it.
+#[test]
+fn a_comparison_outside_an_enumerated_domain_is_an_error() {
+    let cases = [
+        // In a binding positional.
+        "page P\nstate filter=all|open|done\nmetric {filter == \"opne\"}\n",
+        // In prose.
+        "page P\nstate filter=all|open|done\np Showing {filter == \"opne\"} items\n",
+        // In an attribute.
+        "page P\nstate filter=all|open|done\ncard hidden={filter != \"opne\"}\n",
+        // Reversed operands.
+        "page P\nstate filter=all|open|done\nmetric {\"opne\" == filter}\n",
+    ];
+    for src in cases {
+        let (_, diags) = guml_compiler::check(src);
+        assert!(
+            diags.items.iter().any(|d| d.id == "GUML0080" && d.message.contains("never equal")),
+            "not caught: {src:?} → {:?}",
+            diags.items
+        );
+    }
+}
+
+#[test]
+fn a_comparison_inside_the_domain_is_silent() {
+    for value in ["all", "open", "done"] {
+        let src = format!("page P\nstate filter=all|open|done\nmetric {{filter == \"{value}\"}}\n");
+        let (_, diags) = guml_compiler::check(&src);
+        assert!(
+            !diags.items.iter().any(|d| d.id == "GUML0080"),
+            "`{value}` is in the domain but was rejected: {:?}",
+            diags.items
+        );
+    }
+    // And a state with no domain is not subject to the check at all.
+    let (_, diags) =
+        guml_compiler::check("page P\nstate draft=\"\"\nmetric {draft == \"anything\"}\n");
+    assert!(!diags.items.iter().any(|d| d.id == "GUML0080"), "{:?}", diags.items);
+}
+
+/// `.open`/`.done` name the *state*, not a field called `done`.
+///
+/// This block exists because the original rule was "the row type must have a field named `done`", and
+/// the lowering was a hardcoded `!it.done`. Both agreed with each other and both were wrong: a Phase 0
+/// example modelling invoices with `paid:bool` passed the check and compiled to
+/// `invoices.filter((it) => !it.done).length` — always zero, no diagnostic. Nothing tested a boolean
+/// field with any other name, which is why two layers could be consistently wrong for months.
+mod open_and_done_resolve_the_state_field {
+    use super::*;
+
+    const INVOICES: &str = "page P\ntype Invoice {id, amount:number, paid:bool}\n\
+                            data invoices:Invoice[] GET /api/invoices\n";
+
+    #[test]
+    fn a_boolean_field_of_any_name_is_the_state() {
+        let src = format!("{INVOICES}head {{invoices.open.count}} awaiting");
+        assert_eq!(codes(&src), Vec::<String>::new());
+    }
+
+    #[test]
+    fn and_the_backend_filters_on_that_field_not_on_done() {
+        let src = format!("{INVOICES}head {{invoices.open.count}} awaiting");
+        let js = react(&src);
+        assert!(js.contains("!it.paid"), "should filter on the declared field, got: {js}");
+        assert!(!js.contains("it.done"), "must not invent a `done` field: {js}");
+    }
+
+    #[test]
+    fn no_boolean_field_means_there_is_no_state_to_filter() {
+        let src = "page P\ntype Row {id, amount:number}\ndata rows:Row[] GET /api/rows\n\
+                   head {rows.open.count}";
+        assert_eq!(codes(src), vec!["GUML0065"]);
+        assert!(messages(src)[0].contains("no boolean field"), "{:?}", messages(src));
+    }
+
+    #[test]
+    fn two_boolean_fields_are_ambiguous_rather_than_a_coin_flip() {
+        let src = "page P\ntype Invoice {id, paid:bool, overdue:bool}\n\
+                   data invoices:Invoice[] GET /api/invoices\nhead {invoices.open.count}";
+        assert_eq!(codes(src), vec!["GUML0065"]);
+        let msg = &messages(src)[0];
+        // Both names are listed, sorted, because the author has to be told which two collided.
+        assert!(msg.contains("overdue, paid"), "{msg}");
+        assert!(msg.contains("ambiguous"), "{msg}");
+    }
+
+    #[test]
+    fn done_still_works_and_is_not_special_cased() {
+        let src = "page P\ntype Task {id, done:bool}\ndata tasks:Task[] GET /api/tasks\n\
+                   head {tasks.done.count} of {tasks.count}";
+        assert_eq!(codes(src), Vec::<String>::new());
+        assert!(react(src).contains("it.done"));
+    }
+}
+
+mod an_escape_hatch_declares_names_the_document_can_read {
+    use super::*;
+
+    /// The case that forced it: summing a *computed* per-row value. An aggregate applies to a field, not
+    /// to an expression, so `Σ unitPrice × quantity` — a cart subtotal — has no binding form. The spec's
+    /// answer is "drop into `js` and let it be counted", and that did not work either: the block could
+    /// compute the value and nothing could read it.
+    const CART: &str = "page P\n\
+                        type Line {id, product, unitPrice:number, quantity:number}\n\
+                        data cart:Line[] GET /api/cart\n\
+                        js\n\
+                        \x20 const subtotal = cart.reduce((a, l) => a + l.unitPrice * l.quantity, 0);\n\
+                        card \"Totals\"\n\
+                        \x20 metric {subtotal}\n";
+
+    #[test]
+    fn a_js_const_is_in_scope_for_a_binding() {
+        // `GUML0090` for the hatch itself is expected and is the point — the escape is *counted*, not
+        // waved through. What must not be there is `GUML0033`.
+        assert_eq!(codes(CART), vec!["GUML0090"]);
+        let out = react(CART);
+        assert!(out.contains("const subtotal = cart.reduce"), "{out}");
+        assert!(out.contains(">{subtotal}<"), "the binding did not read the js value: {out}");
+    }
+
+    #[test]
+    fn a_name_the_js_block_does_not_declare_is_still_undeclared() {
+        // The rule extends scope; it does not disable the check. A typo in the binding is still an error,
+        // which is what stops this from being "any identifier is fine if the document contains any `js`".
+        let src = CART.replace("{subtotal}", "{subtotl}");
+        assert!(codes(&src).contains(&"GUML0033".to_string()), "{:?}", codes(&src));
+    }
+
+    #[test]
+    fn only_a_top_level_declaration_escapes_the_block() {
+        // Conservative on purpose: a `const` inside a function body is not in the component's scope, and
+        // putting it there would let a binding read a name that does not exist at that point.
+        let src = "page P\n\
+                   js\n\
+                   \x20 function total() {\n\
+                   \x20   const inner = 1;\n\
+                   \x20   return inner;\n\
+                   \x20 }\n\
+                   metric {inner}\n";
+        assert!(codes(src).contains(&"GUML0033".to_string()), "{:?}", codes(src));
+
+        // The function itself *is* top level, so calling it is fine.
+        let ok = src.replace("metric {inner}", "metric {total()}");
+        assert_eq!(codes(&ok), vec!["GUML0090"]);
+    }
+
+    #[test]
+    fn a_raw_block_declares_nothing() {
+        // A `raw` body is markup for one backend and every other backend drops it, so a binding that
+        // depended on a name from it would compile in one target and be undefined in the rest.
+        let src = "page P\nraw react\n  const x = 1;\nmetric {x}\n";
+        assert!(codes(src).contains(&"GUML0033".to_string()), "{:?}", codes(src));
+    }
 }

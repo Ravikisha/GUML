@@ -115,15 +115,44 @@ impl std::fmt::Display for ThemeError {
 impl std::error::Error for ThemeError {}
 
 impl Theme {
-    /// The theme the compiler ships: Tailwind utilities on a slate palette.
+    /// The theme the compiler ships: **shadcn/ui**.
     ///
-    /// Data rather than code, so it is exactly as replaceable as any other theme — and so the builtin
-    /// output stays byte-identical to what it was before themes existed, which is what let this land
-    /// without changing a single emitted fixture.
+    /// # Why this one
+    ///
+    /// A default theme is a claim about what "unstyled GUML" looks like, and the honest default is the one a
+    /// host is most likely to already be running. shadcn/ui is a copy-paste component collection rather than
+    /// a dependency, so its *tokens* — `--background`/`--foreground` pairs, `--primary`, `--muted`,
+    /// `--border`, `--ring`, `--radius` — are the closest thing the ecosystem has to a shared interface. A
+    /// host that runs shadcn deletes the `:root` block from `shadcn.css` and its own palette applies with no
+    /// further work.
+    ///
+    /// Data rather than code, so it is exactly as replaceable as any other theme. `themes/slate.json` is
+    /// still shipped and still passes every test; `--theme` selects it.
+    ///
+    /// # What a class table can and cannot carry
+    ///
+    /// The *appearance* is shadcn's, taken from its own `registry/new-york-v4/ui/*.tsx`. The *behaviour* is
+    /// not: shadcn's dialog traps focus and its select is a Radix listbox, and those are components rather
+    /// than classes. GUML emits a real `<select>` and a `<template>` in the no-JavaScript build, which is a
+    /// different and more honest thing than a `<div role="listbox">` with no keyboard handling. A host that
+    /// wants the Radix behaviour points a registry package at its own components with `element`/`import` —
+    /// see `packages/guml-widgets`.
     pub fn builtin() -> Self {
-        let mut theme: Theme = serde_json::from_str(include_str!("../themes/slate.json"))
+        let mut theme: Theme = serde_json::from_str(include_str!("../themes/shadcn.json"))
             .expect("the builtin theme is checked by a test");
         // Kept beside the rules rather than inside the JSON, so the stylesheet stays editable as CSS.
+        theme.css = Some(include_str!("../themes/shadcn.css").to_string());
+        theme
+    }
+
+    /// The previous default: Tailwind utilities on a literal slate palette.
+    ///
+    /// Kept, and kept tested, because it is the other half of the argument themes exist to make. It uses
+    /// colour literals (`bg-slate-900`) where the default uses tokens (`bg-primary`), so the two together
+    /// demonstrate that the *language* is unchanged by either choice — the same document compiles to both.
+    pub fn slate() -> Self {
+        let mut theme: Theme = serde_json::from_str(include_str!("../themes/slate.json"))
+            .expect("the slate theme is checked by a test");
         theme.css = Some(include_str!("../themes/slate.css").to_string());
         theme
     }
@@ -198,17 +227,36 @@ impl Theme {
     }
 }
 
-/// Tags that receive the theme's focus and disabled treatment.
+/// Tags whose emitted element receives the theme's focus treatment.
 ///
-/// Deliberately not read from the registry: `guml-codegen` must not depend on it (there is a crate
-/// cycle through the driver), and this is a small, stable list of the interactive HTML elements the
-/// backends emit.
+/// # Why this is derived from the element, not from the registry's `a11y.focusable`
+///
+/// Reading the registry flag looks like the obvious improvement over a hardcoded list, and it is wrong
+/// here — the two answer different questions. `a11y.focusable` is a claim about the *component*: "this
+/// is reachable and operable from the keyboard", which is true of `tabs`. The question this function
+/// asks is about the *element being emitted right now*, and a `tabs` lowers to a `<div role="tablist">`
+/// whose focusable parts are the buttons it generates. Driving the ring from the component flag put
+/// `focus:ring-2` on the tablist container — a class that can never match, because the container never
+/// takes focus.
+///
+/// So the basis is the HTML element, which is a fact with a definite answer, and shared via
+/// [`crate::element_for`] so all backends agree. It reproduces the old hardcoded list exactly, without
+/// being a list: adding a tag that lowers to `<button>` gets the focus treatment with no edit here.
+///
+/// `a11y.focusable` still earns its place — see
+/// `every_component_claiming_to_be_focusable_lowers_to_something_focusable`, which is the check the
+/// flag is actually good for.
 fn is_focusable(tag: &str) -> bool {
-    matches!(tag, "btn" | "link" | "input" | "select" | "check" | "toggle")
+    matches!(crate::element_for(tag), Some("a" | "button" | "input" | "select" | "textarea"))
 }
 
+/// Only form controls can be `disabled`; on an `<a>` the utility would be inert.
+///
+/// Still a list, because "is a form control" is a fact about the *HTML element a backend emits*, not
+/// about the component's accessibility contract — `link` is focusable and is not disableable, so the
+/// registry has no field that answers this.
 fn is_form_control(tag: &str) -> bool {
-    matches!(tag, "btn" | "input" | "select" | "check" | "toggle")
+    matches!(tag, "btn" | "input" | "select" | "check" | "toggle" | "progress")
 }
 
 use std::sync::OnceLock;
@@ -242,10 +290,59 @@ mod tests {
         // build step in that path to turn utilities into CSS.
         let theme = Theme::builtin();
         let css = theme.css.as_deref().expect("the shipped theme must carry its stylesheet");
-        // Spot-check the two the contract depends on, plus a layout primitive.
-        for selector in [".flex", ".rounded-md", r"focus\:ring-2", r"disabled\:opacity-40"] {
+        // Spot-check a layout primitive, a token-driven radius, and the two the *contract* names — read from
+        // the contract rather than written out, so this cannot pin one theme's spelling of them. It did:
+        // `focus\:ring-2` and `disabled\:opacity-40` were slate's, and shadcn's are
+        // `focus-visible:ring-[3px]` and `disabled:opacity-50`.
+        for selector in [".flex", ".rounded-md"] {
             assert!(css.contains(selector), "stylesheet is missing `{selector}`");
         }
+        for class in theme
+            .contract
+            .focus_visible
+            .split_whitespace()
+            .chain(theme.contract.disabled.split_whitespace())
+        {
+            let selector = format!(".{}", css_escape(class));
+            assert!(
+                css.contains(&selector),
+                "the contract promises `{class}` and the stylesheet does not implement it"
+            );
+        }
+    }
+
+    /// A utility class as it appears in a CSS selector.
+    ///
+    /// Escape *everything* outside `[A-Za-z0-9_-]` rather than keeping a list of the characters seen so far.
+    /// That list has now been wrong twice, and both times the same way: a correctly-written stylesheet was
+    /// reported as incomplete, which pushes a theme author towards a *wrong* stylesheet rather than a right
+    /// one. First `.` was missing, so `py-0.5` failed. Then `[` and `]`, so every arbitrary-value utility
+    /// failed — `ring-[3px]`, `h-[1.15rem]`, `rounded-[4px]`, which the shadcn theme uses throughout.
+    ///
+    /// A denylist grows one bug at a time. An allowlist of what needs no escape does not.
+    fn css_escape(class: &str) -> String {
+        class
+            .chars()
+            .map(|c| {
+                if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                    c.to_string()
+                } else {
+                    format!("\\{c}")
+                }
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_selector_escape_covers_every_utility_shape_a_theme_can_use() {
+        // Pinned directly, because the failure mode is a *false* report and a false report is what makes
+        // someone edit a file that was already correct.
+        assert_eq!(css_escape("gap-2"), "gap-2");
+        assert_eq!(css_escape("py-0.5"), r"py-0\.5");
+        assert_eq!(css_escape("hover:bg-primary/90"), r"hover\:bg-primary\/90");
+        assert_eq!(css_escape("ring-[3px]"), r"ring-\[3px\]");
+        assert_eq!(css_escape("h-[1.15rem]"), r"h-\[1\.15rem\]");
+        assert_eq!(css_escape("-translate-x-1/2"), r"-translate-x-1\/2");
     }
 
     #[test]
@@ -262,9 +359,7 @@ mod tests {
         classes.extend(theme.contract.focus_visible.split_whitespace().map(str::to_string));
         classes.extend(theme.contract.disabled.split_whitespace().map(str::to_string));
         for class in classes {
-            // CSS escapes `:` and `/` in selectors.
-            let selector = class.replace(':', r"\:").replace('/', r"\/");
-            if !css.contains(&format!(".{selector}")) {
+            if !css.contains(&format!(".{}", css_escape(&class))) {
                 missing.push(class);
             }
         }
@@ -276,7 +371,7 @@ mod tests {
         // `Theme::builtin` unwraps, so this test is what makes that unwrap honest.
         let theme = Theme::builtin();
         theme.validate().expect("the shipped theme must satisfy the contract it enforces");
-        assert_eq!(theme.name, "slate");
+        assert_eq!(theme.name, "shadcn");
         assert!(theme.rules.len() > 20, "expected a rule per tag, got {}", theme.rules.len());
     }
 
@@ -285,8 +380,13 @@ mod tests {
         // `btn primary danger` must not concatenate two background colours.
         let theme = Theme::builtin();
         let classes = theme.classes("btn", &["primary", "danger"]);
-        assert!(classes.contains("bg-slate-900"), "{classes}");
-        assert!(!classes.contains("bg-red-600"), "two intents were applied: {classes}");
+        assert!(classes.contains("bg-primary"), "{classes}");
+        assert!(!classes.contains("bg-destructive"), "two intents were applied: {classes}");
+        // And the same holds for the theme that is no longer the default, which is the point of keeping it:
+        // grouping is a property of the *mechanism*, not of one palette.
+        let slate = Theme::slate().classes("btn", &["primary", "danger"]);
+        assert!(slate.contains("bg-slate-900"), "{slate}");
+        assert!(!slate.contains("bg-red-600"), "two intents were applied: {slate}");
     }
 
     #[test]
@@ -307,6 +407,29 @@ mod tests {
         }
         // A container is not focusable, so it does not get one.
         assert!(!theme.classes("card", &[]).contains("focus:"));
+    }
+
+    #[test]
+    fn every_component_claiming_to_be_focusable_lowers_to_something_focusable() {
+        // What `a11y.focusable` is good for. The flag is a *promise* — "reachable and operable from the
+        // keyboard" — and this is the only thing that can catch a promise the lowering does not keep.
+        //
+        // Two ways to keep it: lower to an element that natively takes focus, or generate your own
+        // focusable children. `tabs` is the second kind, which is exactly why the theme's focus ring is
+        // not driven by this flag (see `is_focusable`).
+        const GENERATES_ITS_OWN_CONTROLS: &[&str] = &["tabs"];
+        for name in crate::registry().names() {
+            let def = crate::registry().get(name).unwrap();
+            if !def.a11y.focusable || GENERATES_ITS_OWN_CONTROLS.contains(&name) {
+                continue;
+            }
+            assert!(
+                is_focusable(name),
+                "`{name}` declares `a11y.focusable` but lowers to {:?}, which does not take focus — \
+                 either the claim is wrong or the lowering is",
+                crate::element_for(name)
+            );
+        }
     }
 
     #[test]
@@ -350,5 +473,93 @@ mod tests {
         );
         // The fallback rule covers a button with no intent.
         assert!(theme.classes("btn", &[]).contains("bg-brand-100"));
+    }
+}
+
+#[cfg(test)]
+mod hardcoded_colours {
+    /// A ratchet on colour literals compiled *into* the backends.
+    ///
+    /// # The violation this measures
+    ///
+    /// This module's own docs say it: "a colour literal inside a compiler is a theme nobody can override".
+    /// And yet the backends contain 60-odd of them — the error banner is `bg-red-50 text-red-700`, the
+    /// loading skeleton is `bg-slate-100`, a `tier` card is `border-slate-200`. Those bypass the theme
+    /// entirely, so a host that loads its own palette gets it applied to most of the page and not to those
+    /// parts.
+    ///
+    /// It was invisible for as long as the default theme was `slate`, because the literals *matched* it.
+    /// Making shadcn the default is what exposed it: a token-driven page with `bg-red-50` in the middle of
+    /// it. So the defect is pre-existing and the change only made it visible, which is the useful kind of
+    /// visible.
+    ///
+    /// # Why a ratchet rather than a fix here
+    ///
+    /// Routing them through the theme means ~14 pseudo-tag roles across five backends, and doing half of it
+    /// would leave the backends disagreeing about the same document — which invariant 8 forbids and which is
+    /// worse than the current state, where they are at least consistently wrong. It is tracked in
+    /// `ROADMAP.md`.
+    ///
+    /// Meanwhile this stops the number growing. A count nobody enforces is how 65 of these accumulated.
+    #[test]
+    fn no_new_colour_literal_enters_a_backend() {
+        // Per file, so the message names where to look rather than only that the total moved.
+        // The true counts once comments are excluded: 58 in total, not the 65 a naive scan reported. Each is
+        // the current number exactly, so the budget only ever ratchets down.
+        const BUDGET: &[(&str, &str, usize)] = &[
+            ("react", include_str!("react.rs"), 22),
+            ("wc", include_str!("wc.rs"), 17),
+            ("html", include_str!("html.rs"), 6),
+            ("svelte", include_str!("svelte.rs"), 10),
+            ("lib", include_str!("lib.rs"), 3),
+            ("json", include_str!("json.rs"), 0),
+        ];
+
+        // Tailwind's palette shape: `<utility>-<hue>-<shade>`. Deliberately narrow — it looks for a *named
+        // hue with a numeric shade*, which is what a literal is, and does not match a token like
+        // `bg-primary` or a structural utility like `gap-2`.
+        let hues = [
+            "red", "orange", "amber", "yellow", "lime", "green", "emerald", "teal", "cyan", "sky",
+            "blue", "indigo", "violet", "purple", "fuchsia", "pink", "rose", "slate", "gray",
+            "zinc", "neutral", "stone",
+        ];
+        let mut over = Vec::new();
+        for (name, source, budget) in BUDGET {
+            // Comment lines are excluded. A colour literal *described* in a doc comment is not one in the
+            // output, and counting it made the budget unfalsifiable in the wrong direction: removing four
+            // literals from `<body>` and explaining why in a comment left the count unchanged, so the ratchet
+            // reported no progress on a real improvement. Line-start only, so a `https://` inside a string is
+            // not mistaken for a comment.
+            let code: String = source
+                .lines()
+                .filter(|l| {
+                    let t = l.trim_start();
+                    !(t.starts_with("//") || t.starts_with("* ") || t == "*")
+                })
+                .collect::<Vec<_>>()
+                .join(
+                    "
+",
+                );
+            let found = code
+                .split(|c: char| !(c.is_ascii_alphanumeric() || c == '-'))
+                .filter(|word| {
+                    let Some((prefix, rest)) = word.rsplit_once('-') else { return false };
+                    // `bg-slate-900` → prefix `bg-slate`, rest `900`.
+                    rest.chars().all(|c| c.is_ascii_digit())
+                        && !rest.is_empty()
+                        && hues.iter().any(|h| prefix.ends_with(&format!("-{h}")))
+                })
+                .count();
+            if found > *budget {
+                over.push(format!("{name}.rs: {found} colour literals, budget {budget}"));
+            }
+        }
+        assert!(
+            over.is_empty(),
+            "a colour literal was added to a backend instead of to a theme — the theme cannot override it, \
+             so a host loading its own palette will not get it applied there.\n{}",
+            over.join("\n")
+        );
     }
 }

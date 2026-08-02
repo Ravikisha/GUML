@@ -27,14 +27,14 @@ export default function Image() {
           display: "flex",
           flexDirection: "column",
           justifyContent: "space-between",
-          background: "#08080c",
-          color: "#eceef3",
+          background: "#1a0400",
+          color: "#fbeeea",
           padding: "72px 80px",
           fontFamily: "monospace",
         }}
       >
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ fontSize: 26, letterSpacing: 6, color: "#8a90a6" }}>GUML</div>
+          <div style={{ fontSize: 26, letterSpacing: 6, color: "#c3a49c" }}>GUML</div>
           <div style={{ fontSize: 62, lineHeight: 1.1, marginTop: 28, maxWidth: 900 }}>
             An IR and compiler for LLM-generated interfaces
           </div>
@@ -42,19 +42,19 @@ export default function Image() {
 
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
           <div style={{ display: "flex", flexDirection: "column" }}>
-            <div style={{ fontSize: 22, color: "#8a90a6", letterSpacing: 3 }}>
+            <div style={{ fontSize: 22, color: "#c3a49c", letterSpacing: 3 }}>
               SAME APP, TWO REPRESENTATIONS
             </div>
             <div style={{ display: "flex", alignItems: "baseline", marginTop: 18 }}>
-              <span style={{ fontSize: 76, color: "#ff5c2b" }}>
+              <span style={{ fontSize: 76, color: "#c3a49c" }}>
                 {tasks.tokens.react.toLocaleString()}
               </span>
-              <span style={{ fontSize: 34, color: "#5c6178", margin: "0 22px" }}>→</span>
-              <span style={{ fontSize: 76, color: "#3bf0a6" }}>{tasks.tokens.guml}</span>
-              <span style={{ fontSize: 26, color: "#8a90a6", marginLeft: 18 }}>tokens</span>
+              <span style={{ fontSize: 34, color: "#9a7d75", margin: "0 22px" }}>→</span>
+              <span style={{ fontSize: 76, color: "#ff6a4d" }}>{tasks.tokens.guml}</span>
+              <span style={{ fontSize: 26, color: "#c3a49c", marginLeft: 18 }}>tokens</span>
             </div>
           </div>
-          <div style={{ fontSize: 22, color: "#5c6178" }}>guml.dev</div>
+          <div style={{ fontSize: 22, color: "#9a7d75" }}>guml.vercel.app</div>
         </div>
       </div>
     ),

@@ -15,7 +15,17 @@ use crate::trivia::Item;
 
 /// Directives are declarations, so their order carries no meaning and canonical mode may
 /// sort them. Elements are the document, and are never reordered.
-const DIRECTIVES: &[&str] = &["page", "type", "data", "state", "store", "route", "auth", "def"];
+/// Top-level directives, in canonical order.
+///
+/// `on` was missing, and two things went wrong because of it. In canonical form an `on` effect sorted into
+/// `rest` — after the element tree — so a document's effects moved below its markup. And in normal
+/// formatting an `on` line looked like the first line of the *tree*, so the blank line marking the
+/// declaration/tree seam was inserted in front of it, and a comment introducing the effect was left stranded
+/// above that blank with nothing under it.
+///
+/// Ranked after `state`/`store`, because an effect's trigger reads them.
+const DIRECTIVES: &[&str] =
+    &["page", "type", "data", "state", "store", "on", "route", "auth", "def"];
 
 fn directive_rank(tag: &str) -> Option<usize> {
     DIRECTIVES.iter().position(|d| *d == tag)
@@ -59,6 +69,17 @@ pub fn render(
                 // A comment belongs to what it introduces, so it takes the indentation of
                 // the next code line rather than the one it happens to follow.
                 let depth = next_code_depth(doc, pos, infos).unwrap_or(0);
+                // And the seam blank goes *above* it, for the same reason. If the code line this comment
+                // introduces is the one that ends the declaration block, inserting the blank when that line
+                // is reached puts it between the comment and its subject — the comment ends up attached to
+                // nothing, which is worse than the missing blank it was fixing.
+                if seen_code
+                    && !directives_done
+                    && next_code_is_tree(doc, pos, lines, infos, directives_done)
+                {
+                    directives_done = true;
+                    pending_blank = true;
+                }
                 flush_blank(&mut out, &mut pending_blank);
                 out.push_str(&" ".repeat(depth * INDENT));
                 out.push_str(text);
@@ -91,6 +112,29 @@ fn flush_blank(out: &mut String, pending: &mut bool) {
         out.push('\n');
         *pending = false;
     }
+}
+
+/// Whether the next code line after `from` is the first line of the element tree.
+///
+/// The same test the `Code` arm applies, factored out so the comment above a line and the line itself
+/// cannot disagree about where the seam is.
+fn next_code_is_tree(
+    doc: &[Item],
+    from: usize,
+    lines: &[Line],
+    infos: &[Info],
+    directives_done: bool,
+) -> bool {
+    let Some(idx) = doc[from + 1..].iter().find_map(|i| match i {
+        Item::Code(idx) => Some(*idx),
+        _ => None,
+    }) else {
+        return false;
+    };
+    let is_directive =
+        infos[idx].depth == 0 && tag_of(&lines[idx]).and_then(directive_rank).is_some();
+    let child_of_directive = infos[idx].depth > 0 && !directives_done;
+    !is_directive && !child_of_directive
 }
 
 fn next_code_depth(doc: &[Item], from: usize, infos: &[Info]) -> Option<usize> {

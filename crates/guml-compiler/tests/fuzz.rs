@@ -318,3 +318,62 @@ fn extreme_shapes_do_not_overflow() {
     let nested = format!("page P\nmetric {{{}count{}}}\n", "(".repeat(500), ")".repeat(500));
     let _ = check(&nested);
 }
+
+/// The roadmap's Phase 2 gate: **zero panics over 1M fuzz iterations.**
+///
+/// `#[ignore]`d, so it does not run on every push. `just fuzz-long` runs it, and it takes minutes rather
+/// than seconds — which is the whole reason the fast tests above exist at 26,200 iterations instead.
+///
+/// # What this is and is not
+///
+/// It is one million documents from the *seeded* generator: deterministic, reproducible from the printed
+/// seed, and covering the fragment space the `PIECES` table describes. It is **not** coverage-guided — a
+/// libFuzzer run explores paths this cannot reach, and `fuzz/` exists for that on a nightly toolchain.
+///
+/// Both numbers are worth having and they are not the same claim. Recorded that way in `ROADMAP.md`, because
+/// "1M iterations, no panics" reads as libFuzzer to anyone who has used it, and the difference is exactly
+/// the kind of quiet overclaim this project's own claim discipline forbids.
+///
+/// Asserts the same four properties as `nothing_panics_on_generated_documents`: no panic, termination,
+/// spans inside the source on char boundaries, and a line number ≥ 1.
+#[test]
+#[ignore = "minutes, not seconds: `just fuzz-long` or `cargo test -- --ignored`"]
+fn a_million_generated_documents_do_not_panic() {
+    const SEED: u64 = 0x1234_5678_9ABC_DEF1;
+    const ITERATIONS: usize = 1_000_000;
+    let mut rng = Rng(SEED);
+    let mut with_errors = 0usize;
+    let mut clean = 0usize;
+
+    for i in 0..ITERATIONS {
+        let lines = 1 + rng.below(12);
+        let src = document(&mut rng, lines);
+        let (program, diags) = check(&src);
+
+        for d in &diags.items {
+            assert!(
+                d.span.end <= src.len() && src.is_char_boundary(d.span.start),
+                "iteration {i}: span {:?} is outside the source or mid-character\n{src}",
+                d.span
+            );
+            assert!(d.span.line >= 1, "iteration {i}: line 0 in {:?}", d.span);
+        }
+        if diags.has_errors() {
+            with_errors += 1;
+        } else {
+            clean += 1;
+            // A document that compiles must survive every backend, since that is what a host does next.
+            for backend in guml_compiler::backend_names() {
+                if let Some(b) = guml_codegen::backend(backend) {
+                    let _ = b.emit(&program);
+                }
+            }
+        }
+        let _ = format(&src, Options::default());
+    }
+
+    println!(
+        "seed {SEED:#x}: {ITERATIONS} generated documents, no panic. \
+         {clean} compiled clean and were lowered by every backend; {with_errors} reported errors."
+    );
+}

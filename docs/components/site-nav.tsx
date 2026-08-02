@@ -7,6 +7,7 @@ import { useState } from "react";
 import { NAV } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { CommandMenu } from "./command-menu";
+import { Logo } from "./logo";
 import { ThemeToggle } from "./theme-toggle";
 
 const TOP = [
@@ -14,7 +15,7 @@ const TOP = [
   { title: "Examples", href: "/examples" },
   { title: "Playground", href: "/playground" },
   { title: "Chat", href: "/chat" },
-  { title: "Research", href: "/docs/research/measurements" },
+  { title: "Research", href: "/research" },
 ];
 
 export function SiteNav() {
@@ -26,12 +27,16 @@ export function SiteNav() {
   const open = openedAt === pathname;
 
   return (
-    <header className="sticky top-0 z-50 border-b border-line bg-ink/80 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-7xl items-center gap-6 px-6 md:px-10">
-        <Link href="/" className="group flex items-baseline gap-2">
-          <span className="display-narrow text-xl font-extrabold tracking-tight text-chalk">
-            GUML
-          </span>
+    // A floating pill rather than a full-width bar with a bottom rule. The page separates its
+    // sections with whitespace alone, so a hairline pinned across the top would be the one border
+    // fighting that — and the 84px radius is the shape this direction is recognised by.
+    <header className="sticky top-0 z-50 px-4 pt-3 md:px-6 md:pt-4">
+      <div className="mx-auto flex h-14 max-w-(--container-page) items-center gap-6 rounded-nav border border-line bg-ink/80 px-4 shadow-lg backdrop-blur-xl md:px-6">
+        <Link href="/" className="group flex items-center gap-2.5">
+          {/* The mark sits with the wordmark rather than replacing it: at 22px the six bars are legible
+              but the droplets are not, so the name still has to be there. */}
+          <Logo className="size-6 shrink-0 text-chalk" />
+          <span className="display-narrow text-xl leading-none text-chalk">GUML</span>
           <span className="hidden font-mono text-[0.65rem] text-fog-dim transition-colors group-hover:text-ember sm:inline">
             v0.1
           </span>
@@ -44,9 +49,11 @@ export function SiteNav() {
               <Link
                 key={item.href}
                 href={item.href}
+                // Orange marks where you are. That is the accent doing a job rather than decorating
+                // one, which is the whole licence for having a single hue.
                 className={cn(
-                  "rounded-full px-3 py-1.5 text-sm transition-colors",
-                  active ? "text-chalk" : "text-fog hover:text-chalk",
+                  "tracked rounded-full px-3 py-1.5 text-body-sm transition-colors",
+                  active ? "text-ember" : "text-fog hover:text-chalk",
                 )}
               >
                 {item.title}
@@ -60,7 +67,7 @@ export function SiteNav() {
           <ThemeToggle />
           <Link
             href="/docs/quickstart"
-            className="hidden rounded-full bg-chalk px-4 py-1.5 text-sm font-medium text-ink transition-colors hover:opacity-90 md:inline-flex"
+            className="tracked hidden rounded-button bg-ember px-4 py-2 text-body-sm font-medium text-white transition-opacity hover:opacity-90 md:inline-flex"
           >
             Get started
           </Link>
@@ -77,7 +84,7 @@ export function SiteNav() {
       </div>
 
       {open && (
-        <div className="border-t border-line bg-ink px-6 pb-8 pt-4 md:hidden">
+        <div className="mx-auto mt-2 max-w-(--container-page) rounded-panel border border-line bg-ink px-6 pb-8 pt-5 shadow-lg md:hidden">
           {NAV.map((group) => (
             <div key={group.title} className="mb-6">
               <p className="label mb-2">{group.title}</p>

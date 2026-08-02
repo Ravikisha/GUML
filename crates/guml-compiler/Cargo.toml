@@ -5,14 +5,27 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 description = "GUML compiler driver: source -> diagnostics + emitted files"
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+keywords.workspace = true
+categories.workspace = true
+readme = "README.md"
 
 [dependencies]
 guml-ast = { workspace = true }
 guml-codegen = { workspace = true }
 guml-diagnostics = { workspace = true }
+# The formatter, so `repair` can run it as a free layer. No cycle: `guml-fmt` is a line-stream
+# rewriter that depends only on the lexer, the registry and diagnostics — deliberately, so it can
+# format input that does not parse yet.
+guml-fmt = { workspace = true }
 guml-parser = { workspace = true }
 guml-registry = { workspace = true }
 guml-syntax = { workspace = true }
+# `capabilities` serialises its manifest: a host consuming it wants JSON, and CI wants to assert on it.
+serde = { workspace = true }
+serde_json = { workspace = true }
 
 [dev-dependencies]
 # The fuzz test drives the expression parser and the React backend directly, which the driver

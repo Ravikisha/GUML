@@ -21,7 +21,7 @@ export default function Page() {
         { id: "state", title: "state" },
         { id: "data", title: "data" },
         { id: "mutations", title: "Mutations" },
-        { id: "planned", title: "Planned" },
+        { id: "reserved", title: "Reserved, and not lowered" },
       ]}
     >
       <H2 id="page">page</H2>
@@ -124,22 +124,25 @@ state filter=all|open|done     // enumerated domain; first value is initial`}
         <C>{">tasks.add{title:draft}"}</C>.
       </P>
 
-      <H2 id="planned">Planned</H2>
+      <H2 id="reserved">Reserved, and not lowered</H2>
+      <P>
+        Two directives parse and are reserved, but produce no code. They are documented because a
+        document may contain them and you should know what happens: a warning and a <C>TODO</C>, never
+        markup that looks like it works.
+      </P>
       <Table
-        head={["directive", "purpose", "status"]}
+        head={["directive", "purpose", "state"]}
         rows={[
-          [<C key="a">route</C>, "map a path to a page, with guards", "Phase 2"],
-          [<C key="b">auth</C>, "provider plus per-route guards", "Phase 2"],
-          [<C key="c">def</C>, "user-defined components", "Phase 2"],
-          [<C key="d">js</C> , "escape hatch for expressions and handlers", "Phase 2"],
-          [<C key="e">raw</C>, "verbatim target-framework code", "Phase 2"],
+          [<C key="a">route</C>, "map a path to a page, with guards", "deferred past v1"],
+          [<C key="b">auth</C>, "provider plus per-route guards", "deferred past v1"],
         ]}
       />
       <Note tone="warn" title="Server, database and auth are deliberately out of v1">
         <p>
           Attempting client, server, schema and policy in one language at once is the most likely way
-          this project fails. v1 is client-only; the rest waits for evidence. The{" "}
-          <A href="/docs/research/roadmap">roadmap</A> says where each piece lands.
+          a project like this produces four mediocre ones. v1 is client-only. <C>route</C> and{" "}
+          <C>auth</C> do not lower: they produce a warning and a <C>TODO</C> rather than code that
+          looks like it works. See <A href="/docs/status">status and limitations</A>.
         </p>
       </Note>
       <UL>

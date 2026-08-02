@@ -1,0 +1,93 @@
+{
+  "$comment": [
+    "The five tags GUML deliberately does not ship as builtins, provided as a registry package instead.",
+    "",
+    "`chart`, `calendar`, `date`, `upload` and `command` were left out of the builtin vocabulary on a",
+    "specific argument, recorded in ROADMAP.md: no honest lowering exists without a design decision the",
+    "registry should not make for a host. A `chart` that emitted a bare `<div>` would be a promise the",
+    "compiler does not keep, and there is no neutral answer to 'which charting library' or 'which date",
+    "picker' — those belong to whoever is building the application.",
+    "",
+    "A registry package is the answer to exactly that shape of problem, which is why this doubles as the",
+    "worked example `spec/REGISTRY.md` describes. Every entry uses a PascalCase `element` with an",
+    "`import`: the host owns the implementation, and the compiler emits `<Chart …>` plus the import rather",
+    "than trying to reimplement it. `src/index.tsx` is a small real implementation with no dependencies,",
+    "so the package is provable rather than illustrative.",
+    "",
+    "Audit it with `guml registry --validate packages/guml-widgets`, install with `guml add`."
+  ],
+  "name": "@guml/widgets",
+  "version": "0.1.0",
+  "components": [
+    {
+      "name": "chart",
+      "kind": "container",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "Chart of a resource. `of` is the row field to plot, `label` the field to name each point.",
+      "positionals": ["title"],
+      "attrs": ["rows", "of", "label", "kind"],
+      "element": "Chart",
+      "import": "@guml/widgets",
+      "children": { "deny": ["*"] },
+      "capabilities": { "needs_runtime": true, "backends": ["react"] },
+      "a11y": { "requires_label": true, "role": "img" }
+    },
+    {
+      "name": "calendar",
+      "kind": "container",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "Month grid. Bound state holds the selected ISO date.",
+      "positionals": ["label"],
+      "attrs": ["value", "min", "max"],
+      "element": "Calendar",
+      "import": "@guml/widgets",
+      "children": { "deny": ["*"] },
+      "capabilities": { "needs_runtime": true, "backends": ["react"] },
+      "a11y": { "requires_label": true, "focusable": true, "announces_state": true }
+    },
+    {
+      "name": "date",
+      "kind": "field",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "Single date input bound to a state holding an ISO date.",
+      "positionals": ["state"],
+      "attrs": ["min", "max"],
+      "element": "DateField",
+      "import": "@guml/widgets",
+      "children": { "deny": ["*"] },
+      "capabilities": { "needs_runtime": true, "backends": ["react"] },
+      "a11y": { "requires_label": true, "focusable": true }
+    },
+    {
+      "name": "upload",
+      "kind": "control",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "File picker. `accept` narrows the types; the action runs with the chosen files.",
+      "positionals": ["label"],
+      "attrs": ["accept", "multiple"],
+      "element": "Upload",
+      "import": "@guml/widgets",
+      "children": { "deny": ["*"] },
+      "capabilities": { "needs_runtime": true, "backends": ["react"] },
+      "a11y": { "requires_label": true, "focusable": true }
+    },
+    {
+      "name": "command",
+      "kind": "container",
+      "level": "app",
+      "since": "0.1.0",
+      "doc": "Filterable command palette over a resource, shown while `if=` is true.",
+      "positionals": ["title"],
+      "attrs": ["rows", "label"],
+      "element": "CommandMenu",
+      "import": "@guml/widgets",
+      "children": { "deny": ["*"] },
+      "capabilities": { "needs_runtime": true, "backends": ["react"] },
+      "a11y": { "requires_label": true, "focusable": true, "role": "dialog" }
+    }
+  ]
+}

@@ -495,6 +495,7 @@ dependencies = [
  "guml-registry",
  "guml-syntax",
  "insta",
+ "serde",
  "serde_json",
 ]
 
@@ -516,10 +517,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "guml-fmt-wasm"
+version = "0.1.0"
+dependencies = [
+ "guml-fmt",
+ "guml-registry",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "guml-lsp"
 version = "0.1.0"
 dependencies = [
  "dashmap 6.2.1",
+ "guml-ast",
  "guml-compiler",
  "guml-diagnostics",
  "guml-fmt",

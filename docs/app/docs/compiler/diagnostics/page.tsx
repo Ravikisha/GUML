@@ -2,40 +2,33 @@ import type { Metadata } from "next";
 import { CodeBlock } from "@/components/code-block";
 import { DocPage } from "@/components/doc-page";
 import { C, H2, LI, Note, P, Table, UL } from "@/components/prose";
-import { Badge } from "@/components/ui";
+import { DIAGNOSTIC_CODES } from "@/lib/diagnostics.generated";
 
 export const metadata: Metadata = {
   title: "Diagnostics",
   description: "Every GUML diagnostic code, and why they are designed as a machine interface first.",
 };
 
-type Row = [string, string, "error" | "warning", string];
-
-const CODES: Row[] = [
-  ["GUML0001", "tabs are not allowed for indentation", "error", "Lexical"],
-  ["GUML0002", "unterminated string literal", "error", "Lexical"],
-  ["GUML0003", "unterminated `{` group", "error", "Lexical"],
-  ["GUML0004", "unexpected character", "error", "Lexical"],
-  ["GUML0010", "inconsistent dedent", "warning", "Layout"],
-  ["GUML0011", "unexpected indentation", "error", "Layout"],
-  ["GUML0020", "expected a tag name at the start of the line", "error", "Syntax"],
-  ["GUML0021", "expected a value after `=`", "error", "Syntax"],
-  ["GUML0022", "modifier appears after the action and was swallowed by it", "error", "Syntax"],
-  ["GUML0030", "unknown tag", "error", "Resolution"],
-  ["GUML0031", "unknown modifier", "warning", "Resolution"],
-  ["GUML0032", "tag does not accept this attribute", "warning", "Resolution"],
-  ["GUML0033", "binding or action refers to something undeclared", "error", "Resolution"],
-  ["GUML0040", "state declared more than once", "error", "Semantics"],
-  ["GUML0041", "file has no `page` directive", "warning", "Semantics"],
-  ["GUML0050", "icon control without a label", "error", "Accessibility"],
-  ["GUML0051", "field with no accessible name (placeholder only: warning)", "error", "Accessibility"],
-];
+/** Which decade of ids a code belongs to. The compiler allocates them in blocks; see `guml_diagnostics`. */
+function group(id: string): string {
+  const n = Number(id.slice(4));
+  if (n < 10) return "Lexical";
+  if (n < 20) return "Layout";
+  if (n < 30) return "Syntax";
+  if (n < 40) return "Resolution";
+  if (n < 50) return "Semantics";
+  if (n < 60) return "Accessibility";
+  if (n < 70) return "References and types";
+  if (n < 80) return "Structure";
+  if (n < 90) return "Domains, attributes, requests";
+  return "Conformance, components, lowering";
+}
 
 export default function Page() {
   return (
     <DocPage
       pathname="/docs/compiler/diagnostics"
-      meter={{ label: "codes", value: `${CODES.length} · append-only` }}
+      meter={{ label: "codes", value: `${DIAGNOSTIC_CODES.length} · append-only` }}
       title="Diagnostics"
       lede="Diagnostics are the compiler's primary interface to a model, and its secondary interface to you. That ordering explains most of their design."
       toc={[
@@ -121,18 +114,29 @@ export default function Page() {
       </Note>
 
       <H2 id="codes">Every code</H2>
+      <P>
+        <strong>Generated from the compiler</strong>, by <C>guml explain</C> at build time. This table was
+        hand-written for a while and listed fifteen codes under this same heading while the compiler had
+        forty-eight — the third time a hand-maintained copy of the compiler&rsquo;s own vocabulary has drifted
+        here, after the syntax highlighter and the tree-sitter tag list. A code&rsquo;s id is what a repair
+        loop keys on, so a page that omits half of them teaches a reader the surface is smaller than it is.
+      </P>
+      <P>
+        Severity is deliberately not shown: it is not in <C>explain</C>&rsquo;s output, and inferring it from
+        the wording would be a guess of exactly the kind this table was built to stop making. Run{" "}
+        <C>guml explain GUML0065</C> for the rule, the reasoning and what to do about it.
+      </P>
       <div className="mt-7 overflow-hidden rounded-card border border-line">
-        {CODES.map(([id, message, severity, group], i) => {
-          const prev = CODES[i - 1];
-          const newGroup = !prev || prev[3] !== group;
+        {DIAGNOSTIC_CODES.map(([id, message], i) => {
+          const prev = DIAGNOSTIC_CODES[i - 1];
+          const newGroup = !prev || group(prev[0]) !== group(id);
           return (
             <div key={id}>
               {newGroup && (
-                <p className="label border-b border-line bg-chalk/[0.02] px-4 py-2">{group}</p>
+                <p className="label border-b border-line bg-chalk/[0.02] px-4 py-2">{group(id)}</p>
               )}
               <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-line px-4 py-3 last:border-0">
                 <code className="font-mono text-sm text-chalk">{id}</code>
-                <Badge tone={severity === "error" ? "ember" : "neutral"}>{severity}</Badge>
                 <p className="min-w-[14rem] flex-1 text-sm text-fog">{message}</p>
               </div>
             </div>

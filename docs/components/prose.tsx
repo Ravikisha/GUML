@@ -1,5 +1,6 @@
 import { Info, Lightbulb, TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
+import { npmUrl, pkg } from "@/lib/packages";
 import { cn } from "@/lib/utils";
 
 /* --------------------------------------------------------------------------
@@ -8,13 +9,22 @@ import { cn } from "@/lib/utils";
    Explicit components rather than a markdown pipeline: heading ids are hand
    written so the table of contents can never drift from the page, and every
    block gets the site's type scale instead of a generic reset.
+
+   Prose carries a measure. Between `lg` and `xl` the article column is ~848px
+   wide with no table-of-contents rail beside it, which put body text at ~105
+   characters a line — long enough that the eye loses the return sweep. `MEASURE`
+   caps running text at 68ch and is deliberately *not* applied to tables, code
+   listings or previews: those want the full column, and a code block wrapped to
+   a reading measure is a code block that scrolls for no reason.
    -------------------------------------------------------------------------- */
+
+const MEASURE = "max-w-[68ch]";
 
 export function H2({ id, children }: { id: string; children: ReactNode }) {
   return (
     <h2
       id={id}
-      className="display-narrow mt-16 scroll-mt-28 text-2xl font-bold tracking-tight text-chalk first:mt-0 md:text-3xl"
+      className="display-narrow mt-16 max-w-3xl scroll-mt-28 text-2xl font-medium text-chalk first:mt-0 md:text-3xl"
     >
       <a href={`#${id}`} className="group no-underline">
         {children}
@@ -26,11 +36,14 @@ export function H2({ id, children }: { id: string; children: ReactNode }) {
   );
 }
 
+/* A mono subhead under a proportional H2 — the size gap between them was one step, so a run of
+   H3s read as bold body copy. The rule above is what separates two sibling topics; it does the
+   job the missing size step was failing to do, without adding a weight above 500. */
 export function H3({ id, children }: { id?: string; children: ReactNode }) {
   return (
     <h3
       id={id}
-      className="mt-10 scroll-mt-28 font-mono text-base font-medium tracking-tight text-chalk"
+      className="mt-12 max-w-3xl scroll-mt-28 border-t border-line pt-6 font-mono text-[1.05rem] font-medium tracking-tight text-chalk"
     >
       {children}
     </h3>
@@ -38,19 +51,19 @@ export function H3({ id, children }: { id?: string; children: ReactNode }) {
 }
 
 export function P({ children, className }: { children: ReactNode; className?: string }) {
-  return <p className={cn("mt-5 leading-[1.75] text-fog", className)}>{children}</p>;
+  return <p className={cn("mt-5 leading-[1.75] text-fog", MEASURE, className)}>{children}</p>;
 }
 
 export function Lede({ children }: { children: ReactNode }) {
-  return <p className="mt-6 max-w-2xl text-lg leading-relaxed text-fog">{children}</p>;
+  return <p className="mt-6 max-w-[62ch] text-lg leading-relaxed text-fog">{children}</p>;
 }
 
 export function UL({ children }: { children: ReactNode }) {
-  return <ul className="mt-5 space-y-2.5 text-fog">{children}</ul>;
+  return <ul className={cn("mt-5 space-y-2.5 text-fog", MEASURE)}>{children}</ul>;
 }
 
 export function OL({ children }: { children: ReactNode }) {
-  return <ol className="mt-5 space-y-3 text-fog">{children}</ol>;
+  return <ol className={cn("mt-5 space-y-3 text-fog", MEASURE)}>{children}</ol>;
 }
 
 export function LI({ children }: { children: ReactNode }) {
@@ -67,6 +80,27 @@ export function C({ children }: { children: ReactNode }) {
     <code className="rounded-[4px] border border-line bg-chalk/[0.04] px-1.5 py-0.5 font-mono text-[0.85em] text-chalk">
       {children}
     </code>
+  );
+}
+
+/**
+ * A published package, rendered as inline code that links to its npm page.
+ *
+ * The name is looked up in `lib/packages.ts` rather than passed through, so a typo is a build error
+ * instead of a link to a registry 404 — which reads as "this package does not exist" rather than "this
+ * page has a typo", and is exactly the wrong impression on an install page.
+ */
+export function Pkg({ name }: { name: string }) {
+  const { name: verified } = pkg(name);
+  return (
+    <a
+      href={npmUrl(verified)}
+      target="_blank"
+      rel="noreferrer"
+      className="rounded-[4px] border border-line bg-chalk/[0.04] px-1.5 py-0.5 font-mono text-[0.85em] text-iris underline decoration-iris/30 underline-offset-2 transition-colors hover:decoration-iris"
+    >
+      {verified}
+    </a>
   );
 }
 
@@ -100,7 +134,9 @@ export function Note({
 }) {
   const { cls, icon: Icon, iconCls } = NOTE_TONE[tone];
   return (
-    <aside className={cn("mt-7 rounded-card border p-5", cls)}>
+    // Wider than `MEASURE` by the padding it adds, so the text inside a note lands on the same
+    // measure as the paragraph above it rather than on a shorter one.
+    <aside className={cn("mt-7 max-w-[72ch] rounded-card border p-5", cls)}>
       <div className="flex items-center gap-2">
         <Icon className={cn("size-4 shrink-0", iconCls)} />
         {title ? <p className="font-mono text-sm text-chalk">{title}</p> : null}
@@ -149,7 +185,7 @@ export function Table({
 
 /** Numbered steps. Used only where order genuinely matters. */
 export function Steps({ children }: { children: ReactNode }) {
-  return <ol className="mt-8 space-y-8 border-l border-line pl-7">{children}</ol>;
+  return <ol className="mt-8 max-w-[72ch] space-y-8 border-l border-line pl-7">{children}</ol>;
 }
 
 export function Step({ n, title, children }: { n: number; title: string; children: ReactNode }) {

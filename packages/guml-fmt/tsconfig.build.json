@@ -1,0 +1,20 @@
+{
+  // Emits `dist/` for publishing. `tsconfig.json` stays the no-emit config the editor and
+  // `pnpm typecheck` use; one config cannot do both, because publishing needs declarations while
+  // the test imports source by its real extension.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    // TS 5.7+: source says `./x.ts`, emitted ESM says `./x.js`. Lets `node --test` run the real
+    // entry point rather than only the modules that avoid importing it.
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true
+  },
+  "include": ["src"],
+  "exclude": ["src/**/*.test.ts"]
+}

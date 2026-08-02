@@ -106,3 +106,66 @@ fn the_json_backend_eliminates_the_same_declarations() {
     assert!(!json.contains("dead"), "{json}");
     assert!(json.contains("/api/rows"), "{json}");
 }
+
+/// Common-subexpression elimination for aggregates.
+///
+/// `{tasks.open.count}` lowers to `tasks.filter(…).length` — an O(n) scan. Used three times on a page
+/// that is three scans of the list per render, for one number. The cheap thing is a `useMemo`.
+///
+/// Only aggregates qualify: `{count}` lowers to `count`, and hoisting that would add a hook to save
+/// nothing.
+#[test]
+fn a_repeated_aggregate_is_computed_once() {
+    let src = "page P\ntype T {id, done:bool}\ndata tasks:T[] GET /api/t\nhead {tasks.open.count} open\nmetric {tasks.open.count}\np Still {tasks.open.count} to go\nlist tasks\n  text {id}\n";
+    let out = react(src);
+
+    assert!(
+        out.contains(
+            "const tasksOpenCount = useMemo(() => tasks.filter((it) => !it.done).length, [tasks])"
+        ),
+        "no memo was hoisted:\n{out}"
+    );
+    // One scan, not three.
+    assert_eq!(
+        out.matches("tasks.filter((it) => !it.done).length").count(),
+        1,
+        "the aggregate is still computed more than once:\n{out}"
+    );
+    // And every use site reads the memo.
+    assert_eq!(out.matches("{tasksOpenCount}").count(), 3, "{out}");
+}
+
+#[test]
+fn a_single_use_is_not_hoisted() {
+    // A memo for one use is a hook and a dependency array bought for nothing.
+    let out = react(
+        "page P\ntype T {id, done:bool}\ndata tasks:T[] GET /api/t\nmetric {tasks.open.count}\nlist tasks\n  text {id}\n",
+    );
+    assert!(!out.contains("useMemo(() => tasks.filter"), "a single use was hoisted:\n{out}");
+    assert!(out.contains("tasks.filter((it) => !it.done).length"), "{out}");
+}
+
+#[test]
+fn a_cheap_expression_is_never_hoisted() {
+    // `{count}` used four times lowers to `count` four times, which costs nothing.
+    let out =
+        react("page P\nstate count=0\nhead {count}\nmetric {count}\np a {count}\np b {count}\n");
+    assert!(!out.contains("useMemo"), "a plain state read should not be memoised:\n{out}");
+}
+
+#[test]
+fn a_row_scoped_expression_is_left_inside_the_repeater() {
+    // Inside a repeater the value depends on `item`, so hoisting it above the map would not be an
+    // optimisation — it would be wrong.
+    let src = "page P\ntype T {id, tags}\ndata rows:T[] GET /api/r\nlist rows\n  text {tags.count}\n  text {tags.count}\n";
+    let out = react(src);
+    assert!(!out.contains("useMemo(() => item"), "a row value was hoisted out of its row:\n{out}");
+}
+
+#[test]
+fn the_memo_name_is_derived_from_the_expression() {
+    // Deterministic, so the emitted name does not move when an unrelated part of the document changes.
+    let src = "page P\ntype T {id, done:bool}\ndata tasks:T[] GET /api/t\nhead {tasks.done.count}\nmetric {tasks.done.count}\nlist tasks\n  text {id}\n";
+    let out = react(src);
+    assert!(out.contains("const tasksDoneCount = useMemo"), "{out}");
+}

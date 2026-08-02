@@ -64,11 +64,11 @@ Three fixtures, hand-written both ways, tokenized with `tiktoken`:
 | Fixture | React+TS+Tailwind | GUML | Reduction | Ratio |
 |---|---:|---:|---:|---:|
 | A — Counter card (state, 3 actions, disabled logic) | 368 | 64 | **82.6%** | 5.75× |
-| B — Task CRUD (fetch, POST/PATCH/DELETE, optimistic updates, filter, loading/empty/error states) | 1,434 | 173 | **87.9%** | 8.29× |
+| B — Task CRUD (fetch, POST/PATCH/DELETE, optimistic updates, filter, loading/empty/error states) | 1,441 | 178 | **87.6%** | 8.10× |
 | C — Marketing landing page (nav, hero, 3 features, 3 pricing tiers, FAQ accordion, footer) | 1,648 | 376 | **77.2%** | 4.38× |
-| **Total** | **3,450** | **613** | **82.2%** | 5.63× |
+| **Total** | **3,457** | **618** | **82.1%** | 5.59× |
 
-`o200k_base` gives the same result within 1pp (83.2% / 87.9% / 77.9%), so this is not a tokenizer artifact.
+`o200k_base` gives the same result within 1pp (83.2% / 87.8% / 77.9%), so this is not a tokenizer artifact.
 
 > **Correction, recorded rather than quietly fixed.** Fixture B was published here as 175 tokens.
 > Recounting the committed file with `cl100k_base` gives **182** — the original figure was wrong by
@@ -86,7 +86,7 @@ Two further measurements that matter more than the headline:
 
 > **Compression is bounded by prose content.** On structure-heavy artifacts (dashboards, CRUD, forms) reduction approaches 8–10×. On content-heavy artifacts (marketing pages, docs) it asymptotes toward 2–3× because the copy is the payload. **Any benchmark that reports a single average number is misleading.** This is a finding, and it should be stated as one rather than hidden.
 
-**Cost and latency, worked.** Fixture B at Opus 5 output pricing ($25/MTok): 1,434 tokens = $0.0359; 173 tokens = $0.0043. Savings $0.0315/generation. The GUML language spec must be in context — assume a generous 3,000 tokens; under prompt caching it reads at ~0.1× input rate ($0.50/MTok effective) = $0.0015/request. **The spec amortizes on the first request and is ~20× cheaper than the savings it unlocks.** At 60 output tok/s, generation time drops from ~24s to ~3s.
+**Cost and latency, worked.** Fixture B at Opus 5 output pricing ($25/MTok): 1,441 tokens = $0.0360; 178 tokens = $0.0045. Savings $0.0316/generation. The GUML language spec must be in context — assume a generous 3,000 tokens; under prompt caching it reads at ~0.1× input rate ($0.50/MTok effective) = $0.0015/request. **The spec amortizes on the first request and is ~20× cheaper than the savings it unlocks.** At 60 output tok/s, generation time drops from ~24s to ~3s.
 
 Caveats stated plainly: I authored both sides, so favorable bias in the GUML encoding is possible; these are *authored* artifacts, not *model-generated* ones; and none of this measures whether a model can actually *produce* correct GUML. That last question is Part 8.
 
@@ -353,7 +353,7 @@ card sm center
     btn Reset quiet >count=0
 ```
 
-**B — Task CRUD with optimistic updates (173 tokens; React equivalent 1,434):**
+**B — Task CRUD with optimistic updates (178 tokens; React equivalent 1,441):**
 
 ```
 page Tasks

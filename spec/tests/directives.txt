@@ -162,14 +162,20 @@ GUML0074 2
 :::: a def expands to its body with arguments substituted
 A compile-time macro, not a runtime component: by codegen the tree holds no trace of one, which is what
 lets a `def` work in every backend with no per-backend support.
+
+This case was written as `def stat` and had to be renamed when `stat` became a builtin in 0.2. Worth
+recording rather than quietly fixing: adding a tag to the vocabulary is *not* purely additive while
+`def` exists, because a document that defined its own component of that name now gets `GUML0093`. That
+is the acceptable version of the failure — loud, at compile time, with the name in the message — but it
+is a real cost of growing the vocabulary, and `spec/STABILITY.md` now says so.
 --- guml
 page P
 state total=0
-def stat label value
+def kpi label value
   card sm center
     h {label}
     metric {value}
-stat "Revenue" {total}
+kpi "Revenue" {total}
 --- ast
 page=P
 state total
@@ -254,8 +260,27 @@ loop "a"
 GUML0095 2
 ::::
 
-:::: children at a call site are rejected because there is no slot
-Slots are deliberately deferred; adding them later is additive. Dropping children silently is not.
+:::: a slot receives the call's children
+What lets a `def` wrap content rather than only produce it. The children are resolved in the *caller's*
+scope, so a binding in them means what it meant where the call was written.
+--- guml
+page P
+def panel title
+  card {title}
+    slot
+panel "Settings"
+  p First.
+  p Second.
+--- ast
+page=P
+card text="Settings"
+  p content="First."
+  p content="Second."
+--- diagnostics
+::::
+
+:::: children with no slot are an error
+Dropping them silently is what invariant 3 forbids.
 --- guml
 page P
 def box a
@@ -264,4 +289,110 @@ box "x"
   p inner
 --- diagnostics
 GUML0097 4
+::::
+
+:::: a body may have at most one slot
+A second slot would have to duplicate the children.
+--- guml
+page P
+def box a
+  card {a}
+    slot
+    slot
+box "x"
+  p y
+--- diagnostics
+GUML0097 2
+::::
+
+:::: an effect on mount
+The trigger is the dependency: there is no second list to keep in sync with the first, which is the
+whole reason this is a directive rather than a `js` block containing a `useEffect`.
+--- guml
+page P
+type T {id, done:bool}
+data rows:T[] GET /api/rows
+on mount >rows.list
+--- ast
+page=P
+type T {id:string, done:bool}
+data rows T[] GET /api/rows
+on mount >rows.list
+--- diagnostics
+::::
+
+:::: an effect on a binding
+--- guml
+page P
+type T {id, done:bool}
+data rows:T[] GET /api/rows
+state filter=all|open|done
+on {filter} >rows.list
+tabs filter
+list rows
+  text {id}
+--- ast
+page=P
+type T {id:string, done:bool}
+state filter domain=all|open|done
+data rows T[] GET /api/rows
+on {filter} >rows.list
+tabs text="filter"
+list text="rows"
+  text content="{id}"
+--- diagnostics
+::::
+
+:::: `list` is a resource's own GET
+Every `data` declaration has one and none declares it, so a refetch has a name without new syntax.
+--- guml
+page P
+type T {id, done:bool}
+data rows:T[] GET /api/rows
+btn Reload quiet >rows.list
+list rows
+  text {id}
+--- diagnostics
+::::
+
+:::: a state read only by a trigger is still used
+Otherwise it is reported as dead and then eliminated, leaving the effect with a dangling dependency.
+--- guml
+page P
+type T {id, done:bool}
+data rows:T[] GET /api/rows
+state filter=all|open|done
+on {filter} >rows.list
+list rows
+  text {id}
+--- diagnostics
+::::
+
+:::: an effect needs a trigger and an action
+--- guml
+page P
+type T {id, done:bool}
+data rows:T[] GET /api/rows
+on sometimes >rows.list
+on mount
+list rows
+  text {id}
+--- diagnostics
+GUML0098 4
+GUML0098 5
+::::
+
+:::: an effect is held to the same action rules as a button
+A looser path for one of them would be a hole in the other.
+--- guml
+page P
+type T {id, done:bool}
+data rows:T[] GET /api/rows
+on mount >rows.nope
+on {nothere} >rows.list
+list rows
+  text {id}
+--- diagnostics
+GUML0061 4
+GUML0033 5
 ::::

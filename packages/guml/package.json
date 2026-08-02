@@ -1,8 +1,8 @@
 {
-  "name": "guml",
+  "name": "@guml/core",
   "version": "0.1.0",
   "description": "Compile GUML \u2014 a token-efficient UI representation \u2014 in the browser, and render it in React.",
-  "license": "Apache-2.0",
+  "license": "MIT",
   "keywords": [
     "guml",
     "generative-ui",
@@ -17,7 +17,9 @@
     "dist",
     "src",
     "wasm",
-    "README.md"
+    "README.md",
+    "LICENSE",
+    "NOTICE"
   ],
   "exports": {
     ".": {
@@ -33,8 +35,8 @@
   "scripts": {
     "build": "pnpm build:wasm && pnpm build:ts",
     "build:ts": "pnpm clean && tsc -p tsconfig.build.json",
-    "build:wasm": "cd ../../crates/guml-wasm && wasm-pack build --target web --out-dir ../../packages/guml/wasm --out-name guml",
-    "prepublishOnly": "pnpm build:ts && pnpm test",
+    "build:wasm": "cd ../../crates/guml-wasm && wasm-pack build --target web --out-dir ../../packages/guml/wasm --out-name guml && node -e \"require('node:fs').rmSync('../../packages/guml/wasm/.gitignore',{force:true})\"",
+    "prepublishOnly": "pnpm build && pnpm test",
     "typecheck": "tsc --noEmit",
     "test": "node --test src/*.test.ts",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
@@ -53,5 +55,21 @@
     "typescript": "^5"
   },
   "main": "./dist/index.js",
-  "types": "./dist/index.d.ts"
+  "types": "./dist/index.d.ts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/guml-lang/guml.git",
+    "directory": "packages/guml"
+  },
+  "homepage": "https://guml.vercel.app",
+  "bugs": {
+    "url": "https://github.com/guml-lang/guml/issues"
+  },
+  "author": "GUML contributors",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  }
 }

@@ -12,7 +12,7 @@ row between
   metric {invoices.amount.sum}
   tabs view
 
-table invoices where={view} sort=due
+table invoices where={view} sort=due cols="Client, Amount, Due, Paid"
   text {client}
   text {amount}
   text {due}

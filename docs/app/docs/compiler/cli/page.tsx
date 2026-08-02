@@ -6,7 +6,7 @@ import { A, C, H2, LI, Note, P, Table, UL } from "@/components/prose";
 export const metadata: Metadata = {
   title: "CLI reference",
   description:
-    "Every guml subcommand: check, build, validate, fix, fmt, explain, where, highlight, ast, lex, tokens, registry.",
+    "Every guml subcommand: check, build, validate, fix, repair, fmt, add, explain, where, highlight, ast, lex, tokens, registry.",
 };
 
 export default function Page() {
@@ -21,7 +21,9 @@ export default function Page() {
         { id: "build", title: "build" },
         { id: "validate", title: "validate" },
         { id: "fix", title: "fix" },
+        { id: "repair", title: "repair" },
         { id: "fmt", title: "fmt" },
+        { id: "add", title: "add" },
         { id: "explain", title: "explain" },
         { id: "where", title: "where" },
         { id: "highlight", title: "highlight" },
@@ -84,7 +86,7 @@ guml build fixtures/a.guml -o out
         <p>
           That readout uses a ~3.6 chars/token heuristic. For anything that goes in a README or a
           paper, count with the target model&rsquo;s own tokenizer — see{" "}
-          <A href="/docs/research/measurements">measurements</A>.
+          <A href="/research/measurements">measurements</A>.
         </p>
       </Note>
 
@@ -120,6 +122,39 @@ guml fix counter.guml --write
 # GUML0030 line 4: crad → card`}
       />
 
+      <H2 id="repair">repair</H2>
+      <P>
+        What to run on raw model output. <C>fix</C> only applies edits the compiler described, so it still
+        fails on the <em>packaging</em> a model wraps around a document — a code fence, a markdown rule, a
+        closing &ldquo;This page counts clicks.&rdquo; sentence. <C>repair</C> strips those first, then
+        formats, then fixes: three deterministic layers, bounded at three re-check rounds, and still no
+        model call.
+      </P>
+      <CodeBlock
+        lang="bash"
+        filename="terminal"
+        code={`guml repair [FILES]... [-w|--write] [--rounds 3] [--format human|json]
+
+# a generation pipeline pipes straight in
+llm-generate | guml repair > page.guml
+
+# what each layer did, for telemetry
+guml repair page.guml --format json`}
+      />
+      <P>
+        A fenced, prose-wrapped, HTML-shaped generation goes from seven errors to zero this way. Every
+        layer is guarded: one that would <em>raise</em> the error count is discarded rather than kept —
+        the same rule the measured model round uses, applied to the free layers too, because
+        &ldquo;deterministic&rdquo; is not the same as &ldquo;always an improvement&rdquo;.
+      </P>
+      <Note tone="info" title="Why this is not a flag on fix">
+        <C>fix</C> only ever applies edits the compiler described precisely. <C>repair</C> also{" "}
+        <em>deletes</em> — a fence, trailing prose. That is a different promise, and it should not become
+        the default behaviour of an existing command by accident. The exit code is non-zero when errors
+        remain, so a pipeline can branch on &ldquo;does this need a model round&rdquo; without parsing
+        anything.
+      </Note>
+
       <H2 id="fmt">fmt</H2>
       <P>
         Reads stdin when no file is given, which is what editors want. Runs on input that does not
@@ -136,6 +171,40 @@ cat counter.guml | guml fmt          # stdin → stdout`}
       <P>
         See <A href="/docs/compiler/formatter">Formatter</A>, including what <C>--canonical</C> is for.
       </P>
+
+      <H2 id="add">add</H2>
+      <P>
+        Installs a <A href="/docs/language/registry">registry package</A> into <C>guml.json</C> after
+        auditing it — so the project&rsquo;s vocabulary is stated once and the editor, the formatter,{" "}
+        <C>check</C> and CI cannot disagree about what the words are.
+      </P>
+      <CodeBlock
+        lang="bash"
+        filename="terminal"
+        code={`guml add <path> [--dry-run]
+guml registry --validate <path>      # audit without installing
+guml registry --docs > VOCABULARY.md # generated reference for your vocabulary
+
+guml add ./design-system.json
+# @acme/design-system 2.1.0: 2 component(s)
+#   callout figure-block
+#   ~31 est. prompt tokens for the whole package
+#   no errors
+# added ./design-system.json to guml.json`}
+      />
+      <P>
+        The audit reports <em>every</em> problem at once, for the same reason the parser does: an author
+        fixing five entries should not need five runs. It is also checked against the vocabulary already
+        installed — two packages can each be valid alone and collide with each other, and finding that out
+        at install time is the whole reason to have an install step.
+      </P>
+      <Note tone="warn" title="A path, never a URL">
+        A registry decides which tags a document may use and which classes the compiler emits, so
+        resolving one over the network at build time would make compiler output depend on a remote server.
+        That is the wrong trade for a project whose claim is reliability. Packages arrive the way any
+        dependency does — a file, a vendored directory, <C>node_modules</C> — and are installed by an
+        explicit command rather than fetched implicitly.
+      </Note>
 
       <H2 id="explain">explain</H2>
       <P>
@@ -238,7 +307,7 @@ README, count with the target model's own tokenizer.`}
       />
       <Note tone="warn" title="Estimates, and labelled as such">
         <p>
-          The heuristic reads a little high against the measured cl100k_base figures (64 / 173 / 376).
+          The heuristic reads a little high against the measured cl100k_base figures (64 / 178 / 376).
           It is a dev-loop convenience, never a published number.
         </p>
       </Note>

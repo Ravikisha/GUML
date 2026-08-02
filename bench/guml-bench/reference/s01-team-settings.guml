@@ -1,0 +1,53 @@
+// Reference answer for GUML-Bench task `s01-team-settings`.
+//
+// Two things this task tests that nothing else in the set does.
+//
+// **A per-row control that must be disabled for some rows.** An owner's role selector is disabled, and
+// `disabled={role == "owner"}` reads the row's own field — the same mechanism as any other row binding.
+//
+// **A confirmation dialog per row.** Like `c02-contacts`, the dialog belongs inside the row template:
+// `drop` interpolates `{id}`, so `GUML0101` refuses to invoke it where there is no row, and
+// `if={confirming == id}` is what keeps exactly one open.
+
+page TeamSettings title="Team" description="Who has access, and what they can do." lang=en
+
+type Member {id, name, email, role, active:bool}
+data members:Member[] GET /api/members
+  setRole PATCH  /api/members/{id} {role}   optimistic
+  setLive PATCH  /api/members/{id} {active} optimistic
+  drop    DELETE /api/members/{id}          optimistic
+
+// The id of the member awaiting removal confirmation, or empty.
+state confirming=""
+state role=member|admin|owner
+
+js
+  // "How many members hold the admin role" is a count of rows matching a *value*. An aggregate after a
+  // field counts rows where that field is truthy, which is a different question — `members.admin.count`
+  // was the obvious spelling and it is now `GUML0065`, because it silently counted zero.
+  const admins = members.filter((m) => m.role === "admin").length;
+
+head Team — {members.active.count} of {members.count} members active
+
+sidebar
+  menu
+    link Team /settings/team
+    link Billing /settings/billing
+    link Security /settings/security
+
+section "Members"
+  alert danger if={admins == 0}
+    p Nobody on this team has the admin role. Promote someone before the last owner leaves.
+
+  table members cols="Avatar, Name, Email, Role, Active, Remove, Dialog"
+    avatar {name}
+    text {name}
+    note {email}
+    select role aria="Role for {name}" disabled={role == "owner"} >members.setRole{role:role}
+    toggle {active} aria="Active — {name}" >members.setLive
+    btn Remove quiet danger aria="Remove {name} from the team" >confirming = id
+    modal "Remove member" if={confirming == id}
+      p This removes their access immediately. Anything they created stays.
+      btn Remove primary danger >members.drop; confirming = ""
+      btn Cancel outline >confirming = ""
+    empty Nobody has been invited yet.

@@ -27,7 +27,22 @@ pub struct UiTree {
     pub page: String,
     pub state: Vec<StateInit>,
     pub resources: Vec<ResourceSpec>,
+    /// Declared effects, for the runtime to wire up.
+    ///
+    /// Carried as data rather than dropped, because unlike a `js` body an effect is *not* arbitrary
+    /// code: the trigger is a name or an expression, and the action is the same restricted action
+    /// language the tree already carries on every button. Nothing here can reach `eval`, so the
+    /// security argument that drops a `js` body does not apply.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub effects: Vec<EffectSpec>,
     pub nodes: Vec<UiNode>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct EffectSpec {
+    /// `"mount"`, or the trigger expression as written.
+    pub on: String,
+    pub actions: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -159,6 +174,17 @@ pub fn ui_tree(program: &Program, diags: &mut Diagnostics) -> UiTree {
                         optimistic: m.optimistic.clone(),
                     })
                     .collect(),
+            })
+            .collect(),
+        effects: program
+            .effects
+            .iter()
+            .map(|e| EffectSpec {
+                on: match &e.trigger {
+                    guml_ast::Trigger::Mount => "mount".to_string(),
+                    guml_ast::Trigger::Change(expr) => expr.clone(),
+                },
+                actions: e.actions.clone(),
             })
             .collect(),
         nodes: program.tree.iter().map(node).collect(),
@@ -334,9 +360,13 @@ mod tests {
         let mut d = Diagnostics::new();
         let tree = ui_tree(&program(), &mut d);
         let btn = &tree.nodes[0].children[0];
-        // Same table, so a preview cannot drift from emitted code.
+        // Same table, so a preview cannot drift from emitted code. The equality above *is* the test; the
+        // check below only confirms the shared table produced something rather than an empty string, which
+        // `assert_eq!` on two empty strings would pass. Deliberately a token and not a colour: this line
+        // read `bg-slate-900` and pinned the palette, so changing the default theme broke a test about
+        // agreement between two backends.
         assert_eq!(btn.class, react::classes("btn", &["primary"]));
-        assert!(btn.class.contains("bg-slate-900"));
+        assert!(btn.class.contains("bg-primary"), "{}", btn.class);
     }
 
     #[test]

@@ -24,6 +24,7 @@
 use crate::sema::nearest;
 use guml_ast::{Element, Positional, Program, Value};
 use guml_diagnostics::{Code, Diagnostic, Diagnostics, Span};
+use guml_registry::Registry;
 use std::collections::{HashMap, HashSet};
 
 const METHODS: &[&str] = &["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"];
@@ -31,7 +32,22 @@ const METHODS: &[&str] = &["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"];
 /// Attributes whose value must be a whole number.
 const NUMERIC_ATTRS: &[&str] = &["cols", "open", "gap", "min", "max"];
 
-pub fn validate(program: &Program, diags: &mut Diagnostics) {
+/// Whether `attr` is numeric *on this tag*.
+///
+/// One exception, and it earns the extra function: `cols` is a grid column *count* everywhere except a
+/// repeater, where it lists the column *headers* — `table invoices cols="Client, Amount, Due"`. A grid's
+/// columns are a number the compiler generates; a table's are names only the author knows.
+///
+/// Per-tag rather than a second attribute name, because the surface stays smaller and the meaning is the
+/// same question ("what are this thing's columns") answered in the two ways the two things allow.
+fn numeric_on(tag: &str, attr: &str) -> bool {
+    if attr == "cols" && matches!(tag, "list" | "table") {
+        return false;
+    }
+    NUMERIC_ATTRS.contains(&attr)
+}
+
+pub fn validate(program: &Program, reg: &Registry, diags: &mut Diagnostics) {
     let types: HashMap<&str, HashSet<&str>> = program
         .types
         .iter()
@@ -39,8 +55,19 @@ pub fn validate(program: &Program, diags: &mut Diagnostics) {
         .collect();
 
     resources(program, &types, diags);
-    walk_tree(program, &types, diags);
+    walk_tree(program, reg, &types, diags);
+    effects(program, diags);
     unused(program, diags);
+}
+
+/// Declared effects, through the same action rules an element's `>` goes through.
+///
+/// `on mount >tasks.remove` has to be the same error as `btn Go >tasks.remove`. Two sets of rules for
+/// one action language would mean the stricter one is the real one and the other is a hole.
+fn effects(program: &Program, diags: &mut Diagnostics) {
+    for e in &program.effects {
+        actions_in(&e.actions, e.span, program, diags);
+    }
 }
 
 /* ------------------------------------------------------------------ resources */
@@ -62,6 +89,26 @@ fn resources(program: &Program, types: &HashMap<&str, HashSet<&str>>, diags: &mu
                 d = d.with_help(hint);
             }
             diags.push(d);
+        }
+
+        // A resource is a collection, and every part of what `data` generates assumes so: the empty
+        // state, the optimistic apply and rollback, `.count`/`.sum`, the keyed `map`. A single-object
+        // type was accepted anyway and emitted `useState<Type[]>([])`, so `{subscription.plan}` read a
+        // property off an array and only `tsc --strict` over the output objected. Reported at compile
+        // time instead, in one place, for every backend.
+        if !item.is_empty() && !r.ty.ends_with("[]") {
+            diags.push(
+                Diagnostic::error(
+                    Code::ResourceNotAList,
+                    format!("`{}` is a single `{item}`, and a resource is a collection", r.name),
+                    r.span,
+                )
+                .with_suggestion(format!("{}:{item}[]", r.name))
+                .with_help(
+                    "declare the list and take the first row in a `js` block if the endpoint really \
+                     returns one object — that keeps the fetch, the cache and the error state",
+                ),
+            );
         }
 
         check_method(&r.method, r.span, diags);
@@ -122,6 +169,27 @@ fn check_url(url: &str, span: Span, diags: &mut Diagnostics) {
         );
         return;
     }
+    // A protocol-relative URL. `//evil.com/x` *looks* like a path and is not one: it inherits the page's
+    // scheme and goes to another origin entirely.
+    //
+    // This was reachable and silent. Before the lexer learned `https://`, any `scheme://host/path` lost
+    // its scheme and arrived here as `//host/path` — so `javascript://x/y` compiled clean and emitted a
+    // cross-origin fetch. It is now two separate guards: the lexer only tokenises `http`/`https`, and this
+    // refuses what is left, because a document that means "a path" should not be one character away from
+    // meaning "somebody else's server".
+    if url.starts_with("//") {
+        diags.push(
+            Diagnostic::error(
+                Code::BadUrl,
+                format!("`{url}` is protocol-relative, so it points at another origin"),
+                span,
+            )
+            .with_help(
+                "write `/path` for a same-origin request, or `https://host/path` to be explicit about the origin",
+            ),
+        );
+        return;
+    }
     if !url.starts_with('/') && !url.starts_with("http") {
         diags.push(
             Diagnostic::error(Code::BadUrl, format!("`{url}` is not a request path"), span)
@@ -141,13 +209,18 @@ struct Used {
     anchors: Vec<(String, Span)>,
 }
 
-fn walk_tree(program: &Program, types: &HashMap<&str, HashSet<&str>>, diags: &mut Diagnostics) {
+fn walk_tree(
+    program: &Program,
+    reg: &Registry,
+    types: &HashMap<&str, HashSet<&str>>,
+    diags: &mut Diagnostics,
+) {
     let mut used = Used::default();
     let mut defined_anchors: HashMap<String, Span> = HashMap::new();
     let mut h1s: Vec<Span> = Vec::new();
 
     for el in &program.tree {
-        element(el, program, types, None, &mut used, &mut defined_anchors, &mut h1s, diags);
+        element(el, program, reg, types, None, &mut used, &mut defined_anchors, &mut h1s, diags);
     }
 
     // `link Pricing #pricing` pointing at nothing is a dead control: it looks interactive
@@ -184,6 +257,7 @@ fn walk_tree(program: &Program, types: &HashMap<&str, HashSet<&str>>, diags: &mu
 fn element(
     el: &Element,
     program: &Program,
+    reg: &Registry,
     types: &HashMap<&str, HashSet<&str>>,
     // Fields of the row type when inside a repeater; `None` outside one.
     item_fields: Option<&HashSet<&str>>,
@@ -227,18 +301,57 @@ fn element(
 
     attributes(el, diags);
     expressions(el, diags);
-    actions(el, program, diags);
+    actions(el, program, item_fields.is_some(), diags);
     enumerated(el, program, diags);
 
     let child_fields: Option<&HashSet<&str>> = if matches!(el.tag.as_str(), "list" | "table") {
-        let source = el
-            .positionals
-            .iter()
-            .find_map(|p| match p {
-                Positional::Text(t) => Some(t.as_str()),
-                _ => None,
-            })
-            .or_else(|| el.attr("of").and_then(|v| v.as_text()));
+        // A repeater over something that is not a resource has to say what its rows are, because nothing
+        // else can: a `js` block's array has no declared element type and the compiler does not read the
+        // block. Without `of=` the old behaviour was a backend warning and an empty list.
+        let named = el.positionals.iter().find_map(|p| match p {
+            Positional::Text(t) => Some(t.as_str()),
+            _ => None,
+        });
+        // Only for a tag the active registry *has*. At the `core` level `list` is not in the vocabulary at
+        // all, so the parser already reported `GUML0030`; adding "give it an `of=` row type" on top would
+        // send a repair loop to fix the row type of a tag it cannot use. Enforcement by absence, and one
+        // diagnostic for one problem.
+        if let (Some(name), true) = (named, reg.get(&el.tag).is_some()) {
+            let is_resource = program.resources.iter().any(|r| r.name == name);
+            if !is_resource && el.attr("of").is_none() {
+                diags.push(
+                    Diagnostic::error(
+                        Code::RepeaterNeedsRowType,
+                        format!(
+                            "`{}` iterates `{name}`, which is not a resource, so its row type is unknown",
+                            el.tag
+                        ),
+                        el.span,
+                    )
+                    .with_help(
+                        "add `of=Type` naming the declared type of one row — that is how a `js`-computed \
+                         array becomes iterable",
+                    ),
+                );
+            } else if !is_resource {
+                // `of=` present but naming nothing declared: the row scope would be empty and every field
+                // read inside would be `GUML0033`, which points at the wrong line.
+                let ty = el.attr("of").and_then(|v| v.as_text()).unwrap_or_default();
+                if !types.contains_key(ty) {
+                    let mut d = Diagnostic::error(
+                        Code::UnknownTypeName,
+                        format!("`of={ty}` is not a declared type"),
+                        el.span,
+                    )
+                    .with_help("declare it with `type Name {field, other:bool}`");
+                    let names: Vec<String> = types.keys().map(|k| k.to_string()).collect();
+                    if let Some(hint) = did_you_mean(ty, &names) {
+                        d = d.with_help(hint);
+                    }
+                    diags.push(d);
+                }
+            }
+        }
 
         if el.children.is_empty() && el.text_lines.is_empty() {
             diags.push(
@@ -251,15 +364,15 @@ fn element(
             );
         }
 
-        source
-            .and_then(|name| program.resources.iter().find(|r| r.name == name))
-            .and_then(|r| types.get(r.ty.trim_end_matches("[]")))
+        // A derived array carries its row type in `of=`, so the field set comes from there when the source
+        // is not a resource. Same shared answer as the resolver and the type checker.
+        program.repeater_rows(el).and_then(|rows| types.get(rows.ty.as_str()))
     } else {
         item_fields
     };
 
     for child in &el.children {
-        element(child, program, types, child_fields, used, anchors, h1s, diags);
+        element(child, program, reg, types, child_fields, used, anchors, h1s, diags);
     }
 }
 
@@ -308,7 +421,7 @@ fn attributes(el: &Element, diags: &mut Diagnostics) {
             );
         }
 
-        if NUMERIC_ATTRS.contains(&a.name.as_str()) {
+        if numeric_on(&el.tag, &a.name) {
             let numeric = match &a.value {
                 Value::Num(_) | Value::Binding(_) => true,
                 Value::Word(w) | Value::Str(w) => w.parse::<f64>().is_ok(),
@@ -333,8 +446,25 @@ fn attributes(el: &Element, diags: &mut Diagnostics) {
 /// The two shapes are told apart by the assignment operators, not by the dot. `>n.length=3`
 /// has a dot *and* an `=`; reading the dot first sent it down the mutation path, where it was
 /// silently ignored. So `=`, `++` and `--` decide, and everything else is a call.
-fn actions(el: &Element, program: &Program, diags: &mut Diagnostics) {
-    for action in &el.actions {
+fn actions(el: &Element, program: &Program, in_row: bool, diags: &mut Diagnostics) {
+    actions_in_row(&el.actions, el.span, program, in_row, diags);
+}
+
+/// The action rules, over a span rather than an element — so a declared effect uses exactly these.
+///
+/// A declared effect is never inside a repeater row, so it passes `in_row: false`.
+fn actions_in(actions: &[String], span: Span, program: &Program, diags: &mut Diagnostics) {
+    actions_in_row(actions, span, program, false, diags);
+}
+
+fn actions_in_row(
+    actions: &[String],
+    span: Span,
+    program: &Program,
+    in_row: bool,
+    diags: &mut Diagnostics,
+) {
+    for action in actions {
         for stmt in action.split(';').map(str::trim).filter(|s| !s.is_empty()) {
             let assigns = stmt.ends_with("++")
                 || stmt.ends_with("--")
@@ -355,7 +485,7 @@ fn actions(el: &Element, program: &Program, diags: &mut Diagnostics) {
                         Diagnostic::error(
                             Code::AssignToNonState,
                             format!("`{target}` is not assignable"),
-                            el.span,
+                            span,
                         )
                         .with_help(
                             "only a declared state name can be assigned; anything else belongs in a `js` block",
@@ -366,12 +496,12 @@ fn actions(el: &Element, program: &Program, diags: &mut Diagnostics) {
                         Diagnostic::error(
                             Code::AssignToNonState,
                             format!("`{target}` is a resource, not a state"),
-                            el.span,
+                            span,
                         )
                         .with_help("change a resource through one of its mutations"),
                     );
                 } else if let Some(state) = program.state(target) {
-                    check_assignment_type(state, stmt, el.span, diags);
+                    check_assignment_type(state, stmt, span, diags);
                 }
                 continue;
             }
@@ -381,11 +511,19 @@ fn actions(el: &Element, program: &Program, diags: &mut Diagnostics) {
             if let Some((head, rest)) = call.split_once('.') {
                 if let Some(resource) = program.resources.iter().find(|r| r.name == head) {
                     let name = rest.trim();
-                    if !name.is_empty() && !resource.mutations.iter().any(|m| m.name == name) {
+                    // `list` is the resource's own GET, which every `data` declaration has and none
+                    // declares. Without it there is no way to say "fetch this again" — needed by a
+                    // Reload button and by `on {filter} >tasks.list`, and the JSON IR has always
+                    // called the GET `list`, so the name is not new vocabulary.
+                    let implicit = name == "list";
+                    if !name.is_empty()
+                        && !implicit
+                        && !resource.mutations.iter().any(|m| m.name == name)
+                    {
                         let mut d = Diagnostic::error(
                             Code::UnknownMutation,
                             format!("`{head}` has no mutation `{name}`"),
-                            el.span,
+                            span,
                         )
                         .with_help("declare it as an indented line under the `data` directive");
                         let names: Vec<String> =
@@ -394,6 +532,35 @@ fn actions(el: &Element, program: &Program, diags: &mut Diagnostics) {
                             d = d.with_help(hint);
                         }
                         diags.push(d);
+                    }
+
+                    // A mutation whose URL interpolates a row field needs a row.
+                    //
+                    // `retry POST /api/jobs/{id}/retry` called from a toolbar button emitted
+                    // `jobsRetry({})` — an empty object where the row type was expected. `tsc` rejects
+                    // it, which means the *only* thing standing between this and a shipped build was a
+                    // check nobody runs on a Windows machine. At runtime it would have requested
+                    // `/api/jobs/undefined/retry`.
+                    //
+                    // Reported here rather than left to the type checker because the emitted code is a
+                    // consequence, not the contract: the document is what is wrong.
+                    if let Some(m) = resource.mutations.iter().find(|m| m.name == name)
+                        && m.url.contains('{')
+                        && !in_row
+                    {
+                        diags.push(
+                            Diagnostic::error(
+                                Code::RowMutationOutsideRepeater,
+                                format!(
+                                    "`{head}.{name}` needs a row: its path `{}` interpolates a field of the item",
+                                    m.url
+                                ),
+                                span,
+                            )
+                            .with_help(
+                                "move the control inside the `list` or `table` that renders the item, where the row is in scope",
+                            ),
+                        );
                     }
                 }
             }
@@ -417,6 +584,21 @@ fn check_assignment_type(
     let assigned_string = rhs.starts_with('"');
     let assigned_number = rhs.parse::<f64>().is_ok();
     let assigned_bool = matches!(rhs, "true" | "false" | "!true" | "!false");
+
+    // Only a *literal* right-hand side can be judged by its spelling, which is all this check does.
+    //
+    // A bare name or a path is a value the check cannot see the type of, and treating "does not look
+    // like a string literal" as "is not a string" produced a false error on the one construct that needs
+    // it: `>editing = id` copies a row's id into a string state, which is how a per-row dialog remembers
+    // which row it belongs to. `GUML0065` fired three times on a correct line and there was no other way
+    // to write it, because the row's field is not a literal and never can be.
+    //
+    // An enumerated state is exempt from the exemption: its domain is a closed set of words, `>filter=opne`
+    // is a bare word, and catching that typo is the whole point of the arm below.
+    let assigned_literal = assigned_string || assigned_number || assigned_bool;
+    if !assigned_literal && !rhs.starts_with('!') && state.domain.is_empty() {
+        return;
+    }
 
     let (expected, ok) = match &state.init {
         Value::Num(_) => ("a number", assigned_number),
@@ -477,14 +659,31 @@ fn enumerated(el: &Element, program: &Program, diags: &mut Diagnostics) {
         // From the parsed tree rather than a substring scan.
         let head = b.head_ident().unwrap_or("");
         if let Some(state) = program.state(head) {
-            if state.domain.is_empty() {
+            // A domain-less *string* state is a free-text search, not a missing domain — `input query`
+            // plus `table contacts where={query}` is a searchable table, and the backends lower it to a
+            // substring match over the row's string fields. `guml_codegen::search_fields` is the one
+            // place that decides, so this warning and that lowering cannot disagree: if it finds fields,
+            // the filter is real and there is nothing to warn about.
+            let searchable = el
+                .positionals
+                .iter()
+                .find_map(|p| match p {
+                    Positional::Text(t) => Some(t.as_str()),
+                    _ => None,
+                })
+                .map(|source| !guml_codegen::search_fields(program, source, head).is_empty())
+                .unwrap_or(false);
+            if state.domain.is_empty() && !searchable {
                 diags.push(
                     Diagnostic::warning(
                         Code::NotEnumerated,
                         format!("`where={{{head}}}` filters by a state with no domain"),
                         el.span,
                     )
-                    .with_help("an enumerated state tells the compiler which filters exist"),
+                    .with_help(
+                        "an enumerated state tells the compiler which filters exist; a string state \
+                         searches the row's text fields, but only if the row type declares some",
+                    ),
                 );
             }
         }

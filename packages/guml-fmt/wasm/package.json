@@ -1,0 +1,32 @@
+{
+  "name": "guml-fmt-wasm",
+  "type": "module",
+  "collaborators": [
+    "GUML contributors"
+  ],
+  "description": "WebAssembly bindings for the GUML formatter and syntax classifier",
+  "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/guml-lang/guml"
+  },
+  "files": [
+    "guml_fmt_bg.wasm",
+    "guml_fmt.js",
+    "guml_fmt.d.ts"
+  ],
+  "main": "guml_fmt.js",
+  "homepage": "https://github.com/guml-lang/guml",
+  "types": "guml_fmt.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ],
+  "keywords": [
+    "ui",
+    "compiler",
+    "codegen",
+    "llm",
+    "dsl"
+  ]
+}

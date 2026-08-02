@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { CodeBlock } from "@/components/code-block";
 import { CodePreview } from "@/components/code-preview";
 import { DocPage } from "@/components/doc-page";
-import { A, C, H2, LI, Note, P, Table, UL } from "@/components/prose";
+import { A, C, H2, LI, Note, P, Pkg, Table, UL } from "@/components/prose";
 import { FIXTURES } from "@/lib/fixtures.generated";
 import { commas } from "@/lib/utils";
 
@@ -19,7 +19,7 @@ export default function Page() {
   return (
     <DocPage
       pathname="/docs"
-      meter={{ label: "status", value: "v0.1 · pre-Phase-0", tone: "ember" }}
+      meter={{ label: "version", value: "0.1.0", tone: "iris" }}
       title="What GUML is"
       lede={
         <>
@@ -67,9 +67,9 @@ export default function Page() {
           compile target. The thing GUML competes with is un-representational code emission.
         </LI>
         <LI>
-          <strong className="text-chalk">Not a rival to A2UI or MCP-UI.</strong> Those are compile
-          targets on the roadmap. GUML&rsquo;s difference is the token surface, an application-logic
-          layer, and output you can deploy and own.
+          <strong className="text-chalk">Not a rival to A2UI or MCP-UI.</strong> Both are compile
+          targets, and both are backends today. GUML&rsquo;s difference is the token surface, an
+          application-logic layer, and output you can deploy and own.
         </LI>
       </UL>
 
@@ -103,7 +103,7 @@ export default function Page() {
         head={["component", "state"]}
         rows={[
           ["Lexer, AST, parser, diagnostics", "working, tested"],
-          ["Component registry, typo suggestions", "working · 27 primitives"],
+          ["Component registry, typo suggestions", "working · 49 tags · host-extensible"],
           ["React backend", "containers, text, controls, state, actions, bindings, layout"],
           [
             "Resources, repeaters, forms, tabs, optimistic mutations",
@@ -113,18 +113,33 @@ export default function Page() {
             "Expression lowering",
             "GUML expressions → JS, mirrored in the runtime with a parity test",
           ],
-          ["Expression parsing", "still pass-through (Phase 2)"],
-          ["Phase 0 harness", "built and self-tested · needs an API key and a grader"],
-          ["GUML-Bench, LLM repair loop, second backend", "not started"],
+          [
+            "Expression parsing and type checking",
+            "real parser · aggregates checked against the type they apply to",
+          ],
+          ["Svelte 5, static HTML and UI-JSON backends", "working · one shared theme and expression lowering"],
+          ["User components (def), escape hatches (js/raw)", "working · expanded at compile time"],
+          ["Formatter, language server, source maps", "working · fmt is idempotent and check-mode clean"],
+          [
+            "Registry packages",
+            <span key="rp">
+              <Pkg name="@guml/widgets" /> and <Pkg name="@guml/shadcn" /> · emitted props typechecked
+              against the real components
+            </span>,
+          ],
         ]}
       />
       <Note tone="warn" title="Read the status honestly">
         <p>
-          The compiler front end works and has 49 passing tests. The research question the project
-          exists to answer — whether a model can produce correct GUML, and whether that improves or
-          degrades correctness against a React baseline — is{" "}
-          <A href="/docs/research/phase0">still open</A>. Claims about it are labelled as hypotheses
-          throughout these docs.
+          The compiler works end to end and has 514 passing tests, plus a gate that typechecks and
+          renders its own emitted output. What it does <em>not</em> do is listed on the{" "}
+          <A href="/docs/status">status page</A> — server, database and authentication code generation
+          are out of scope for v1, and <C>route</C> and <C>auth</C> do not lower.
+        </p>
+        <p className="mt-3">
+          Whether a constrained IR measurably improves what a model produces is a separate question, and
+          an open one. It is kept in <A href="/research">research</A> rather than here, because an
+          untested hypothesis two clicks from an install command reads as a feature.
         </p>
       </Note>
 
@@ -138,7 +153,7 @@ export default function Page() {
           <A href="/docs/language/syntax">Syntax</A> — the whole surface in one page.
         </LI>
         <LI>
-          <A href="/docs/research/measurements">Measurements</A> — the numbers and every caveat that
+          <A href="/research/measurements">Measurements</A> — the numbers and every caveat that
           travels with them.
         </LI>
       </UL>

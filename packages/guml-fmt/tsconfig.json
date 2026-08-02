@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "allowJs": true,
+    // The test file runs under `node --test` straight from source.
+    "allowImportingTsExtensions": true,
+    // `DOM` is here for `Response`/`WebAssembly` in the `WasmSource` type, and `node` for the
+    // `process` check and the `node:fs/promises` branch that makes this work outside a browser.
+    "types": ["node"]
+  },
+  "include": ["src", "wasm/*.d.ts"]
+}

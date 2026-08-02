@@ -65,7 +65,11 @@ export function Reveal({
       className={className}
       initial={{ opacity: 0, y: 14 }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: "-10% 0px" }}
+      // `amount: 0.05` rather than a negative margin. The margin shrank the trigger area, and a panel
+      // taller than what was left of the viewport could settle without ever satisfying the observer —
+      // leaving a code listing parked at partial opacity, which reads as a washed-out colour rather
+      // than as an animation that failed to finish. A sliver in view is enough.
+      viewport={{ once: true, amount: 0.05 }}
       transition={{ duration: 0.55, delay, ease: [0.16, 1, 0.3, 1] }}
     >
       {children}
@@ -103,7 +107,7 @@ export function Marquee({
   );
 }
 
-/** Cursor-following light, kept to a single low-opacity iris wash. */
+/** Cursor-following light, kept to a single low-opacity wash of the site's one accent. */
 export function Spotlight({ className }: { className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const x = useMotionValue(50);
@@ -123,10 +127,12 @@ export function Spotlight({ className }: { className?: string }) {
     return () => el.removeEventListener("pointermove", onMove);
   }, [x, y, reduce]);
 
+  // `var(--spotlight)` rather than a literal. This was a hard-coded purple left over from the old
+  // two-accent palette — the one place on the site where a second chromatic voice appeared, and it
+  // followed the cursor, so it never sat still long enough to be noticed.
   const background = useTransform(
     [x, y],
-    ([px, py]) =>
-      `radial-gradient(420px circle at ${px}% ${py}%, rgb(108 76 255 / 0.16), transparent 65%)`,
+    ([px, py]) => `radial-gradient(420px circle at ${px}% ${py}%, var(--spotlight), transparent 65%)`,
   );
 
   return (

@@ -12,7 +12,7 @@ state filter=all|open|done
 head Tasks — {tasks.open.count} open
 
 form >tasks.add{title:draft}; draft=""
-  input draft placeholder="Add a task…"
+  input draft aria="New task" placeholder="Add a task…"
   btn Add primary disabled={!draft.trim()} busy="Adding…"
 
 tabs filter

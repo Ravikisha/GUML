@@ -1,0 +1,39 @@
+# Review owners. The last matching pattern wins, so the more specific rules are lower.
+#
+# Replace @guml-lang/maintainers with real handles or teams before this has any effect:
+# GitHub silently ignores an owner it cannot resolve, which makes an unresolvable
+# CODEOWNERS look like protection while providing none.
+
+*                                   @guml-lang/maintainers
+
+# The language surface. A change here changes what every model must be taught, and it
+# is measured against the 3,000-token spec budget.
+/spec/                              @guml-lang/language
+/crates/guml-syntax/                @guml-lang/language
+/crates/guml-parser/                @guml-lang/language
+/editors/tree-sitter-guml/          @guml-lang/language
+
+# Diagnostic codes are append-only — the repair loop keys on them, so a renumbering is
+# a breaking change for every consumer at once.
+/crates/guml-diagnostics/           @guml-lang/compiler
+
+/crates/guml-ast/                   @guml-lang/compiler
+/crates/guml-compiler/              @guml-lang/compiler
+
+# One element table, one class table, one expression lowering across seven backends.
+/crates/guml-codegen/               @guml-lang/codegen
+/crates/guml-registry/              @guml-lang/codegen
+
+# Anything published. A change here can reach users without any of them asking for it.
+/packages/                          @guml-lang/release
+/.github/workflows/                 @guml-lang/release
+/Cargo.toml                         @guml-lang/release
+/LICENSE                            @guml-lang/release
+/NOTICE                             @guml-lang/release
+/SECURITY.md                        @guml-lang/release
+
+# Externally-facing claims. Measured / hypothesised / cited, never blurred.
+/README.md                          @guml-lang/docs
+/docs/                              @guml-lang/docs
+/GUML-Research-Report.md            @guml-lang/docs
+/bench/                             @guml-lang/docs

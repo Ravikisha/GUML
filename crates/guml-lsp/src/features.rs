@@ -290,7 +290,7 @@ pub fn hover(src: &str, at: Position) -> Option<String> {
     None
 }
 
-fn word_at(line: &str, character: usize) -> Option<String> {
+pub(crate) fn word_at(line: &str, character: usize) -> Option<String> {
     let chars: Vec<char> = line.chars().collect();
     if character > chars.len() {
         return None;
@@ -320,6 +320,33 @@ fn word_at(line: &str, character: usize) -> Option<String> {
 pub fn format(src: &str) -> Option<String> {
     let out = guml_fmt::format(src, guml_fmt::Options::default());
     out.changed.then_some(out.text)
+}
+
+/// Apply every unambiguous suggestion in the document, as one edit.
+///
+/// The per-diagnostic quick fix already exists, and it is the wrong shape for the common case: a pasted
+/// generation has six unknown tags, and fixing them one keystroke at a time is six keystrokes for six
+/// edits the compiler had already described completely. This is `guml fix` behind
+/// `source.fixAll.guml`, which is the action an editor can also be configured to run on save.
+///
+/// `None` when nothing changed, so the editor offers no action rather than an inert one.
+pub fn fix_all(src: &str) -> Option<String> {
+    let out = guml_compiler::fix::fix(src, 3);
+    (out.text != src).then_some(out.text)
+}
+
+/// The whole free repair pipeline: strip packaging, format, fix.
+///
+/// Separate from `fix_all` for the same reason the CLI keeps `repair` separate from `fix`: this also
+/// *deletes* — a code fence, trailing commentary — and that is a different promise. An editor should not
+/// silently remove lines under an action named "fix", and it certainly should not do so on save.
+///
+/// The case it exists for is real and common: a model's answer is pasted into a file, fence and closing
+/// sentence included, and every one of those is a parse error the compiler can remove without being asked
+/// twice.
+pub fn repair(src: &str) -> Option<String> {
+    let out = guml_compiler::repair::repair(src, guml_compiler::repair::DEFAULT_ROUNDS);
+    out.changed().then_some(out.text)
 }
 
 /// Document symbols: the declarations and top-level sections, for the outline view.
@@ -502,6 +529,38 @@ mod tests {
 
         let anchored = symbols("page P\n\nsection #work Work\n  p x\n");
         assert!(anchored.iter().any(|s| s.name == "#work"));
+    }
+
+    #[test]
+    fn fix_all_applies_every_suggestion_in_one_edit() {
+        // The per-diagnostic quick fix is the wrong shape for the common case. A pasted generation full of
+        // HTML habits is six keystrokes for six edits the compiler had already described completely.
+        let messy = "page P\ndiv\n  span Hello\n  button Save\n  hr\n";
+        let fixed = fix_all(messy).expect("there were fixes to apply");
+        for want in ["col", "text Hello", "btn Save", "divider"] {
+            assert!(fixed.contains(want), "`{want}` missing from:\n{fixed}");
+        }
+        // A clean document offers no action rather than an inert one.
+        assert!(fix_all(DOC).is_none(), "a valid document was offered a fix-all");
+    }
+
+    #[test]
+    fn repair_strips_packaging_and_fix_all_does_not() {
+        // The distinction that decides which action an editor may run on save. `fix_all` only ever applies
+        // edits the compiler described; `repair` also *deletes* — a code fence, trailing commentary — and
+        // silently removing lines on save would be indefensible under an action named "fix".
+        let pasted = "```guml\npage P\ndiv\n  p Hello.\n```\nThat is the page.\n";
+        let repaired = repair(pasted).expect("there was packaging to strip");
+        assert!(repaired.starts_with("page P"), "{repaired}");
+        assert!(!repaired.contains("```"), "the fence survived:\n{repaired}");
+        assert!(!repaired.contains("That is the page"), "the commentary survived:\n{repaired}");
+
+        // `fix_all` leaves the fence alone: it is not its job, and the document still does not compile.
+        // That is the honest outcome — the editor offers `repair` for this, and the diagnostics say why.
+        let half = fix_all(pasted).unwrap_or_else(|| pasted.to_string());
+        assert!(half.contains("```"), "fix_all deleted content it should not have:\n{half}");
+
+        assert!(repair(DOC).is_none(), "a valid document was offered a repair");
     }
 
     #[test]

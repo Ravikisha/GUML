@@ -5,7 +5,7 @@ import { useState } from "react";
 import { CodeBlock } from "./code-block";
 import { LivePreview } from "./live-preview";
 import { cn } from "@/lib/utils";
-import type { Lang } from "@/lib/highlight";
+import type { Lang } from "@guml/highlight";
 
 /**
  * A GUML sample and what it renders, switchable.

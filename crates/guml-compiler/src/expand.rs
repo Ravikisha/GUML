@@ -29,6 +29,16 @@
 //! deciding whether the argument is a variable reference or a literal — a question the call site does
 //! not answer. `GUML0097` rejects it rather than guessing, which is invariant 3 applied to a language
 //! feature instead of to a backend.
+//!
+//! # Slots
+//!
+//! A `slot` element in a def body marks where a call's children go, which is what lets a `def` *wrap*
+//! content rather than only produce it. One per body: a second `slot` would have to duplicate the
+//! children, and a def that renders its children twice is far more likely to be a mistake than an
+//! intention.
+//!
+//! Both mismatches are reported rather than resolved silently — children with no `slot` to receive
+//! them, and a `slot` with nothing to put in it.
 
 use guml_ast::{DefDecl, Element, Positional, Program, Value};
 use guml_diagnostics::{Code, Diagnostic, Diagnostics, Span};
@@ -108,26 +118,60 @@ fn expand_call(
         return Vec::new();
     }
 
-    // Children at a call site have nowhere to go: slots are deliberately not implemented yet, and
-    // dropping them silently is the failure invariant 3 exists to prevent.
-    if !call.children.is_empty() || !call.text_lines.is_empty() {
+    // Slots. Both directions are reported: children with nowhere to go would be dropped, and an
+    // unfilled `slot` would leave a hole the author expected to fill.
+    let slots = count_slots(&def.body);
+    let has_children = !call.children.is_empty();
+
+    if has_children && slots == 0 {
         diags.push(
             Diagnostic::error(
                 Code::DefParamUnsupported,
-                format!("`{}` cannot take children: a `def` has no slot to put them in", def.name),
+                format!(
+                    "`{}` was given children, but its body has no `slot` to put them in",
+                    def.name
+                ),
                 call.span,
             )
+            .with_help("add a `slot` where they belong in the `def` body"),
+        );
+    }
+    if slots > 1 {
+        diags.push(
+            Diagnostic::error(
+                Code::DefParamUnsupported,
+                format!("`def {}` has {slots} `slot` elements; a body may have at most one", def.name),
+                def.span,
+            )
             .with_help(
-                "move them inside the `def` body, or use a container at the call site instead",
+                "a second slot would have to duplicate the children, which is far more likely a mistake than an intention",
             ),
+        );
+    }
+    if slots == 1 && !has_children {
+        diags.push(
+            Diagnostic::warning(
+                Code::DefParamUnsupported,
+                format!("`{}` has a `slot`, but this call supplies no children", def.name),
+                call.span,
+            )
+            .with_help("indent the content under the call, or remove the `slot` from the body"),
         );
     }
 
     let bindings: Vec<(&str, &Positional)> =
         def.params.iter().map(String::as_str).zip(args).collect();
 
-    let body: Vec<Element> =
+    let mut body: Vec<Element> =
         def.body.iter().map(|el| substitute(el, &bindings, call.span)).collect();
+
+    // The call's children are expanded in the *caller's* scope before being placed, so a binding in
+    // them refers to the document that wrote the call — not to the def's parameters. Anything else
+    // would make a slot capture names, which is the classic macro-hygiene bug.
+    if slots == 1 {
+        let children = expand_all(&call.children, defs, cyclic, diags, depth + 1);
+        body = fill_slot(body, &children);
+    }
 
     // A def may call another def, so the substituted body is expanded in turn.
     expand_all(&body, defs, cyclic, diags, depth + 1)
@@ -351,4 +395,27 @@ fn reaches(from: &str, target: &str, defs: &[DefDecl], path: &mut Vec<String>) -
         }
     }
     false
+}
+
+/// How many `slot` elements a body contains, at any depth.
+fn count_slots(els: &[Element]) -> usize {
+    els.iter().map(|el| usize::from(el.tag == "slot") + count_slots(&el.children)).sum()
+}
+
+/// Replace the single `slot` with the call's children.
+///
+/// A `slot` element's own children are dropped on purpose — they would be a default value, and a
+/// default that silently disappears whenever a call supplies content is a worse feature than none.
+/// `count_slots` has already guaranteed there is exactly one.
+fn fill_slot(els: Vec<Element>, children: &[Element]) -> Vec<Element> {
+    let mut out = Vec::with_capacity(els.len());
+    for mut el in els {
+        if el.tag == "slot" {
+            out.extend(children.iter().cloned());
+            continue;
+        }
+        el.children = fill_slot(el.children, children);
+        out.push(el);
+    }
+    out
 }

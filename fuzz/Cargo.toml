@@ -1,0 +1,53 @@
+# Coverage-guided fuzzing, deliberately outside the workspace.
+#
+# `cargo-fuzz` needs a nightly toolchain and libFuzzer, so it cannot run in the same CI job as
+# everything else — and a crate inside the workspace would drag that requirement into every
+# `cargo test`. The in-repo seeded fuzzer (`crates/guml-compiler/tests/fuzz.rs`) is what runs on every
+# push; this is the deeper, slower pass that finds what a fragment generator cannot.
+#
+#   cargo install cargo-fuzz
+#   cargo +nightly fuzz run parse -- -max_total_time=300
+#
+# The roadmap's gate is zero panics over 1M iterations. That is this crate's job, not the seeded one's.
+
+[package]
+name = "guml-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+guml-ast = { path = "../crates/guml-ast" }
+guml-compiler = { path = "../crates/guml-compiler" }
+guml-fmt = { path = "../crates/guml-fmt" }
+guml-syntax = { path = "../crates/guml-syntax" }
+guml-registry = { path = "../crates/guml-registry" }
+guml-codegen = { path = "../crates/guml-codegen" }
+
+[[bin]]
+name = "parse"
+path = "fuzz_targets/parse.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "format"
+path = "fuzz_targets/format.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "expr"
+path = "fuzz_targets/expr.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "roundtrip"
+path = "fuzz_targets/roundtrip.rs"
+test = false
+doc = false

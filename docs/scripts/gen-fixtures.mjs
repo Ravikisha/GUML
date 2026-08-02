@@ -57,7 +57,7 @@ const entries = [
     // conventions become visible — fetch and cancel, loading, empty, error,
     // optimistic apply and snapshot rollback, none of it in the 24-line source.
     emitted: compile("b.guml"),
-    tokens: { guml: 173, react: 1434, json: 315 },
+    tokens: { guml: 178, react: 1441, json: 324 },
   },
   {
     id: "landing",
@@ -85,20 +85,34 @@ function registry() {
     });
   } catch {
     console.warn("! could not read the registry from the compiler");
-    return { components: [], modifiers: [] };
+    return { components: [], modifiers: [], directives: [] };
   }
 
   const components = [];
   let modifiers = [];
+  let directives = [];
   for (const line of raw.split(/\r?\n/)) {
     if (line.startsWith("modifiers:")) {
       modifiers = line.replace("modifiers:", "").trim().split(/\s+/);
       continue;
     }
+    // The compiler's own list rather than a copy of it: a directive added in Rust reaches the site's
+    // highlighter with no second edit.
+    if (line.startsWith("directives:")) {
+      directives = line.replace("directives:", "").trim().split(/\s+/);
+      continue;
+    }
+    // `content-children:` is a third section header, and unlike the two above it had no branch — so it
+    // matched the generic component pattern below and `content-children:` was emitted as a *tag*. The
+    // highlighter then coloured that literal string as a tag wherever it appeared, and the child-probe
+    // step below generated a nonsense document for it. Any line ending in a colon is a header, not a
+    // component; a component name cannot contain one.
+    if (/^[a-z-]+:/.test(line)) continue;
+
     const m = /^(\S+)\s+(\S+)\s+(.*)$/.exec(line.trim());
     if (m) components.push({ name: m[1], kind: m[2], doc: m[3] });
   }
-  return { components, modifiers };
+  return { components, modifiers, directives };
 }
 
 const reg = registry();
@@ -135,29 +149,21 @@ export const MODIFIERS: string[] = ${JSON.stringify(reg.modifiers)};
 /**
  * The highlighter's vocabulary, taken from the compiler instead of retyped.
  *
- * The hand-maintained copy had already drifted — it listed `h3`, which the registry does
- * not define. Directives are not registry entries, so they are discovered by asking the
- * compiler's own classifier what it calls each candidate word.
+ * The hand-maintained copy had already drifted — it listed `h3`, which the registry does not define.
+ *
+ * Directives used to be discovered by *probing*: write one candidate word per line, ask the classifier
+ * what it called each, and keep the ones it called a directive. That checked the words it was given and
+ * said nothing about the ones it was not — so `on` shipped as a directive in the compiler and stayed a
+ * plain tag on the site, because the candidate list was itself a hand-maintained copy one level up.
+ * `guml registry` now prints the compiler's own list and this reads it.
  */
 function vocabulary() {
   const textTags = reg.components.filter((c) => c.kind === "Text").map((c) => c.name);
   const tags = reg.components.map((c) => c.name);
 
-  const candidates = ["page", "type", "state", "store", "data", "route", "auth", "def", "js", "raw"];
-  const probe = join(repoRoot, "target", "guml-probe.guml");
-  writeFileSync(probe, `${candidates.map((w) => `${w} X`).join("\n")}\n`, "utf8");
-  let directives = candidates;
-  try {
-    const spans = JSON.parse(
-      execFileSync("cargo", ["run", "-q", "-p", "guml-cli", "--", "highlight", probe], {
-        cwd: repoRoot,
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "ignore"],
-      }),
-    );
-    directives = candidates.filter((_, i) => spans.find((s) => s.line === i + 1)?.class === "directive");
-  } catch {
-    console.warn("! could not probe directives; falling back to the candidate list");
+  const directives = reg.directives;
+  if (directives.length === 0) {
+    throw new Error("`guml registry` printed no directives line — the highlighter would colour none");
   }
 
   // Which tags take *content lines* rather than child elements (`tier`, `faq`) is a
@@ -187,6 +193,42 @@ function vocabulary() {
 }
 
 const vocab = vocabulary();
+
+/**
+ * Every diagnostic code, from `guml explain`.
+ *
+ * The docs page listed fifteen of them by hand under a heading that said "Every code", while the compiler
+ * had forty-eight. That is the third time in this project a hand-maintained copy of the compiler's own
+ * vocabulary has drifted — after the docs highlighter and the tree-sitter tag list — and the fix is the same
+ * one: generate it. A code's *id* is the thing the repair loop keys on, so a docs page that omits half of
+ * them is not merely incomplete, it teaches a reader the surface is smaller than it is.
+ *
+ * Severity is not in `explain`'s output, and inferring it from wording would be a guess. So the table
+ * carries id and summary, and the page says where to get the rest (`guml explain GUML0064`).
+ */
+function diagnosticCodes() {
+  const out = execFileSync("cargo", ["run", "-q", "-p", "guml-cli", "--", "explain"], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  }).replace(/\r\n/g, "\n");
+  return out
+    .split("\n")
+    .map((line) => line.match(/^(GUML\d{4})\s{2,}(.+)$/))
+    .filter(Boolean)
+    .map((m) => [m[1], m[2].trim()]);
+}
+
+const codes = diagnosticCodes();
+if (codes.length < 40) {
+  throw new Error(`only ${codes.length} diagnostic codes parsed from \`guml explain\` — the output shape changed`);
+}
+
+const codesFile = `// GENERATED by scripts/gen-fixtures.mjs — do not edit by hand.
+// Source: \`guml explain\`. ${codes.length} codes; ids are append-only because the repair loop keys on them.
+
+export const DIAGNOSTIC_CODES: ReadonlyArray<readonly [string, string]> = ${JSON.stringify(codes)};
+`;
 
 const vocabFile = `// GENERATED by scripts/gen-fixtures.mjs — do not edit by hand.
 // Source: \`guml registry\` and \`guml highlight\`. The compiler owns this vocabulary; a
@@ -234,7 +276,11 @@ export const SYSTEM_PROMPT_EST_TOKENS = ${Math.round(prompt.length / 3.6)};
 `;
 
 mkdirSync(join(docsRoot, "lib"), { recursive: true });
-writeFileSync(join(docsRoot, "lib", "vocabulary.generated.ts"), vocabFile, "utf8");
+// The vocabulary belongs to `@guml/highlight`, which is where the highlighter that consumes it now
+// lives. Generated into the package rather than into the docs so that the published package carries
+// the compiler's own vocabulary rather than a copy someone has to remember to sync.
+writeFileSync(join(repoRoot, "packages", "guml-highlight", "src", "vocabulary.generated.ts"), vocabFile, "utf8");
+writeFileSync(join(docsRoot, "lib", "diagnostics.generated.ts"), codesFile, "utf8");
 writeFileSync(join(docsRoot, "lib", "prompt.generated.ts"), promptFile, "utf8");
 writeFileSync(
   join(docsRoot, "lib", "fixtures.generated.ts"),
@@ -244,7 +290,7 @@ writeFileSync(
 
 const compiled = entries.filter((e) => e.emitted).length;
 console.log(
-  `wrote lib/fixtures.generated.ts + lib/vocabulary.generated.ts ` +
+  `wrote docs/lib/fixtures.generated.ts + packages/guml-highlight/src/vocabulary.generated.ts ` +
   `(${entries.length} fixtures, ${compiled} compiled, ` +
     `${reg.components.length} components, ${reg.modifiers.length} modifiers)`,
 );

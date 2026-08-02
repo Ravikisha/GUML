@@ -143,7 +143,7 @@ cd editors/vscode && pnpm install && pnpm run build
         </LI>
       </UL>
       <P>
-        Tracked in <A href="/docs/research/roadmap">the roadmap</A>.
+        See <A href="/docs/status">status and limitations</A> for what is stable across a 0.x release.
       </P>
     </DocPage>
   );

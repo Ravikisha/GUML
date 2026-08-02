@@ -24,7 +24,7 @@ export default function Page() {
         { id: "macro", title: "Why a macro, not a component" },
         { id: "level", title: "Levels" },
         { id: "refused", title: "What it refuses to do" },
-        { id: "slots", title: "Slots, and why not yet" },
+        { id: "slots", title: "A call takes no children" },
       ]}
     >
       <H2 id="shape">Declaring one</H2>
@@ -135,12 +135,12 @@ export default function Page() {
            a repeating structure wants \`list\` over a resource`}
       />
 
-      <H2 id="slots">Slots, and why not yet</H2>
+      <H2 id="slots">A call takes no children</H2>
       <P>
         A call may not take children. That is a real limitation — it means a <C>def</C> cannot wrap
         content — and it is deliberate: allowing children later is <em>additive</em>, so deferring costs
-        nothing, while shipping a slot design that turns out wrong would be permanent under the{" "}
-        <A href="/docs/research/roadmap">stability policy</A>.
+        nothing, while shipping a slot design that turns out wrong would be far harder to walk back.
+        See <A href="/docs/status">status and limitations</A>.
       </P>
       <P>
         Until then, children at a call site are <C>GUML0097</C> rather than silently discarded. An unused

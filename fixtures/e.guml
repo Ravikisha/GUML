@@ -1,0 +1,78 @@
+// The 0.2 production vocabulary, end to end.
+//
+// This fixture exists so every tag added in 0.2 is typechecked by `tsc --strict` and server-rendered
+// by `scripts/render-emitted.mjs`, not merely asserted about in Rust. The Rust tests can tell that a
+// tag lowered; only `tsc` can tell that what it lowered to is valid TSX, and only rendering can tell
+// that a dialog has an accessible name.
+//
+// It is deliberately one page rather than five: the interesting failures are interactions — a `stat`
+// inside a `grid`, a `modal` guarded by `if=`, a `select` whose options come from a state domain.
+
+page Console title="Operations console" description="Everything the 0.2 vocabulary can express, on one page." lang=en
+
+type Job {id, name, owner, failed:bool}
+
+data jobs:Job[] GET /api/jobs
+  retry POST /api/jobs/{id}/retry  optimistic
+
+state showDetail=false
+state severity=all|failed
+
+breadcrumb
+  link /home Home
+  link /ops Operations
+  text Console
+
+toolbar
+  badge Live
+  // `jobs.list` is the resource's own GET, so it needs no row — unlike `jobs.retry`, which
+  // interpolates `{id}` and is therefore only callable from inside the table (`GUML0101`).
+  btn Refresh outline >jobs.list
+  btn Details primary >showDetail = true
+
+alert danger
+  p Two jobs failed in the last hour.
+
+grid cols=3
+  stat "Jobs" {jobs.count} delta="+4 today"
+  stat "Failing" {jobs.done.count}
+  card "Throughput"
+    metric {jobs.count}
+    note Measured over the last five minutes.
+
+sidebar
+  avatar Ada Lovelace
+  img src="/logo.svg" alt="Operations logo"
+  progress value=72 max=100 aria="Queue drained"
+  divider
+  menu
+    link /a Runbooks
+    divider
+    link /b Escalations
+
+stepper
+  step Detect
+  step Triage
+  step Resolve
+
+row between
+  select severity aria="Filter by severity"
+  skeleton
+
+table jobs where={severity} cols="Job, Owner, Retry"
+  text {name}
+  text {owner} quiet
+  btn Retry quiet aria="Retry {name}" >jobs.retry
+  empty No jobs yet.
+
+pagination
+  btn Previous outline
+  text Page 1
+  btn Next outline
+
+modal "Job detail" if={showDetail}
+  p The selected job's full history.
+  btn Close outline >showDetail = false
+
+toast if={showDetail}
+  p Detail panel opened.

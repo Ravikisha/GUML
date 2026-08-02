@@ -110,6 +110,7 @@ export default function TaskList() {
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
+          aria-label="New task"
           placeholder="Add a task…"
           className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-slate-900"
         />

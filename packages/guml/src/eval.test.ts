@@ -11,11 +11,12 @@
  */
 
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { describe, it } from "node:test";
 // `./eval.ts`, not `./eval.js`: Node runs this file directly with type stripping and does not
 // rewrite specifiers, so it needs the file that exists. The library source uses `.js` because
 // that is what the *published* ESM has to say. Both resolve under TypeScript.
-import { evaluate, interpolate, runAction, truthy } from "./eval.ts";
+import { evaluate, interpolate, runAction, shouldRequest, truthy } from "./eval.ts";
 
 const TASKS = [
   { id: "1", title: "Ship it", done: true },
@@ -63,6 +64,32 @@ describe("evaluate — collection aggregates", () => {
 
   it("sums", () => {
     assert.equal(evaluate("nums.sum", { nums: [1, 2, 3] }), 6);
+  });
+
+  it("finds the state field by shape, not by the name `done`", () => {
+    // Both this evaluator and the Rust backend used to hardcode `done`. They agreed with each other
+    // and were wrong together for every other name, and nothing here tested a second one.
+    const invoices = [
+      { id: "1", amount: 10, paid: true },
+      { id: "2", amount: 20, paid: false },
+      { id: "3", amount: 30, paid: false },
+    ];
+    assert.equal(evaluate("invoices.open.count", { invoices }), 2);
+    assert.equal(evaluate("invoices.done.count", { invoices }), 1);
+  });
+
+  it("agrees with the emitted filter for a field that is not `done`", () => {
+    // The parity that matters: Rust now lowers `invoices.open.count` to
+    // `invoices.filter((it) => !it.paid).length`. A preview that disagreed with shipped code would be
+    // worse than no preview.
+    const invoices = [
+      { id: "1", paid: true },
+      { id: "2", paid: false },
+    ];
+    assert.equal(
+      evaluate("invoices.open.count", { invoices }),
+      invoices.filter((it) => !it.paid).length,
+    );
   });
 });
 
@@ -212,5 +239,43 @@ describe("runAction", () => {
 
   it("rejects an unsupported action rather than inventing one", () => {
     assert.throws(() => runAction("window.location = 'x'", {}));
+  });
+});
+
+describe("shouldRequest", () => {
+  it("issues a declared request by default", () => {
+    assert.equal(shouldRequest({ url: "/api/tasks" }), true);
+  });
+
+  it("issues nothing when offline", () => {
+    // The docs previews run this way: no server, so a mutation would 404 and the optimistic rollback
+    // would undo it. A row that appears and vanishes reads as a language bug rather than a missing
+    // endpoint, and no diagnostic fires because the rollback is behaving exactly as specified.
+    assert.equal(shouldRequest({ offline: true, url: "/api/tasks" }), false);
+  });
+
+  it("issues nothing without a url", () => {
+    assert.equal(shouldRequest({ url: null }), false);
+    assert.equal(shouldRequest({ url: "" }), false);
+    assert.equal(shouldRequest({}), false);
+  });
+});
+
+describe("the offline gate covers every request site", () => {
+  it("guards as many request sites as it has", async () => {
+    // The original bug was a *missing* copy of this check: the mount fetch skipped seeded resources
+    // while mutations went to the network regardless. Counting is what catches the next request site
+    // added without a gate — a behavioural test of today's three would pass right through it.
+    const src = await readFile(new URL("./react.tsx", import.meta.url), "utf8");
+    // Actual invocations, not the `typeof fetch === "undefined"` capability probes.
+    const invocations = src.match(/(?:void|await) fetch\(/g) ?? [];
+    const gates = src.match(/shouldRequest\(/g) ?? [];
+    assert.equal(
+      invocations.length,
+      gates.length,
+      `${invocations.length} request sites but ${gates.length} gates — one issues a request unguarded`,
+    );
+    // Mount fetch, `.list` refetch, and each mutation.
+    assert.equal(invocations.length, 3);
   });
 });

@@ -1,13 +1,22 @@
 import { ArrowRight, Check, TriangleAlert } from "lucide-react";
 import Link from "next/link";
 import { CodeCompare } from "@/components/code-compare";
-import { Compressor } from "@/components/compressor";
-import { DotGrid, Marquee, NumberTicker, Reveal, Spotlight } from "@/components/motion-bits";
-import { Badge, ButtonLink, Meter, Panel, Section } from "@/components/ui";
+import { Marquee, NumberTicker, Reveal } from "@/components/motion-bits";
+import { TokenDial } from "@/components/token-dial";
+import { Badge, ButtonLink, Panel, Section } from "@/components/ui";
 import { FIXTURES } from "@/lib/fixtures.generated";
 import { commas, reduction } from "@/lib/utils";
 
 const tasks = FIXTURES.find((f) => f.id === "tasks")!;
+
+/** Only the four numbers the dial reads, so the fixtures' source strings stay out of the client
+    bundle — `FIXTURES` carries every fixture's React, GUML and JSON listing. */
+const DIAL = FIXTURES.map((f) => ({
+  id: f.id,
+  title: f.title,
+  guml: f.tokens.guml,
+  react: f.tokens.react,
+})).sort((a, b) => a.react - b.react);
 
 /** What the compiler supplies, so a model never spends tokens on it. */
 const CONVENTIONS: Array<[string, string]> = [
@@ -33,64 +42,65 @@ const DIAGNOSTICS = [
 export default function HomePage() {
   return (
     <>
-      {/* ---------------------------------------------------------------- hero */}
-      <div className="relative overflow-hidden">
-        <DotGrid />
-        <Spotlight />
-        <div className="relative mx-auto grid max-w-7xl items-center gap-14 px-6 pt-16 pb-24 md:px-10 lg:grid-cols-[1.05fr_1fr] lg:pt-24">
-          <div>
-            <Meter label="task crud · react → guml" value="1,434 → 173 tokens" tone="mint" />
+      {/* ----------------------------------------------------------------- hero
+          No dot grid, no spotlight, no card. The page is paper, and it separates its parts with
+          whitespace — a decorative field behind the headline, or a border around the dial, would be
+          the first thing contradicting that. What fills the space instead is the measurement itself:
+          one ring, burning from a React baseline down to what GUML costs. */}
+      <div className="relative mx-auto max-w-(--container-page) px-6 pt-16 pb-24 md:px-10 lg:pt-24 lg:pb-32">
+        <p className="label">measured · cl100k_base · hand-authored fixtures</p>
 
-            <h1
-              data-compress-headline
-              className="mt-7 text-hero leading-[0.86] font-extrabold tracking-[-0.03em] text-chalk"
-              style={{
-                fontFamily: "var(--font-display)",
-                // The Compressor tweens --wdth from 100 to 76 on load, so the
-                // headline narrows while the token counter falls.
-                fontVariationSettings: '"wdth" var(--wdth, 100), "opsz" 48',
-              }}
-            >
-              Write less.
-              <br />
-              Ship the same app.
-            </h1>
+        {/* Full-bleed, because display type at this size needs the whole measure. Inside a column it
+            wrapped mid-word, which is the difference between editorial scale and a headline that has
+            simply outgrown its container. Weight 500, 0.9 leading: large, not heavy. */}
+        <h1 className="display-wide mt-8 text-hero text-chalk">
+          Write less.
+          <br />
+          Ship the same app.
+        </h1>
 
-            <p className="mt-7 max-w-xl text-lg leading-relaxed text-fog">
-              GUML is what a model emits instead of React. Twenty-four lines of markup compile to a
+        {/* The dial takes the wider column: it is the argument, and the prose is its caption. On a
+            phone the order flips — the ring comes first, because a 480px circle above the fold says
+            what two paragraphs take longer to. */}
+        <div className="mt-14 grid items-center gap-14 lg:mt-20 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
+          <div className="order-2 lg:order-1">
+            <p className="max-w-xl text-subheading leading-snug text-fog">
+              GUML is what a model emits instead of React. Twenty-five lines of markup compile to a
               working task app — fetch, optimistic updates, rollback, loading and empty states,
-              accessible labels — none of which the model has to write, and none of which it can get
-              wrong.
+              accessible labels — none of which the model writes, and none of which it can get wrong.
             </p>
 
-            <div className="mt-9 flex flex-wrap items-center gap-3">
+            <div className="mt-10 flex flex-wrap items-center gap-6">
               <ButtonLink href="/docs/quickstart" size="lg">
                 Start in 60 seconds
                 <ArrowRight className="size-4" />
               </ButtonLink>
-              <ButtonLink href="/docs/research/measurements" variant="outline" size="lg">
+              {/* A ghost text link, not a second filled button. One principal action per screen. */}
+              <Link
+                href="/research/measurements"
+                className="tracked group inline-flex items-center gap-1.5 rounded-chip py-2 text-body-sm text-ember transition-colors hover:text-chalk"
+              >
                 Read the measurements
-              </ButtonLink>
+                <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+              </Link>
             </div>
 
-            <p className="mt-6 font-mono text-xs text-fog-dim">
-              Rust compiler · 91 tests · React backend shipping, Svelte and Web Components planned
+            <p className="mt-10 font-mono text-xs text-fog-dim">
+              Rust compiler · 396 tests · React, Svelte, static-HTML and JSON backends
             </p>
           </div>
 
-          <Panel className="p-5 md:p-6">
-            <Compressor />
-          </Panel>
+          <TokenDial fixtures={DIAL} initial="tasks" className="order-1 lg:order-2" />
         </div>
       </div>
 
       {/* ------------------------------------------------------- the comparison */}
       <Section
-        meter={{ label: "same app, three representations", value: "one is 8.3× smaller", tone: "iris" }}
+        meter={{ label: "same app, three representations", value: "one is 8.1× smaller", tone: "iris" }}
       >
         <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
           <div className="lg:sticky lg:top-24">
-            <h2 className="display-narrow text-display font-bold leading-[0.95] tracking-tight">
+            <h2 className="display-narrow text-heading font-medium">
               The model writes the intent. The compiler writes the rest.
             </h2>
             <p className="mt-5 text-fog">
@@ -135,7 +145,7 @@ export default function HomePage() {
                 lang: "json",
                 code: tasks.json ?? "",
                 tokens: tasks.tokens.json,
-                note: "A2UI-shaped JSON IR — 315 tokens minified",
+                note: "A2UI-shaped JSON IR — 324 tokens minified",
               },
             ]}
             preview="guml"
@@ -145,7 +155,7 @@ export default function HomePage() {
 
       {/* ---------------------------------------------------------- conventions */}
       <Section meter={{ label: "written by the compiler", value: "0 tokens", tone: "mint" }}>
-        <h2 className="display-narrow max-w-3xl text-display font-bold leading-[0.95] tracking-tight">
+        <h2 className="display-narrow max-w-3xl text-heading font-medium">
           Convention is compression.
         </h2>
         <p className="mt-5 max-w-2xl text-fog">
@@ -169,7 +179,7 @@ export default function HomePage() {
       {/* -------------------------------------------------------------- numbers */}
       <Section meter={{ label: "measured · cl100k_base", value: "3 hand-authored fixtures" }}>
         <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
-          <h2 className="display-narrow text-display font-bold leading-[0.95] tracking-tight">
+          <h2 className="display-narrow text-heading font-medium">
             Numbers, with their caveats attached.
           </h2>
           <p className="text-fog">
@@ -213,7 +223,7 @@ export default function HomePage() {
         <p className="mt-4 max-w-3xl font-mono text-xs leading-relaxed text-fog-dim">
           Both sides were authored by the same person, and these are authored artifacts rather than
           model generations. Whether a model can actually produce correct GUML is{" "}
-          <Link href="/docs/research/phase0" className="text-iris underline decoration-iris/40">
+          <Link href="/research" className="text-iris underline decoration-iris/40">
             still an open question
           </Link>
           .
@@ -224,7 +234,7 @@ export default function HomePage() {
       <Section meter={{ label: "risk register", value: "unresolved", tone: "ember" }}>
         <div className="grid gap-10 lg:grid-cols-2 lg:items-start">
           <div>
-            <h2 className="display-narrow text-display font-bold leading-[0.95] tracking-tight">
+            <h2 className="display-narrow text-heading font-medium">
               Why this might not work.
             </h2>
             <p className="mt-5 text-fog">
@@ -234,11 +244,13 @@ export default function HomePage() {
               multi-step tasks it had never encountered. Both findings are well supported.
             </p>
             <p className="mt-4 text-fog">
-              Reconciling them is the real research question. A two-week experiment decides whether
-              the rest of this project is worth building.
+              Reconciling them is the open question, and it needs a controlled comparison with human
+              grading that has not been run. The compiler does not depend on the answer — it either
+              lowers a construct correctly or it does not, and tests settle that. The claim about model
+              behaviour is the part that stays labelled.
             </p>
-            <ButtonLink href="/docs/research/phase0" variant="outline" className="mt-7">
-              The Phase 0 gate
+            <ButtonLink href="/research" variant="outline" className="mt-7">
+              What is and is not measured
               <ArrowRight className="size-4" />
             </ButtonLink>
           </div>
@@ -287,7 +299,7 @@ export default function HomePage() {
 
       {/* ------------------------------------------------------------------ cta */}
       <Section className="text-center">
-        <h2 className="display-narrow mx-auto max-w-2xl text-display font-bold leading-[0.95] tracking-tight">
+        <h2 className="display-narrow mx-auto max-w-2xl text-heading font-medium">
           Eleven lines is a working counter.
         </h2>
         <p className="mx-auto mt-5 max-w-lg text-fog">

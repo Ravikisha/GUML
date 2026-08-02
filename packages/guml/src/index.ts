@@ -13,6 +13,7 @@ import initWasm, {
   format as wasmFormat,
   highlight as wasmHighlight,
   registry as wasmRegistry,
+  repair as wasmRepair,
   tree as wasmTree,
   version as wasmVersion,
 } from "../wasm/guml.js";
@@ -105,6 +106,19 @@ export type UiTree = {
       optimistic: string | null;
     }>;
   }>;
+  /**
+   * Declared `on` effects. Optional because a tree emitted before they existed has none, and a
+   * consumer pinned to an older compiler should not fail to parse a newer document.
+   *
+   * Carried as data rather than dropped the way a `js` body is: the trigger is an expression and the
+   * action is the same restricted language every button in this tree already uses, so nothing here
+   * can reach `eval`.
+   */
+  effects?: Array<{
+    /** `"mount"`, or the trigger expression as written. */
+    on: string;
+    actions: string[];
+  }>;
   nodes: UiNode[];
 };
 
@@ -131,6 +145,31 @@ export type FixResult = {
   /** Diagnostic codes that were applied, one entry per edit. */
   codes: string[];
   rounds: number;
+};
+
+export type RepairResult = {
+  text: string;
+  /** True when the repaired document has no errors left. */
+  ok: boolean;
+  /** True when any layer changed anything. */
+  changed: boolean;
+  errorsBefore: number;
+  errorsAfter: number;
+  /** What was removed as packaging rather than document. */
+  sanitize: {
+    /** A ``` fence was unwrapped. */
+    fence: boolean;
+    /** Markdown horizontal rules removed. */
+    rules: number;
+    /** Trailing commentary lines dropped. */
+    trailing: number;
+  };
+  reformatted: boolean;
+  /** Diagnostic codes `fix` applied, one entry per edit. */
+  applied: string[];
+  rounds: number;
+  /** One human-readable line per layer that did something. */
+  report: string[];
 };
 
 /**
@@ -168,11 +207,28 @@ export type HighlightSpan = {
 let ready: Promise<void> | null = null;
 
 /**
- * Load the compiler. Optional — every API call awaits it — but useful to warm
- * the module before a user starts typing.
+ * How the wasm binary can be supplied. A URL is the browser case; the rest exist because a URL is
+ * *not enough* outside one.
+ *
+ * The build targets `web`, so with no argument the generated glue resolves the `.wasm` beside itself
+ * and `fetch`es it. Under Node that fails outright — `fetch` on a `file:` URL is not implemented — so
+ * the package could not be initialised off the browser at all, which rules out server-side rendering,
+ * a CLI wrapper, and its own test suite. Accepting bytes fixes all three, and costs nothing: passing
+ * a `BufferSource` is already what `wasm-bindgen`'s `module_or_path` supports.
  */
-export function init(wasmUrl?: string | URL): Promise<void> {
-  ready ??= initWasm(wasmUrl ? { module_or_path: wasmUrl } : undefined).then(() => undefined);
+export type WasmSource = string | URL | BufferSource | WebAssembly.Module | Response;
+
+/**
+ * Load the compiler. Optional in a browser — every API call awaits it — but useful to warm the module
+ * before a user starts typing, and **required** under Node, where there is nothing to `fetch`:
+ *
+ * ```ts
+ * import { readFile } from "node:fs/promises";
+ * await init(await readFile(new URL("../wasm/guml_bg.wasm", import.meta.url)));
+ * ```
+ */
+export function init(wasm?: WasmSource): Promise<void> {
+  ready ??= initWasm(wasm ? { module_or_path: wasm } : undefined).then(() => undefined);
   return ready;
 }
 
@@ -243,6 +299,24 @@ export async function fix(source: string, rounds = 3): Promise<FixResult> {
   return wasmFix(source, rounds) as FixResult;
 }
 
+/**
+ * The whole free repair pipeline: sanitise, format, fix. No model call.
+ *
+ * This is what to run on raw model output. `fix` only applies edits the compiler described, so it
+ * still fails on the packaging a model wraps around a document — a ```` ```guml ```` fence, a
+ * markdown rule, a closing "This page counts clicks." sentence. Those layers existed only in the
+ * benchmark harness, which meant the measured pipeline could repair things the shipped package
+ * could not.
+ *
+ * Every layer is guarded: one that would raise the error count is discarded rather than kept, and
+ * `report` names the layers that did the work — so "the repair loop helped" is a statement with
+ * evidence rather than an assumption.
+ */
+export async function repair(source: string, rounds = 3): Promise<RepairResult> {
+  await load();
+  return wasmRepair(source, rounds) as RepairResult;
+}
+
 /** Classify every byte for highlighting, using the compiler's lexer and registry. */
 export async function highlight(source: string): Promise<HighlightSpan[]> {
   await load();
@@ -301,4 +375,4 @@ export function applyAllSuggestions(source: string, diagnostics: Diagnostic[]): 
     .reduce(applySuggestion, source);
 }
 
-export { evaluate, runAction } from "./eval.js";
+export { evaluate, runAction } from "./eval.ts";

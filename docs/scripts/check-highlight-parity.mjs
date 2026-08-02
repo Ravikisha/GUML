@@ -15,7 +15,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { highlight } from "../lib/highlight.ts";
+import { highlight } from "../../packages/guml-highlight/src/index.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..");
@@ -108,7 +108,7 @@ for (const [path, src] of corpus()) {
 
 if (failures > 0) {
   console.error(
-    `\n${failures} file(s) disagree. Fix lib/highlight.ts to match crates/guml-fmt/src/highlight.rs —` +
+    `\n${failures} file(s) disagree. Fix packages/guml-highlight/src/index.ts to match crates/guml-fmt/src/highlight.rs —` +
       " the compiler is the source of truth, not the site.",
   );
   process.exit(1);

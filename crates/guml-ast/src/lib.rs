@@ -22,8 +22,33 @@ pub struct Program {
     /// Expanded by the compiler before codegen, so a backend never sees one — which is what lets a
     /// `def` work in every backend, including the no-JavaScript HTML one, with no per-backend support.
     pub defs: Vec<DefDecl>,
+    /// `on mount` / `on {expr}` — effects the author *declares* rather than writes.
+    ///
+    /// The whole point is the absence of a dependency array. `useEffect(fn, [deps])` is wrong in two
+    /// directions — a missing dep is a stale read, a spurious one is an infinite loop — and it is a
+    /// bug a model produces readily, because the correct list is not derivable from the lines nearby.
+    /// Here the dependency *is* the trigger, so there is no second list to keep in sync with the
+    /// first.
+    pub effects: Vec<Effect>,
     /// Top-level element tree.
     pub tree: Vec<Element>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Effect {
+    pub trigger: Trigger,
+    /// Raw action bodies, in the same form as `Element::actions`, lowered by the same pass. An effect
+    /// that ran a *different* action language from a button's would be two things to learn.
+    pub actions: Vec<String>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub enum Trigger {
+    /// Once, after the first render.
+    Mount,
+    /// Whenever the expression's value changes. Text, lowered like any other binding.
+    Change(String),
 }
 
 /// `def stat label value` plus an indented body.
@@ -47,6 +72,53 @@ impl Program {
         self.states.iter().find(|s| s.name == name)
     }
 
+    /// What a repeater iterates, and where its row type comes from.
+    ///
+    /// # The gap this exists to close
+    ///
+    /// A repeater's source had to be a **declared resource**, and that is the single most consequential
+    /// limitation the GUML-Bench reference corpus turned up. It means only one client-side filter is ever
+    /// expressible: `where=` takes one enumerated state, and there is no way to iterate a value computed
+    /// from several. Composing the predicate in a `js` block computes the right *numbers* and cannot feed
+    /// the `list`, because the list needs a resource — so `v01-event-filters` and `v02-cohort` both had to
+    /// filter on the *server* and fail their own "one fetch, not one per change" criterion on purpose.
+    ///
+    /// `of=Type` closes it: the source is any name in scope and `of=` names the row type, so
+    /// `list matches of=Event` iterates a `js`-computed array with `{name}` and `{country}` resolving
+    /// against `Event`'s fields.
+    ///
+    /// # Why `of=` and not a new attribute
+    ///
+    /// `of` was already declared on `list`/`table` and read as an *alternative source name* — a fallback
+    /// used by no fixture, no conformance case and no test. So this is a meaning change to an attribute
+    /// nothing depended on, done before 1.0, and recorded in `spec/STABILITY.md` rather than slipped in.
+    /// "Of" reading as "of what type" is also the reading a person gives it.
+    pub fn repeater_rows(&self, el: &Element) -> Option<RepeaterRows> {
+        if !matches!(el.tag.as_str(), "list" | "table") {
+            return None;
+        }
+        let source = el.label()?.to_string();
+        // A resource brings its own row type; that path is unchanged and stays the common case.
+        if let Some(r) = self.resources.iter().find(|r| r.name == source) {
+            let ty = r.ty.trim_end_matches("[]").to_string();
+            return Some(RepeaterRows { source, ty, from_resource: true });
+        }
+        // Otherwise the document has to say, because nothing else can: a `js` block's array has no
+        // declared element type and the compiler does not read the block.
+        let ty = el.attr("of").and_then(|v| v.as_text())?.to_string();
+        Some(RepeaterRows { source, ty, from_resource: false })
+    }
+
+    /// The field names of a repeater's row type, or empty when the type is not declared.
+    pub fn repeater_fields(&self, el: &Element) -> Vec<String> {
+        let Some(rows) = self.repeater_rows(el) else { return Vec::new() };
+        self.types
+            .iter()
+            .find(|t| t.name == rows.ty)
+            .map(|t| t.fields.iter().map(|f| f.name.clone()).collect())
+            .unwrap_or_default()
+    }
+
     /// Depth-first walk over every element in the tree.
     pub fn walk(&self, mut f: impl FnMut(&Element)) {
         fn go(els: &[Element], f: &mut impl FnMut(&Element)) {
@@ -57,6 +129,19 @@ impl Program {
         }
         go(&self.tree, &mut f);
     }
+}
+
+/// What a repeater iterates. See [`Program::repeater_rows`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RepeaterRows {
+    /// The name being iterated: a resource, or any other array in scope.
+    pub source: String,
+    /// The declared type of one row.
+    pub ty: String,
+    /// Whether the source is a declared resource, and therefore brings a fetch, loading and error state
+    /// with it. A derived array has none of that and must not be given the scaffolding — emitting
+    /// `matchesLoading` for a `js` const would reference a name that does not exist.
+    pub from_resource: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -159,6 +244,65 @@ impl Element {
     /// and skipping it would produce a false "declared but never used".
     pub fn is_escape(&self) -> bool {
         self.tag == "js" || self.tag == "raw"
+    }
+
+    /// Names a `js` block declares at its top level, which bindings elsewhere in the document may read.
+    ///
+    /// # Why the escape hatch is allowed to introduce a name
+    ///
+    /// Without this the hatch is a dead end rather than an escape. The case that showed it: the sum of a
+    /// *computed* per-row value — a cart subtotal, `Σ unitPrice × quantity` — is not expressible as a
+    /// binding, because an aggregate applies to a field and not to an expression. So the answer should
+    /// have been "drop into `js` and count it", which is what the spec tells a generator to do. It did not
+    /// work: a `js` block could compute `subtotal` and no binding could read it (`GUML0033`), leaving
+    /// `raw <backend>` — verbatim markup for one backend, skipped by the rest — as the only route. A
+    /// document forced to choose one backend has given up the property that makes GUML an IR.
+    ///
+    /// **This does not check the body.** Nothing here parses JavaScript; it reads the declaration keyword
+    /// and the name that follows, and it is deliberately conservative — indented lines are skipped, so a
+    /// `const` inside a function body or a block does not leak out. A name it misses costs a `GUML0033`
+    /// the author can work around; a name it invents would put an undeclared identifier into scope.
+    ///
+    /// `raw` is excluded on purpose. A `raw` body is markup for one backend, not component-body code, and
+    /// every other backend drops it — so a binding depending on a name from it would compile in one
+    /// target and be undefined in the others.
+    pub fn escape_declares(&self) -> Vec<String> {
+        if self.tag != "js" {
+            return Vec::new();
+        }
+        let mut out = Vec::new();
+        for line in &self.text_lines {
+            // Top level only. `text_lines` keeps a `js` body's own indentation, so a nested `const` is
+            // still indented relative to the block and is not in the component's scope.
+            if line.starts_with([' ', '\t']) {
+                continue;
+            }
+            let mut words = line.split_whitespace();
+            let Some(keyword) = words.next() else { continue };
+            if !matches!(keyword, "const" | "let" | "var" | "function" | "async") {
+                continue;
+            }
+            // `async function name(…)`.
+            let name = if keyword == "async" {
+                match words.next() {
+                    Some("function") => words.next(),
+                    _ => None,
+                }
+            } else {
+                words.next()
+            };
+            let Some(name) = name else { continue };
+            // `const [a, b] = …` and `const {a} = …` are destructurings this does not try to read, and
+            // `name(` is a function. Take the leading identifier or nothing.
+            let name: String = name
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_' || *c == '$')
+                .collect();
+            if !name.is_empty() {
+                out.push(name);
+            }
+        }
+        out
     }
 
     pub fn new(tag: impl Into<String>, span: Span) -> Self {
@@ -358,6 +502,24 @@ pub fn referenced_names(program: &Program) -> std::collections::HashSet<String> 
     for el in &program.tree {
         walk_references(el, &mut out);
     }
+    // An effect is a use in both halves. `on {filter} >tasks.list` reads `filter` and calls `tasks`,
+    // and missing either would report a declaration the document plainly depends on as dead — then the
+    // optimizer would delete it.
+    for e in &program.effects {
+        if let Trigger::Change(expr) = &e.trigger {
+            for b in guml_syntax::expr::interpolations(&format!("{{{expr}}}")) {
+                let head = head_ident(b);
+                if !head.is_empty() {
+                    out.insert(head.to_string());
+                }
+            }
+            let head = head_ident(expr);
+            if !head.is_empty() {
+                out.insert(head.to_string());
+            }
+        }
+        note_actions(&e.actions, &mut out);
+    }
     out
 }
 
@@ -411,7 +573,24 @@ fn walk_references(el: &Element, out: &mut std::collections::HashSet<String>) {
             note(b);
         }
     }
-    for action in &el.actions {
+    note_actions(&el.actions, out);
+
+    for child in &el.children {
+        walk_references(child, out);
+    }
+}
+
+/// Names an action body reads. Shared by elements and effects, because `>tasks.list` means the same
+/// thing on a button and on an `on` line — and a second copy of this would be a second chance to
+/// disagree about it.
+fn note_actions(actions: &[String], out: &mut std::collections::HashSet<String>) {
+    let mut note = |expr: &str| {
+        let head = head_ident(expr);
+        if !head.is_empty() {
+            out.insert(head.to_string());
+        }
+    };
+    for action in actions {
         for part in action.split(';') {
             note(part.trim());
             // `>tasks.add{title:draft}` uses `draft` as well as `tasks`.
@@ -426,9 +605,5 @@ fn walk_references(el: &Element, out: &mut std::collections::HashSet<String>) {
                 note(rhs.trim());
             }
         }
-    }
-
-    for child in &el.children {
-        walk_references(child, out);
     }
 }

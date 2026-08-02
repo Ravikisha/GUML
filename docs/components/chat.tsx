@@ -1,11 +1,11 @@
 "use client";
 
-import type { Diagnostic } from "guml";
-import { applyAllSuggestions, check, fix, format } from "guml";
-import { Guml } from "guml/react";
+import type { Diagnostic } from "@guml/core";
+import { applyAllSuggestions, check, fix, format } from "@guml/core";
+import { Guml } from "@guml/core/react";
 import { AlignLeft, ArrowUp, Eraser, Loader2, Square, Wand2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CLASS_STYLE, highlight } from "@/lib/highlight";
+import { CLASS_STYLE, highlight } from "@guml/highlight";
 import { SYSTEM_PROMPT_EST_TOKENS } from "@/lib/prompt.generated";
 import { cn, commas } from "@/lib/utils";
 import { CopyButton } from "./copy-button";
@@ -251,7 +251,7 @@ export function Chat() {
   const spent = quota !== null && quota.remaining <= 0;
 
   return (
-    <div className="mx-auto grid w-full max-w-7xl gap-4 px-4 pb-10 md:px-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:gap-6">
+    <div className="mx-auto grid w-full max-w-(--container-page) gap-4 px-4 pb-10 md:px-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:gap-6">
       {/* Pane switch: only needed while the two columns are stacked. */}
       <div
         role="tablist"

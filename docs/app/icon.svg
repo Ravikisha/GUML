@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="200 212 820 756" role="img" aria-label="GUML">
+  <title>GUML</title>
+  <!-- GENERATED from logo-mark.svg — do not edit. `currentColor` pinned to #360802
+       for light contexts that strip inheritance, such as GitHub markdown. -->
+
+  <!--
+    The mark: fluid on the left, structured on the right.
+
+    It is the compiler's job description. A model's output arrives amorphous — the blob, which has no
+    edges you could measure — and leaves as a laid-out interface: six rounded bars on a grid, the same
+    shape every time. The necks that reach rightward are the point of the drawing. The blob does not
+    sit beside the layout, it *becomes* it, and one bar is still accent-coloured because that is where
+    the transition happens.
+
+    Two colours, matching the site: Signal Orange for what the model produced, Ink Roast for what the
+    compiler guarantees. The bars take `currentColor` so an inline copy follows the page's text colour
+    in either theme; `logo-light.svg` and `logo-dark.svg` pin it for contexts that strip inheritance,
+    such as GitHub's markdown renderer.
+  -->
+  <defs>
+    <!--
+      Metaball goo. Blur the circles into one another, then push the alpha through a steep curve so
+      the soft overlap snaps back to a hard edge. This is why the necks look drawn rather than
+      assembled: the shape between two circles is a real intersection, not a path someone guessed at.
+    -->
+    <filter id="goo" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="20" result="blur" />
+      <feColorMatrix
+        in="blur"
+        type="matrix"
+        values="1 0 0 0 0
+                0 1 0 0 0
+                0 0 1 0 0
+                0 0 0 24 -11"
+        result="goo"
+      />
+    </filter>
+
+    <!--
+      One bite, above the third bar. There were two; the upper one sat across the neck reaching for the
+      accent bar and cut it into a claw — the neck is the most important line in the drawing, so
+      nothing is allowed to interrupt it. It merges into the bar cleanly instead.
+    -->
+    <mask id="notch">
+      <rect width="1240" height="1240" fill="#fff" />
+      <circle cx="600" cy="596" r="44" fill="#000" />
+    </mask>
+  </defs>
+
+  <!--
+    The fluid half. Circles only; the filter does the drawing.
+
+    The centres trace an S that leans left twice — a waist at mid-height, a heavy lobe at the bottom —
+    because a blob that runs straight down reads as a sausage rather than as something flowing. The
+    left extent is the silhouette's whole character, so those two circles carry the largest radii.
+  -->
+  <g fill="#f73b20" mask="url(#notch)">
+    <g filter="url(#goo)">
+      <circle cx="528" cy="322" r="96" />
+      <circle cx="452" cy="412" r="76" />
+      <circle cx="392" cy="506" r="86" />
+      <circle cx="458" cy="600" r="60" />
+      <circle cx="412" cy="692" r="76" />
+      <circle cx="348" cy="790" r="128" />
+      <circle cx="502" cy="848" r="68" />
+      <circle cx="556" cy="894" r="54" />
+      <!-- The neck that reaches for the accent bar: the moment fluid becomes layout. -->
+      <circle cx="604" cy="498" r="52" />
+    </g>
+    <!-- Detached droplets. Far enough out that the goo threshold leaves them whole — the last of the
+         output that has not resolved into structure yet. -->
+    <circle cx="360" cy="330" r="44" />
+    <circle cx="290" cy="578" r="44" />
+  </g>
+
+  <!-- The structured half. Exact rectangles on a grid, because that is the whole promise. -->
+  <g fill="#360802">
+    <rect x="645" y="252" width="355" height="140" rx="52" />
+    <rect x="868" y="424" width="132" height="146" rx="44" />
+    <rect x="625" y="607" width="375" height="151" rx="50" />
+    <rect x="620" y="788" width="120" height="152" rx="42" />
+    <rect x="765" y="788" width="235" height="152" rx="46" />
+  </g>
+
+  <!--
+    The bridge from the neck to the accent bar, drawn outside the filter.
+
+    The goo threshold pulls a filtered edge inward, so a circle overlapping the bar on paper still
+    rendered with a hairline of white between them — and the whole mark depends on that contact. This
+    is two primitives joining, not a shape being approximated, so it belongs outside the filter.
+  -->
+  <rect x="596" y="470" width="80" height="56" rx="28" fill="#f73b20" />
+
+  <!-- The crossover bar. Accent, not ink: it is the one piece of layout the fluid is still touching. -->
+  <rect x="645" y="424" width="210" height="146" rx="48" fill="#f73b20" />
+</svg>

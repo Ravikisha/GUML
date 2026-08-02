@@ -118,7 +118,15 @@
     },
     {
       "tag": "table",
-      "base": "mt-6 divide-y divide-slate-200 dark:divide-slate-800 rounded-md border border-slate-200 dark:border-slate-800"
+      "base": "mt-6 w-full border-collapse rounded-md border border-slate-200 dark:border-slate-800 text-sm"
+    },
+    {
+      "tag": "th",
+      "base": "border-b border-slate-200 dark:border-slate-800 px-3 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400"
+    },
+    {
+      "tag": "td",
+      "base": "border-b border-slate-200 dark:border-slate-800 px-3 py-2 align-middle text-slate-900 dark:text-slate-100"
     },
     {
       "tag": "btn",
@@ -180,6 +188,136 @@
     {
       "tag": "toggle",
       "base": "h-4 w-4 rounded border-slate-300 dark:border-slate-700"
+    },
+    {
+      "tag": "note",
+      "base": "mt-1 text-xs text-slate-500 dark:text-slate-400"
+    },
+    {
+      "tag": "badge",
+      "base": "inline-block rounded px-2 py-0.5 text-xs font-medium"
+    },
+    {
+      "tag": "badge",
+      "when": [
+        "primary"
+      ],
+      "add": "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900",
+      "group": "tone"
+    },
+    {
+      "tag": "badge",
+      "when": [
+        "danger"
+      ],
+      "add": "bg-red-600 text-white dark:bg-red-500 dark:text-slate-900",
+      "group": "tone"
+    },
+    {
+      "tag": "badge",
+      "add": "bg-slate-50 text-slate-700 dark:bg-slate-900 dark:text-slate-300",
+      "group": "tone"
+    },
+    {
+      "tag": "avatar",
+      "base": "inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-xs font-medium text-slate-700"
+    },
+    {
+      "tag": "divider",
+      "base": "my-4 border-0 border-t border-slate-200 dark:border-slate-800"
+    },
+    {
+      "tag": "img",
+      "base": "block max-w-full rounded-md"
+    },
+    {
+      "tag": "skeleton",
+      "base": "h-4 w-full animate-pulse rounded bg-slate-100 dark:bg-slate-900"
+    },
+    {
+      "tag": "step",
+      "base": "text-sm text-slate-500 dark:text-slate-400"
+    },
+    {
+      "tag": "option",
+      "base": ""
+    },
+    {
+      "tag": "alert",
+      "base": "rounded-md border px-4 py-3 text-sm"
+    },
+    {
+      "tag": "alert",
+      "when": [
+        "danger"
+      ],
+      "add": "border-red-200 bg-red-50 text-red-700",
+      "group": "tone"
+    },
+    {
+      "tag": "alert",
+      "add": "border-slate-200 dark:border-slate-800 bg-slate-50 text-slate-700 dark:text-slate-300",
+      "group": "tone"
+    },
+    {
+      "tag": "grid",
+      "base": "grid gap-6"
+    },
+    {
+      "tag": "sidebar",
+      "base": "flex flex-col gap-3 border-r border-slate-200 dark:border-slate-800 pr-6"
+    },
+    {
+      "tag": "toolbar",
+      "base": "flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3"
+    },
+    {
+      "tag": "breadcrumb",
+      "base": "flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400"
+    },
+    {
+      "tag": "pagination",
+      "base": "mt-6 flex items-center justify-center gap-2"
+    },
+    {
+      "tag": "stepper",
+      "base": "flex list-none items-center gap-4 m-0 p-0 text-sm"
+    },
+    {
+      "tag": "menu",
+      "base": "flex list-none flex-col gap-1 m-0 rounded-md border border-slate-200 dark:border-slate-800 p-2"
+    },
+    {
+      "tag": "stat",
+      "base": "rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 m-0 p-6"
+    },
+    {
+      "tag": "stat-label",
+      "base": "text-sm text-slate-500 dark:text-slate-400"
+    },
+    {
+      "tag": "stat-value",
+      "base": "ml-0 mt-1 text-3xl font-semibold tabular-nums text-slate-900 dark:text-slate-100"
+    },
+    {
+      "tag": "stat-delta",
+      "base": "ml-0 mt-1 text-xs text-slate-500 dark:text-slate-400"
+    },
+    {
+      "tag": "progress",
+      "base": "h-2 w-full rounded bg-slate-200 dark:bg-slate-900"
+    },
+    {
+      "tag": "modal",
+      "base": "fixed z-50 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-lg left-1/2 top-1/2 w-full max-w-lg -translate-x-1/2 -translate-y-1/2"
+    },
+    {
+      "tag": "drawer",
+      "base": "fixed z-50 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-lg right-0 top-0 h-full w-full max-w-sm"
+    },
+    {
+      "tag": "toast",
+      "base": "fixed bottom-6 right-6 z-50 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 text-sm shadow-lg"
     },
     {
       "tag": "*",

@@ -1,0 +1,27 @@
+page Invoices
+
+type Invoice {id, client, amount:number, paid:bool, due:date}
+data invoices:Invoice[] GET /api/invoices
+  settle PATCH /api/invoices/{id} {paid} optimistic
+
+state view=all|open|paid
+
+on {view} >invoices.list
+
+head Invoices — {invoices.open.count} awaiting payment
+
+row between
+  metric {invoices.amount.sum}
+  btn Refresh quiet >invoices.list
+
+tabs view
+
+table invoices where={view} sort=due cols="Client, Amount, Due, Paid"
+  text {client}
+  text {amount}
+  text {due}
+  check {paid} aria="Mark {client} paid" >invoices.settle
+  empty No invoices match this view.
+
+p The state field here is `paid`, not `done`. `{invoices.open.count}` filters on it because the
+p compiler reads the flag from the row type rather than from a name it hoped for.

@@ -99,7 +99,7 @@ export default function Page() {
       </UL>
       <P>
         Those are tokens the model did not spend and details it could not get wrong. That trade is
-        the whole argument; the <A href="/docs/research/measurements">measurements page</A> puts
+        the whole argument; the <A href="/research/measurements">measurements page</A> puts
         numbers and caveats on it.
       </P>
 

@@ -1,8 +1,19 @@
+<!--
+  Maintainer notes. An HTML comment, so it costs a model nothing: every byte of this file is paid for
+  once per generation, and text addressed to a human is pure overhead in a prompt.
+
+  Budget: ≤3,000 est. tokens for the *assembled* prompt (this file + registry slice + examples),
+  enforced by `bench/phase0/preflight.mjs`. Invariant 5 in CLAUDE.md states why.
+
+  The vocabulary is deliberately **not** enumerated here. The assembled prompt appends an
+  `Available tags` block generated from the compiler, one line per tag and only the tags a task needs,
+  so a list here would be a duplicate that can drift — and growing the vocabulary from 28 to 49 tags in
+  0.2 is exactly what made the difference between fitting the budget and not.
+-->
+
 # GUML v0.1 — language specification
 
-Written for a model: terse, complete, example-led. Everything here is implemented and tested
-unless marked `PLANNED`. Budget ≤3,000 tokens assembled (spec + registry slice + examples);
-`bench/phase0/preflight.mjs` enforces it, and rationale lives in the docs site, not here.
+Written for a model: terse, complete, example-led. Everything here is implemented and tested.
 
 ## Shape of a file
 
@@ -38,16 +49,11 @@ data tasks:Task[] GET /api/tasks              // a resource
   add  POST   /api/tasks      {title}  optimistic:prepend
   save PATCH  /api/tasks/{id} {done}   optimistic
   drop DELETE /api/tasks/{id}          optimistic
-route /app -> Dashboard                       // PLANNED
-auth clerk                                    // PLANNED
-
-def stat label value                          // a user-defined component
-  card sm center
-    h {label}
-    metric {value}
-
-stat "Revenue" {total}                        // a call: arguments are positional
+on mount >tasks.list                          // an effect; the trigger is the dependency
+on {filter} >tasks.list                       // re-runs when `filter` changes
 ```
+
+`def` is a directive too; see **User-defined components** below.
 
 A `data` block's indented children are its mutations: `name METHOD /url {body fields}
 [optimistic[:strategy]]`. Strategies: `prepend`, `append`, `replace` (default).
@@ -92,20 +98,30 @@ p Press the buttons to change the value.
 card "Ship in minutes" | Describe the page, get a deployable build.
 ```
 
-**Bindings** — `{expr}`: paths (`title`, `tasks.open.count`), comparison, boolean, arithmetic,
-aggregates (`.count`, `.sum`, `.where`). Bindings are read-only.
+**Bindings** — `{expr}`: paths (`title`, `tasks.open.count`), comparison, boolean, arithmetic.
+Aggregates: `.count` `.sum` `.open` `.done` `.trim` `.lower` `.upper`. After a field they narrow the
+rows first — `invoices.paid.amount.sum`. Read-only.
 
 ## Tag vocabulary
 
 Closed set. An unknown tag is a compile error with a `did you mean` suggestion.
 
-| Kind | Tags | Notes |
-|---|---|---|
-| Container | `card` `row` `col` `section` `nav` `hero` `footer` `form` `tabs` `tier` `faq` | children are elements |
-| Text | `h` `h1` `h2` `p` `text` `metric` `head` `empty` | line remainder is prose |
-| Control | `btn` `link` `check` `toggle` | `>` gives the behaviour |
-| Field | `input` `select` | first positional is the state it binds |
-| Repeater | `list` `table` | children are the item template |
+**The `Available tags` block is the authoritative list**, generated from the compiler. Kinds:
+
+| Kind | Means |
+|---|---|
+| Container | children are elements; first positional is its title |
+| Text | the whole line remainder is prose, verbatim |
+| Control | interactive leaf; `>` gives the behaviour |
+| Field | first positional is the state it binds |
+| Repeater | children are the item template |
+
+- **A bare word past the last positional slot is an error.** `btn Add task` is one slot, two words:
+  quote it — `btn "Add task"`. Nothing is dropped silently.
+- **Modifiers do not work on a Text tag**, whose remainder is prose: `badge danger X` renders "danger X".
+- **`if={expr}`** renders an element only while true — how `modal`/`drawer`/`toast` show and hide.
+- `select` options come from the bound state's domain, or from `option` children.
+- A repeater takes a `data` resource, or any in-scope array with `of=Type`. `table` needs `cols="A, B"`.
 
 `tier` and `faq` take **content lines**, not elements:
 
@@ -138,8 +154,9 @@ state    disabled loading readonly required
 `id` `aria` `title` `hidden` `cols` `gap` `w` `if` `disabled` `loading` `readonly`
 `required`. No `class`: presentation is the theme's.
 
-Per-tag extras: `btn` → `busy` `type`; `input` → `placeholder` `kind` `min` `max`;
-`list`/`table` → `where` `sort` `of`; `tier` → `cta`; `faq` → `open`; `text` → `strike`.
+Per-tag extras: `btn` → `busy` `type`; `input`/`select` → `placeholder` `kind` `min` `max`;
+`list`/`table` → `where` `sort` `of` `cols` (a `table`'s column headers, comma-separated); `tier` → `cta`; `faq` → `open`; `text` → `strike`;
+`img` → `src` `alt`; `progress` → `value` `max`; `stat` → `delta`; `step` → `done` `current`.
 
 ## User-defined components
 
@@ -147,14 +164,15 @@ Per-tag extras: `btn` → `busy` `type`; `input` → `placeholder` `kind` `min` 
 into a binding, an attribute value, or prose; any other `{name}` is the document's own. A literal
 argument becomes text, a binding stays a binding.
 
-Exact arity. No redefining an existing tag, no recursion, no parameter inside an action, no children
-at a call site (slots are not implemented).
+A `slot` in the body is where a call's children go, so a `def` can wrap content; at most one, and the
+children keep the caller's scope. Exact arity. No redefining an existing tag, no recursion, and no
+parameter inside an action.
 
 ## Conformance levels
 
-**core** is markup: containers, text, controls, `tier`, `faq`, `raw` — no I/O, no state, safe to
-render from an untrusted agent. **app** adds `state`, `store`, `data`, actions, `js`, and the
-repeaters that iterate a resource. An app construct at the core level is `GUML0091`, an error.
+**core** is markup — no I/O, no state, safe to render from an untrusted agent. **app** adds `state`,
+`store`, `data`, actions, `js`, the repeaters, and `modal`/`drawer`/`toast`. An app construct at the
+core level is `GUML0091`, an error.
 
 ## Escape hatches
 
@@ -171,21 +189,12 @@ Bodies are verbatim and never checked; indentation is preserved and `//` is the 
 comment. `raw <target>` is skipped by other backends. Each block reports `GUML0090`, so the
 escape-hatch rate stays countable.
 
-## Worked example
-
-Three complete documents are appended below under **Examples of valid GUML**, including a CRUD page
-with optimistic updates. Read those rather than a fourth one here.
-
 ## Rules a generator should follow
 
-1. Start with `page <Name>`.
-2. Declare `type`, `data`, `state` before the tree.
-3. Never write class names, colours, spacing, or ARIA plumbing — use modifiers and let the
-   compiler decide.
-4. Never hand-write loading, empty, error, or rollback logic — declare the resource and the
-   `empty` message.
-5. Put `>action` last on its line.
-6. Prose goes in text tags or after `|`, and needs no quoting: `p Set x=1 to enable` is prose,
-   because `=` only starts an attribute when the name is one the tag accepts. Quote it if it
-   contains `|`.
-7. If something cannot be expressed, say so rather than inventing a tag.
+1. Start with `page <Name>`; declare `type`, `data`, `state` before the tree.
+2. Never write class names, colours, spacing or ARIA plumbing — use modifiers.
+3. Never hand-write loading, empty, error or rollback logic — declare the resource and the `empty`
+   message.
+4. Put `>action` last on its line.
+5. Prose needs no quoting (`p Set x=1 to enable` is prose); quote it if it contains `|`.
+6. If something cannot be expressed, say so rather than inventing a tag.

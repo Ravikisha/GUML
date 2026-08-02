@@ -1,0 +1,15 @@
+# Build artifacts from `tree-sitter test`/`parse`, which compiles the parser in place.
+node_modules/
+*.obj
+*.lib
+*.exp
+*.so
+*.dylib
+*.dll
+*.wasm
+
+# `src/parser.c`, `src/grammar.json` and `src/node-types.json` are deliberately NOT ignored. They are
+# generated, and committing generated files is usually wrong — but tree-sitter consumers (Neovim, Helix,
+# GitHub's linguist) build from `src/parser.c` without running `tree-sitter generate`, so a repository
+# without it is unusable to exactly the audience this grammar exists for. `src/tags.h` is committed for the
+# same reason, and `npm run check:tags` is what keeps it honest.

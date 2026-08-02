@@ -110,9 +110,23 @@ function accessibility(html) {
   if (h1s > 1) problems.push(`${h1s} h1 elements`);
 
   // A table's columns need headers, and they need a scope.
+  //
+  // **This cannot fire from a server render, and that is not an oversight.** A repeater emits
+  // `{rowsLoading ? <skeleton> : …}` and `rowsLoading` starts `true`, so a render with no data reaches the
+  // skeleton and never the table — for the same reason the resource shows a skeleton in a browser before
+  // its first response. Adding a "some fixture must render a table" guard here fails immediately, which is
+  // how this comment came to be written.
+  //
+  // The table's structure is pinned in Rust instead, by `a_table_lowers_to_a_real_table_in_every_backend`
+  // in `crates/guml-compiler/tests/vocabulary.rs`, which reads the emitted source rather than the rendered
+  // output. This block stays because it is right for any table that *is* reachable — a static one, or a
+  // future backend that server-renders with data.
   if (/<table[\s>]/.test(html)) {
     if (!/<th[\s>]/.test(html)) problems.push("table without header cells");
-    for (const th of html.match(/<th[^>]*>/g) ?? []) {
+    // `<th(?=[\s>])`, not `<th` — the loose form matches `<thead>` and reported "th without scope:
+    // <thead>". A latent bug in this check that could only surface once something actually emitted a
+    // `<thead>`, which is the same reason the assertion above had never run.
+    for (const th of html.match(/<th(?=[\s>])[^>]*>/g) ?? []) {
       if (!/scope=/.test(th)) problems.push(`th without scope: ${th}`);
     }
   }
@@ -202,6 +216,71 @@ const FIXTURES = [
       if (!/aria-label="Keep me signed in"|role="switch"/.test(html)) {
         out.push("toggle is not a switch");
       }
+      return out;
+    },
+  },
+  {
+    file: "invoices.guml",
+    checks: (html) => {
+      const out = [];
+      // The row's flag is `paid`, not `done`. Three separate places in the compiler used to assume the
+      // name: the `.open` aggregate, a body-less `save` toggle, and the `where=` filter. Rendering is
+      // where a wrong answer becomes visible — a count of zero, or a table the tabs cannot filter.
+      if (!/awaiting payment/.test(html)) out.push("the header did not render");
+      // Nothing is fetched in a server render, so the count is over an empty list. `NaN` or `undefined`
+      // reaching the DOM is the signature of an aggregate lowered against a field that does not exist.
+      if (/NaN|undefined/.test(html)) out.push("an aggregate lowered to NaN/undefined");
+      if (!/aria-label="Mark .* paid"|animate-pulse/.test(html)) {
+        out.push("the table renders neither labelled rows nor a skeleton");
+      }
+      return out;
+    },
+  },
+  {
+    // The 0.2 vocabulary. Rust tests can tell that these tags *lowered*; only rendering can tell that
+    // a dialog carries an accessible name, that a `<select>` has options in the DOM, and that a
+    // conditional element is genuinely absent rather than merely styled out of view.
+    file: "e.guml",
+    checks: (html) => {
+      const out = [];
+
+      // Landmarks. These were the regression that made the element table shared: the no-JavaScript
+      // backend had been emitting `<div>` where React emitted `<nav>`, so a screen-reader user had
+      // nothing to navigate by. Two named `<nav>` landmarks here: breadcrumb and pagination.
+      if (count(html, /<nav[\s>]/g) !== 2) out.push("expected two nav landmarks");
+      if (!/aria-label="Breadcrumb"/.test(html)) out.push("breadcrumb is not a named landmark");
+      if (!/aria-label="Pagination"/.test(html)) out.push("pagination is not a named landmark");
+
+      // A dropdown with no options was the state every backend shipped before `select_options`.
+      if (!/<option value="all"/.test(html)) out.push("select renders no options");
+      // `failed`, not `urgent`. The state was `severity=all|urgent` over a `Job {…, failed:bool}`, so
+      // `where={severity}` matched no field and the compiler warned that the table was not filtered at all —
+      // the fixture demonstrated a control that did nothing. Naming the boolean is what makes it filter.
+      if (!/<option value="failed"/.test(html)) out.push("select is missing a domain member");
+
+      // `stat` is a description list. A `<dt>`/`<dd>` pair inside a `<div>` was invalid markup, and
+      // the open/close tags did not even match.
+      if (count(html, /<dl[\s>]/g) < 2) out.push("stat tiles are not description lists");
+      if (!/<dt[\s>]/.test(html) || !/<dd[\s>]/.test(html)) out.push("stat has no term/definition");
+
+      // `if={showDetail}` with `showDetail=false` at first paint. The element must be *absent*: `if`
+      // used to fall through to the DOM as a literal attribute, so the dialog rendered always.
+      if (/role="dialog"/.test(html)) out.push("a modal guarded by `if=` rendered while false");
+      if (/\sif=/.test(html)) out.push("`if` leaked into the DOM as an attribute");
+
+      // A progress bar works with no script, so it is one of the few controls that is not inert.
+      if (!/<progress/.test(html)) out.push("progress did not become a <progress> element");
+      if (!/aria-label="Queue drained"/.test(html)) out.push("progress has no accessible name");
+
+      // `alt` is the accessible name of an image, and was rejected as if it were not one.
+      if (!/alt="Operations logo"/.test(html)) out.push("img lost its alt text");
+
+      // An ordered list carries the order, which is the whole meaning of a stepper.
+      if (!/<ol[\s>]/.test(html)) out.push("stepper is not an ordered list");
+
+      // Nothing is fetched in a server render, so aggregates run over an empty list. `NaN` reaching
+      // the DOM is the signature of an aggregate lowered against a field that does not exist.
+      if (/NaN|undefined/.test(html)) out.push("an aggregate lowered to NaN/undefined");
       return out;
     },
   },

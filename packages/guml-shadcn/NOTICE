@@ -1,0 +1,55 @@
+GUML
+Copyright (c) 2026 GUML contributors
+
+This product includes software developed by third parties, redistributed under
+the terms below. Both are MIT-licensed, as is GUML itself, so redistribution
+carries no additional restriction — this notice exists to preserve attribution,
+which the MIT licence does require.
+
+
+--------------------------------------------------------------------------------
+shadcn/ui
+--------------------------------------------------------------------------------
+
+`packages/guml-shadcn/src/components/ui/` contains 61 component files installed
+verbatim by `pnpm dlx shadcn@latest add --all`. They are redistributed unmodified.
+
+`crates/guml-codegen/themes/shadcn.json` and `shadcn.css` implement the same
+design tokens and class strings, transcribed from shadcn/ui's
+`registry/new-york-v4/ui/*.tsx`.
+
+    https://github.com/shadcn-ui/ui
+
+    MIT License
+
+    Copyright (c) 2023 shadcn
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+
+
+--------------------------------------------------------------------------------
+Runtime dependencies of `@guml/shadcn`
+--------------------------------------------------------------------------------
+
+The shadcn components are built on Radix UI, Base UI, cmdk, embla-carousel,
+recharts, react-day-picker, react-hook-form, react-resizable-panels, input-otp,
+sonner, vaul, lucide-react, date-fns, zod, class-variance-authority, clsx and
+tailwind-merge. These are declared as dependencies and installed from npm rather
+than vendored here; each carries its own licence, and `pnpm licenses list`
+enumerates them for a given install.

@@ -1,0 +1,1521 @@
+//! Web Components backend: one `.js` file, a custom element, no framework and no build step.
+//!
+//! # What this backend is for
+//!
+//! The portability story, and it is the one no other backend can tell. React output needs React, a
+//! bundler and a JSX transform; Svelte output needs the Svelte compiler; the static-HTML output needs no
+//! runtime and therefore cannot be interactive. This emits a file a browser runs as-is — `<script
+//! type="module">` and a custom element — which makes a compiled GUML document embeddable in a Rails
+//! view, a WordPress theme, a Zendesk widget, or an email-adjacent surface where a framework is not on
+//! the table.
+//!
+//! It is also the fourth independent check on "GUML is an IR". The React backend has hooks, Svelte has
+//! runes, static HTML has nothing, and this has *manual DOM updates* — four genuinely different
+//! reactivity models from one AST. A construct that only makes sense in one of them is a construct the
+//! language got wrong.
+//!
+//! # Three design decisions worth stating
+//!
+//! **No shadow DOM.** The obvious default, and wrong here. The theme's classes are global utility
+//! classes (`rounded-md`, `text-sm`), and a shadow root deliberately isolates the document's styles from
+//! its contents — so the component would render completely unstyled while looking, from the outside, like
+//! everything worked. Encapsulation is the *point* of shadow DOM and directly opposed to the point of a
+//! themeable compiler. A host who wants isolation can put this inside their own shadow root along with
+//! the stylesheet.
+//!
+//! **Text and attributes update; input values never do.** There is no VDOM, so the naive approach is to
+//! rebuild `innerHTML` on every state change. That destroys focus and the cursor position, which means
+//! typing in a text field breaks after the first character — a defect no amount of "it is only a
+//! reference implementation" excuses. So the DOM is built once and updates are targeted: `textContent`
+//! for a binding, attributes for `disabled`/`checked`/`hidden`, and a bound field's `value` is written
+//! *only* at first paint. The field is the source of truth for its own value; writing it back on every
+//! keystroke is what moves the cursor.
+//!
+//! **One delegated listener per event type.** Not one per control. Handlers are dispatched by a
+//! `data-g-act` index on the target, so a repeater can replace its rows without leaking listeners or
+//! needing to re-bind — the two bugs every hand-written version of this has.
+
+use crate::expr::{self, Ctx};
+use crate::react::classes;
+use crate::{Backend, Emitted, OutFile, component_name, modifiers_of, unsupported_in};
+use guml_ast::{Element, Positional, Program, Resource, Value};
+use guml_diagnostics::Diagnostics;
+use std::fmt::Write as _;
+
+/// The prefix a state read gets in emitted code.
+///
+/// Named because three places depend on it agreeing: the `Ctx` that lowers expressions, `to_alias`
+/// which shortens it for the update pass, and the `#state` field the class declares.
+const STATE: &str = "this.#state.";
+
+#[derive(Debug, Default)]
+pub struct WcBackend;
+
+impl Backend for WcBackend {
+    fn name(&self) -> &'static str {
+        "wc"
+    }
+
+    fn emit(&self, program: &Program) -> Emitted {
+        let mut out = Emitted::default();
+        let class =
+            component_name(program.page.as_ref().map(|p| p.name.as_str()).unwrap_or("Page"));
+        let tag = custom_tag(&class);
+
+        // Same shared liveness answer as every other backend: a declaration nothing refers to is not
+        // emitted, and the author was already warned it was unused (`GUML0074`/`GUML0075`).
+        let live = guml_ast::referenced_names(program);
+        let states: Vec<_> = program.states.iter().filter(|s| live.contains(&s.name)).collect();
+        let resources: Vec<_> =
+            program.resources.iter().filter(|r| live.contains(&r.name)).collect();
+
+        let collections: Vec<String> = program.resources.iter().map(|r| r.name.clone()).collect();
+        let row_bool = crate::row_bool_fields(program);
+
+        let mut g = Gen {
+            program,
+            diags: &mut out.diagnostics,
+            collections: collections.clone(),
+            row_bool: row_bool.clone(),
+            actions: Vec::new(),
+            texts: Vec::new(),
+            attrs: Vec::new(),
+            conds: Vec::new(),
+            fields: Vec::new(),
+            repeaters: Vec::new(),
+            next_id: 0,
+        };
+        let ctx = Ctx::default()
+            .with_collections(&collections)
+            .with_row_bool(&row_bool)
+            .with_scope(STATE);
+        let mut markup = String::new();
+        for el in &program.tree {
+            markup.push_str(&g.element(el, 3, &ctx));
+        }
+        let Gen { actions, texts, attrs, conds, fields, repeaters, .. } = g;
+
+        let mut src = String::new();
+        let _ = writeln!(
+            src,
+            "// Generated by the GUML compiler. A framework-free custom element: load it with\n\
+             // `<script type=\"module\" src=\"./{class}.js\"></script>` and use `<{tag}></{tag}>`.\n\
+             //\n\
+             // No shadow DOM: the classes below are global utility classes, and a shadow root would\n\
+             // isolate the document's stylesheet from them — rendering this unstyled while looking fine."
+        );
+        if !resources.is_empty() {
+            // `RETRY_JS` is written indented for a Svelte `<script>`; a module's top level wants column
+            // zero. De-indenting rather than keeping a third spelling of the same policy.
+            src.push_str(crate::RETRY_JS.trim_start_matches(' ').replace("\n  ", "\n").as_str());
+            src.push('\n');
+            // The cache builds on `retrying`, so it follows it. Already at column zero.
+            src.push_str(crate::CACHE_JS);
+        }
+
+        let _ = writeln!(src, "class {class} extends HTMLElement {{");
+
+        // State as one object, so `#set` has a single place to notice a change and schedule a repaint.
+        let _ = writeln!(src, "  #state = {{");
+        for s in &states {
+            let _ = writeln!(src, "    {}: {},", s.name, initial(&s.init, &s.domain));
+        }
+        for r in &resources {
+            let _ = writeln!(
+                src,
+                "    {}: [], {}Loading: true, {}Error: null,",
+                r.name, r.name, r.name
+            );
+        }
+        let _ = writeln!(src, "  }};\n");
+        let _ = writeln!(src, "  #painted = false;\n");
+
+        let _ = writeln!(src, "  connectedCallback() {{");
+        let _ = writeln!(src, "    if (this.#painted) return;");
+        let _ = writeln!(src, "    this.#painted = true;");
+        let _ = writeln!(src, "    this.innerHTML = {};", js_template(&markup));
+        // One listener per event type, on the host. Delegation is what lets a repeater replace its rows
+        // without re-binding anything.
+        if !actions.is_empty() || !fields.is_empty() {
+            let _ = writeln!(
+                src,
+                "    for (const type of [\"click\", \"input\", \"change\", \"submit\"]) {{\n      \
+                 this.addEventListener(type, (e) => this.#dispatch(type, e));\n    }}"
+            );
+        }
+        // A bound field's value is written once, here, and never again — see the module docs.
+        for (id, name) in &fields {
+            let _ = writeln!(
+                src,
+                "    {{ const el = this.#el({id}); if (el) el.value = this.#state.{name}; }}"
+            );
+        }
+        for r in &resources {
+            let _ = writeln!(src, "    this.{}List();", r.name);
+        }
+        let _ = writeln!(src, "    this.#update();");
+        // Declared effects, after the resource fetch they usually invoke.
+        for e in &program.effects {
+            if matches!(e.trigger, guml_ast::Trigger::Mount) {
+                for action in &e.actions {
+                    let _ = writeln!(src, "    {}", lower_action_free(action, &collections, &ctx));
+                }
+            }
+        }
+        let _ = writeln!(src, "  }}\n");
+
+        let _ = writeln!(
+            src,
+            "  #el(id) {{\n    return this.querySelector(`[data-g-id=\"${{id}}\"]`);\n  }}\n"
+        );
+
+        // Every write to state goes through here, which is what makes "when does this repaint" a
+        // question with one answer.
+        let _ = writeln!(
+            src,
+            "  #set(patch) {{\n    Object.assign(this.#state, patch);\n    this.#update();\n  }}\n"
+        );
+
+        src.push_str(&update_method(&texts, &attrs, &conds, &repeaters, program));
+
+        if !actions.is_empty() || !fields.is_empty() {
+            src.push_str(&dispatch_method(&actions, &fields));
+        }
+
+        for r in &resources {
+            src.push_str(&resource_methods(r, &ctx));
+        }
+
+        let _ = writeln!(src, "}}\n");
+        let _ = writeln!(src, "customElements.define({tag:?}, {class});");
+        let _ = writeln!(src, "export default {class};");
+
+        out.files.push(OutFile { path: format!("{class}.js"), contents: src, source_map: None });
+        out
+    }
+}
+
+/// `TaskList` -> `guml-task-list`.
+///
+/// A custom element name must contain a hyphen, which the standard requires precisely so it cannot
+/// collide with a future built-in element. The `guml-` prefix is not decoration: a page embedding two
+/// compiled documents needs their element names not to collide with the host's own components either.
+fn custom_tag(class: &str) -> String {
+    let mut out = String::from("guml-");
+    for (i, ch) in class.chars().enumerate() {
+        if ch.is_uppercase() && i > 0 {
+            out.push('-');
+        }
+        out.extend(ch.to_lowercase());
+    }
+    out
+}
+
+/// A markup string as a JavaScript template literal.
+///
+/// A template literal rather than a quoted string so the emitted file stays readable — this is the
+/// component's entire markup, and a person opens it. Backticks, `${` and backslashes have to be escaped
+/// or the literal ends early and the file will not parse.
+fn js_template(markup: &str) -> String {
+    let escaped = markup.replace('\\', "\\\\").replace('`', "\\`").replace("${", "\\${");
+    format!("`\n{escaped}  `")
+}
+
+/// A dynamic text binding: `(element id, lowered expression)`.
+type Text = (usize, String);
+/// A dynamic attribute: `(element id, attribute, lowered expression)`.
+type Attr = (usize, String, String);
+/// A repeater: `(element id, resource, filtered expression, row template, empty message)`.
+/// `(id, source, visible-expression, row markup, empty message, tabular)`.
+///
+/// `tabular` decides `<tr>`/`<td>` against `<li>`, and it is carried here rather than re-derived in
+/// `update_method` because the row markup is *already wrapped* by then — the wrapping and the container
+/// have to agree, and one flag is what keeps them from disagreeing.
+type Repeater = (usize, String, String, String, String, bool);
+
+struct Gen<'a> {
+    program: &'a Program,
+    diags: &'a mut Diagnostics,
+    collections: Vec<String>,
+    row_bool: Vec<(String, String)>,
+    /// Lowered statement bodies, indexed by `data-g-act`.
+    actions: Vec<(usize, String, String)>,
+    texts: Vec<Text>,
+    attrs: Vec<Attr>,
+    conds: Vec<Text>,
+    /// Two-way bound fields: `(element id, state name)`.
+    fields: Vec<(usize, String)>,
+    repeaters: Vec<Repeater>,
+    next_id: usize,
+}
+
+impl Gen<'_> {
+    fn id(&mut self) -> usize {
+        self.next_id += 1;
+        self.next_id - 1
+    }
+
+    fn element(&mut self, el: &Element, depth: usize, ctx: &Ctx) -> String {
+        let pad = "  ".repeat(depth);
+
+        // Escape hatches. `raw wc` is this backend's own; anything else belongs to another and is
+        // skipped rather than emitted as broken JavaScript.
+        if el.tag == "raw" {
+            let target = el.positionals.iter().find_map(|p| match p {
+                Positional::Text(t) => Some(t.as_str()),
+                _ => None,
+            });
+            if target.is_some_and(|t| t != "wc") {
+                return String::new();
+            }
+            return el.text_lines.iter().map(|l| format!("{pad}{l}\n")).collect();
+        }
+        if el.tag == "js" {
+            // A `js` body is component-body code written for a framework this backend is not. Hoisting
+            // it into a class body would put statements where only methods are legal, so the honest
+            // answer is to report it rather than emit a file that does not parse.
+            crate::unsupported_in(
+                self.diags,
+                "wc",
+                el.span,
+                "a `js` block is component-body code and this backend emits a class body — use `raw wc` for a method",
+            );
+            return String::new();
+        }
+
+        match el.tag.as_str() {
+            "list" | "table" => self.repeater(el, depth, ctx),
+            "tabs" => self.tabs(el, depth, ctx),
+            "faq" => self.faq(el, depth),
+            "tier" => self.tier(el, depth),
+            "stat" => self.stat(el, depth, ctx),
+            _ => self.plain(el, depth, ctx),
+        }
+    }
+
+    fn plain(&mut self, el: &Element, depth: usize, ctx: &Ctx) -> String {
+        let pad = "  ".repeat(depth);
+        let mods = modifiers_of(el);
+        let class = crate::dedupe_classes(&format!("{} {}", classes(&el.tag, &mods), layout(el)));
+        let element = match crate::custom_element(&el.tag) {
+            // A host component is a framework concept; there is no framework here to resolve it.
+            Some((e, _)) if e.starts_with(char::is_uppercase) => {
+                unsupported_in(
+                    self.diags,
+                    "wc",
+                    el.span,
+                    format!(
+                        "`{}` lowers to the host component `{e}`, which needs a framework this backend does not have",
+                        el.tag
+                    ),
+                );
+                return String::new();
+            }
+            Some((e, _)) => e,
+            None => match crate::element_for(&el.tag) {
+                Some(e) => e,
+                None => {
+                    unsupported_in(self.diags, "wc", el.span, format!("tag `{}`", el.tag));
+                    return format!("{pad}<!-- TODO(guml): `{}` is not lowered -->\n", el.tag);
+                }
+            },
+        };
+
+        let id = self.id();
+        let mut attrs: Vec<String> = vec![format!("data-g-id=\"{id}\"")];
+        if !class.trim().is_empty() {
+            attrs.push(format!("class=\"{}\"", esc_attr(class.trim())));
+        }
+        if let Some(a) = el.anchor() {
+            attrs.push(format!("id=\"{}\"", esc_attr(a)));
+        }
+        attrs.extend(fixed_attrs(&el.tag, el));
+
+        // `if=` becomes a `hidden` toggle rather than a removal from the tree: the element is built once
+        // and `#update` only ever flips attributes, so there is nothing to re-create it if it came back.
+        if let Some(Value::Binding(b)) = el.attr("if") {
+            let cond = expr::lower_expr(&b.expr, ctx);
+            self.conds.push((id, cond));
+        }
+
+        // A string attribute containing `{…}` is *dynamic*, not literal.
+        //
+        // `aria="Delete {title}"` was emitted verbatim, so a screen reader announced the button as
+        // "Delete {title}" — the accessible name the compiler exists to guarantee, containing a brace.
+        // Registering it for `#update` is the same treatment a bound attribute gets, because it is one.
+        let interpolated = |v: &Value| matches!(v, Value::Str(s) if s.contains('{'));
+
+        for a in &el.attrs {
+            match a.name.as_str() {
+                "aria" => match &a.value {
+                    v if interpolated(v) => self.attrs.push((
+                        id,
+                        "aria-label".to_string(),
+                        js_text(v.as_text().unwrap_or_default(), ctx),
+                    )),
+                    v => attrs.push(format!("aria-label=\"{}\"", esc_attr(&text_of(v, ctx)))),
+                },
+                // Consumed by the element table, by `layout`, or by a feature.
+                "id" | "if" | "where" | "cta" | "open" | "sort" | "of" | "cols" | "gap" | "w"
+                | "kind" | "busy" | "delta" | "src" | "alt" | "current" | "done" => {}
+                "placeholder" if el.tag == "select" => {}
+                "placeholder" => {
+                    attrs.push(format!("placeholder=\"{}\"", esc_attr(&text_of(&a.value, ctx))))
+                }
+                // A bound attribute is a *dynamic* attribute, recorded for `#update` rather than
+                // written into the markup, where it would be a one-time snapshot of the initial state.
+                "disabled" | "readonly" | "required" | "hidden" | "strike" => match &a.value {
+                    Value::Binding(b) => {
+                        let expr = expr::lower_expr(&b.expr, ctx);
+                        let name =
+                            if a.name == "strike" { "data-g-strike" } else { a.name.as_str() };
+                        self.attrs.push((id, name.to_string(), expr));
+                    }
+                    Value::Flag | Value::Bool(true) => attrs.push(a.name.clone()),
+                    _ => {}
+                },
+                _ => match &a.value {
+                    Value::Binding(b) => {
+                        self.attrs.push((id, a.name.clone(), expr::lower_expr(&b.expr, ctx)))
+                    }
+                    v if interpolated(v) => self.attrs.push((
+                        id,
+                        a.name.clone(),
+                        js_text(v.as_text().unwrap_or_default(), ctx),
+                    )),
+                    v => attrs.push(format!("{}=\"{}\"", a.name, esc_attr(&text_of(v, ctx)))),
+                },
+            }
+        }
+
+        // Two-way binding, and a checkbox's checked state.
+        if matches!(el.tag.as_str(), "input" | "select")
+            && let Some(name) = el.label()
+        {
+            // `data-g-field` is what the delegated dispatcher matches on to know this input owns a
+            // state name. Without it the field was recorded for the first-paint write and then never
+            // read back, so typing changed nothing.
+            attrs.push(format!("data-g-field=\"{name}\""));
+            self.fields.push((id, name.to_string()));
+        }
+        if matches!(el.tag.as_str(), "check" | "toggle")
+            && let Some(b) = el.binding()
+        {
+            self.attrs.push((id, "checked".to_string(), expr::lower_in(b, ctx)));
+        }
+
+        if let Some(action) = el.actions.first() {
+            let event = match el.tag.as_str() {
+                "check" | "toggle" | "input" | "select" => "change",
+                "form" => "submit",
+                _ => "click",
+            };
+            let js = self.lower_action(action, ctx, Some(el));
+            if !js.is_empty() {
+                attrs.push(format!("data-g-act=\"{}\"", self.actions.len()));
+                self.actions.push((self.actions.len(), event.to_string(), js));
+            }
+        }
+        // A form's primary button submits it; elsewhere a button must not.
+        if el.tag == "btn" {
+            let submit = el.has_modifier("primary") && el.actions.is_empty();
+            attrs.push(if submit { "type=\"submit\"" } else { "type=\"button\"" }.to_string());
+        }
+
+        let joined = attrs.join(" ");
+        let mut out = String::new();
+
+        if crate::is_void_element(element) {
+            let _ = writeln!(out, "{pad}<{element} {joined} />");
+            return out;
+        }
+
+        if el.tag == "select" {
+            let _ = writeln!(out, "{pad}<{element} {joined}>");
+            if let Some(hint) = el.attr("placeholder").and_then(|v| v.as_text()) {
+                let _ = writeln!(out, "{pad}  <option value=\"\" disabled>{}</option>", esc(hint));
+            }
+            for opt in crate::select_options(self.program, el) {
+                let _ = writeln!(
+                    out,
+                    "{pad}  <option value=\"{}\">{}</option>",
+                    esc_attr(&opt),
+                    esc(&opt)
+                );
+            }
+            let _ = writeln!(out, "{pad}</{element}>");
+            return out;
+        }
+
+        // Leaf content: prose, a binding, or a label. A binding becomes a *dynamic* text, filled by
+        // `#update` — writing it into the markup would freeze it at the initial value.
+        let leaf = el.children.is_empty() && el.text_lines.is_empty();
+        if leaf {
+            // Three sources, in the order the React backend uses them. The *binding* was missing, and
+            // `text {title} strike={done}` is structured rather than prose — so `content` and `label`
+            // are both `None` and the element rendered empty. Every row of a task list was a blank line.
+            let content = el
+                .content
+                .clone()
+                .or_else(|| el.binding().map(|b| format!("{{{b}}}")))
+                .or_else(|| el.label().map(str::to_string));
+            match content {
+                Some(t) if t.contains('{') => {
+                    self.texts.push((id, js_text(&t, ctx)));
+                    let _ = writeln!(out, "{pad}<{element} {joined}></{element}>");
+                }
+                Some(t) => {
+                    let _ = writeln!(out, "{pad}<{element} {joined}>{}</{element}>", esc(&t));
+                }
+                None => {
+                    let _ = writeln!(out, "{pad}<{element} {joined}></{element}>");
+                }
+            }
+            return out;
+        }
+
+        let _ = writeln!(out, "{pad}<{element} {joined}>");
+        if let Some(title) = el.label() {
+            let _ = writeln!(out, "{pad}  <h3 class=\"font-medium\">{}</h3>", esc(title));
+        }
+        if let Some(c) = &el.content {
+            let _ = writeln!(out, "{pad}  <p class=\"mt-1 text-sm text-slate-500\">{}</p>", esc(c));
+        }
+        for line in &el.text_lines {
+            let _ = writeln!(out, "{pad}  <li>{}</li>", esc(line));
+        }
+        for child in &el.children {
+            out.push_str(&self.element(child, depth + 1, ctx));
+        }
+        let _ = writeln!(out, "{pad}</{element}>");
+        out
+    }
+
+    /// A repeater renders its rows from a template string, replaced wholesale on update.
+    ///
+    /// Wholesale is correct *here* and nowhere else: rows are derived entirely from fetched data, so
+    /// there is no user-owned state inside them to lose. The rule the module docs give — never rebuild
+    /// markup containing a focusable field — is why this is a subtree rather than the whole component.
+    fn repeater(&mut self, el: &Element, depth: usize, _ctx: &Ctx) -> String {
+        let pad = "  ".repeat(depth);
+        let Some(source) = el.label().map(str::to_string) else {
+            unsupported_in(self.diags, "wc", el.span, "a repeater with no source");
+            return String::new();
+        };
+        // A derived source — an array computed in a `js` block and named with `of=Type` — cannot work in
+        // *this* backend, and saying so is the honest answer rather than a bug.
+        //
+        // This backend emits a class body, so a `js` block has nowhere to go: statements are not legal
+        // where only methods are, and the `js` arm above reports that for the same reason. A derived
+        // repeater's source is precisely such a value, so the array does not exist at runtime here. The
+        // first version emitted `const rows = s.matches` — a read of `#state.matches`, which is never
+        // assigned, so the list silently rendered its empty state forever.
+        //
+        // React and Svelte both support it; `raw wc` is the escape for a host that needs it here.
+        let fetched = self.collections.contains(&source);
+        if !fetched {
+            unsupported_in(
+                self.diags,
+                "wc",
+                el.span,
+                format!(
+                    "`{}` over the derived array `{source}`: this backend emits a class body, so the `js` \
+                     block computing it has nowhere to live — use `raw wc` for a method that returns the rows",
+                    el.tag
+                ),
+            );
+            return String::new();
+        }
+
+        let fields =
+            if fetched { self.item_fields(&source) } else { self.program.repeater_fields(el) };
+        let row_ctx = Ctx::item(&fields)
+            .with_collections(&self.collections)
+            .with_row_bool(&self.row_bool)
+            .with_scope(STATE);
+
+        // What to iterate: the shared `where_filter`, so this backend cannot filter a document
+        // differently from React or Svelte.
+        let visible = match el.attr("where") {
+            Some(Value::Binding(b)) => {
+                let filter = expr::lower_expr(&b.expr, &Ctx::default());
+                let domain = self
+                    .program
+                    .states
+                    .iter()
+                    .find(|st| st.name == filter)
+                    .map(|st| st.domain.clone())
+                    .unwrap_or_default();
+                let flag =
+                    self.row_bool.iter().find(|(c, _)| *c == source).map(|(_, f)| f.as_str());
+                let src = format!("s.{source}");
+                // `source`, not `src`: `search_fields` looks a *resource* up by name and `src` is the
+                // JavaScript path to it. Passing the qualified form found no resource, returned no fields,
+                // and this backend alone reported `where={query}` as unlowered — the one place the three
+                // backends disagreed about what a document means, which is exactly what sharing
+                // `where_filter` exists to prevent.
+                let text_fields = crate::search_fields(self.program, &source, &filter);
+                match crate::where_filter(
+                    &src,
+                    &format!("s.{filter}"),
+                    &domain,
+                    &fields,
+                    &text_fields,
+                    flag,
+                ) {
+                    Some(body) => {
+                        body.replace('\n', " ").split_whitespace().collect::<Vec<_>>().join(" ")
+                    }
+                    None => {
+                        unsupported_in(
+                            self.diags,
+                            "wc",
+                            el.span,
+                            format!(
+                                "`where={{{filter}}}` — the row type has no `{filter}` field and the domain is not the open/done idiom, so the list is not filtered"
+                            ),
+                        );
+                        src
+                    }
+                }
+            }
+            _ => format!("s.{source}"),
+        };
+
+        let empty = el
+            .children
+            .iter()
+            .find(|c| c.tag == "empty")
+            .and_then(|c| c.content.clone().or_else(|| c.label().map(str::to_string)))
+            .unwrap_or_else(|| "Nothing here yet.".to_string());
+
+        // The row template. Rendered into a nested `Gen` so its ids, actions and bindings do not
+        // collide with the outer component's — a row's handlers are per-row and resolved at click time
+        // from the row index, not from a global table.
+        let template: Vec<Element> =
+            el.children.iter().filter(|c| c.tag != "empty").cloned().collect();
+        let mut row_gen = Gen {
+            program: self.program,
+            diags: self.diags,
+            collections: self.collections.clone(),
+            row_bool: self.row_bool.clone(),
+            actions: Vec::new(),
+            texts: Vec::new(),
+            attrs: Vec::new(),
+            conds: Vec::new(),
+            fields: Vec::new(),
+            repeaters: Vec::new(),
+            next_id: 0,
+        };
+        // Each child wrapped in its own `<td>` when tabular, so the columns are real and line up with the
+        // headers `check_columns` counted.
+        let tabular = crate::is_tabular(el);
+        let cell_class = classes("td", &[]);
+        let mut row_markup = String::new();
+        for child in &template {
+            let cell = row_gen.element(child, 0, &row_ctx);
+            if tabular {
+                // Each cell on its own line, and that is not cosmetic. `inline_row_bindings` substitutes a
+                // row binding into "the first `></` on the line", so two elements sharing a line means the
+                // second binding lands in the first element's closing junction — the emitted row put
+                // `${item.amount}` inside the *client* cell and left the amount cell empty. One element per
+                // line is what that heuristic requires; see its own comment.
+                let _ = writeln!(row_markup, "<td class=\"{}\">", esc_attr(&cell_class));
+                row_markup.push_str(&cell);
+                let _ = writeln!(row_markup, "</td>");
+            } else {
+                row_markup.push_str(&cell);
+            }
+        }
+        // A row's dynamic parts are interpolated directly into its template literal instead of being
+        // registered for `#update`: the row is rebuilt on every change anyway, so a second update
+        // mechanism inside it would be dead code.
+        let row_texts = row_gen.texts.clone();
+        let row_attrs = row_gen.attrs.clone();
+        let row_actions = row_gen.actions.clone();
+        let row_html = inline_row_bindings(&row_markup, &row_texts, &row_attrs, &row_actions);
+
+        let id = self.id();
+        let class = classes(&el.tag, &modifiers_of(el));
+        self.repeaters.push((id, source.clone(), visible, row_html, empty, tabular));
+
+        if tabular {
+            crate::check_columns(self.diags, "wc", el, template.len());
+            // The `<thead>` is static markup and the `<tbody>` is what `#update` rewrites. Splitting them
+            // is what stops a re-render from destroying the header row.
+            let mut out = format!("{pad}<table class=\"{}\">\n", esc_attr(&class));
+            if let Some(head) = crate::table_head(el, pad.as_str(), "class") {
+                out.push_str(&head);
+            }
+            let _ = writeln!(out, "{pad}  <tbody data-g-id=\"{id}\"></tbody>");
+            let _ = writeln!(out, "{pad}</table>");
+            return out;
+        }
+        format!("{pad}<ul data-g-id=\"{id}\" class=\"{}\"></ul>\n", esc_attr(&class))
+    }
+
+    /// `tabs filter` — one button per domain member, `aria-pressed` on the active one.
+    fn tabs(&mut self, el: &Element, depth: usize, _ctx: &Ctx) -> String {
+        let pad = "  ".repeat(depth);
+        let Some(name) = el.label().map(str::to_string) else {
+            unsupported_in(self.diags, "wc", el.span, "`tabs` with no state");
+            return String::new();
+        };
+        let domain = self
+            .program
+            .states
+            .iter()
+            .find(|s| s.name == name)
+            .map(|s| s.domain.clone())
+            .unwrap_or_default();
+        if domain.len() < 2 {
+            unsupported_in(
+                self.diags,
+                "wc",
+                el.span,
+                format!("`tabs {name}` needs an enumerated state with at least two members"),
+            );
+            return String::new();
+        }
+        let mut out = format!(
+            "{pad}<div role=\"tablist\" class=\"{}\">\n",
+            esc_attr(&classes("tabs", &modifiers_of(el)))
+        );
+        for member in &domain {
+            let id = self.id();
+            let act = self.actions.len();
+            self.actions.push((
+                act,
+                "click".to_string(),
+                format!("this.#set({{ {name}: {member:?} }});"),
+            ));
+            self.attrs.push((id, "aria-pressed".to_string(), format!("s.{name} === {member:?}")));
+            let _ = writeln!(
+                out,
+                "{pad}  <button data-g-id=\"{id}\" data-g-act=\"{act}\" type=\"button\" role=\"tab\" class=\"{}\">{}</button>",
+                esc_attr(&classes("btn", &["outline"])),
+                esc(member)
+            );
+        }
+        let _ = writeln!(out, "{pad}</div>");
+        out
+    }
+
+    /// `<details>`/`<summary>`. Interactive with no script at all, so it needs nothing from `#update`.
+    fn faq(&mut self, el: &Element, depth: usize) -> String {
+        let pad = "  ".repeat(depth);
+        let open = el.attr("open").and_then(|v| match v {
+            Value::Num(n) => Some(*n as usize),
+            _ => None,
+        });
+        let mut out = format!(
+            "{pad}<div class=\"mt-8 divide-y divide-slate-200 border-y border-slate-200\">\n"
+        );
+        for (i, line) in el.text_lines.iter().enumerate() {
+            let (q, a) = line.split_once('|').unwrap_or((line.as_str(), ""));
+            let is_open = open.is_some_and(|n| n == i + 1);
+            let _ = writeln!(
+                out,
+                "{pad}  <details class=\"py-4\"{}>",
+                if is_open { " open" } else { "" }
+            );
+            let _ = writeln!(
+                out,
+                "{pad}    <summary class=\"cursor-pointer text-sm font-medium text-slate-900\">{}</summary>",
+                esc(q.trim())
+            );
+            let _ = writeln!(
+                out,
+                "{pad}    <p class=\"mt-2 text-sm text-slate-600\">{}</p>",
+                esc(a.trim())
+            );
+            let _ = writeln!(out, "{pad}  </details>");
+        }
+        let _ = writeln!(out, "{pad}</div>");
+        out
+    }
+
+    fn tier(&mut self, el: &Element, depth: usize) -> String {
+        let pad = "  ".repeat(depth);
+        // A `tier`'s call to action is an `<a href>` built from its `cta` and its route, so an action on
+        // one has nowhere to go. It used to be dropped in silence: `tier Team … >subscription.setPlan`
+        // emitted a plain link and the plan never changed, with exit code 0. Report it — invariant 3 — and
+        // the author gets a `card` with a `btn` in it, which works today.
+        if !el.actions.is_empty() {
+            unsupported_in(
+                self.diags,
+                "wc",
+                el.span,
+                "an action on a `tier`: its call to action is a link built from `cta` and the route. Put a `btn` in a `card` instead",
+            );
+        }
+        let mut texts = el.positionals.iter().filter_map(|p| match p {
+            Positional::Text(t) => Some(t.as_str()),
+            _ => None,
+        });
+        let name = texts.next().unwrap_or("");
+        let price = texts.next().unwrap_or("");
+        let blurb = texts.next().unwrap_or("");
+        let cta = el.attr("cta").and_then(|v| v.as_text()).unwrap_or("Choose");
+        let href = el.route().unwrap_or("#");
+        let featured = el.has_modifier("featured");
+
+        let mut out = format!(
+            "{pad}<div class=\"{}\">\n",
+            if featured {
+                "rounded-xl border-2 border-slate-900 p-6 shadow-sm"
+            } else {
+                "rounded-xl border border-slate-200 p-6"
+            }
+        );
+        let _ = writeln!(out, "{pad}  <h3 class=\"font-medium\">{}</h3>", esc(name));
+        let _ = writeln!(out, "{pad}  <p class=\"mt-1 text-sm text-slate-500\">{}</p>", esc(blurb));
+        let _ = writeln!(out, "{pad}  <p class=\"mt-4 text-3xl font-semibold\">{}</p>", esc(price));
+        let _ = writeln!(out, "{pad}  <ul class=\"mt-6 space-y-2 text-sm text-slate-600\">");
+        for perk in &el.text_lines {
+            let _ = writeln!(out, "{pad}    <li>&bull; {}</li>", esc(perk));
+        }
+        let _ = writeln!(out, "{pad}  </ul>");
+        let _ = writeln!(
+            out,
+            "{pad}  <a href=\"{}\" class=\"{}\">{}</a>",
+            esc_attr(href),
+            if featured {
+                "mt-6 block rounded-md bg-slate-900 px-4 py-2 text-center text-sm font-medium text-white"
+            } else {
+                "mt-6 block rounded-md border border-slate-300 px-4 py-2 text-center text-sm font-medium text-slate-700"
+            },
+            esc(cta)
+        );
+        let _ = writeln!(out, "{pad}</div>");
+        out
+    }
+
+    fn stat(&mut self, el: &Element, depth: usize, ctx: &Ctx) -> String {
+        let pad = "  ".repeat(depth);
+        let mods = modifiers_of(el);
+        let mut out = format!("{pad}<dl class=\"{}\">\n", esc_attr(&classes("stat", &mods)));
+        let mut parts = el.positionals.iter().filter_map(|p| match p {
+            Positional::Text(t) => Some((t.clone(), false)),
+            Positional::Binding(b) => Some((b.source.clone(), true)),
+            _ => None,
+        });
+        let (label, label_bound) = parts.next().unwrap_or_default();
+        let (value, value_bound) = parts.next().unwrap_or_default();
+
+        for (slot, text, bound) in
+            [("stat-label", label, label_bound), ("stat-value", value, value_bound)]
+        {
+            let element = if slot == "stat-label" { "dt" } else { "dd" };
+            let id = self.id();
+            if bound {
+                self.texts.push((id, expr::lower_in(&text, ctx)));
+                let _ = writeln!(
+                    out,
+                    "{pad}  <{element} data-g-id=\"{id}\" class=\"{}\"></{element}>",
+                    esc_attr(&classes(slot, &mods))
+                );
+            } else {
+                let _ = writeln!(
+                    out,
+                    "{pad}  <{element} data-g-id=\"{id}\" class=\"{}\">{}</{element}>",
+                    esc_attr(&classes(slot, &mods)),
+                    esc(&text)
+                );
+            }
+        }
+        if let Some(delta) = el.attr("delta") {
+            let id = self.id();
+            match delta {
+                Value::Binding(b) => {
+                    self.texts.push((id, expr::lower_expr(&b.expr, ctx)));
+                    let _ = writeln!(
+                        out,
+                        "{pad}  <dd data-g-id=\"{id}\" class=\"{}\"></dd>",
+                        esc_attr(&classes("stat-delta", &mods))
+                    );
+                }
+                v => {
+                    let _ = writeln!(
+                        out,
+                        "{pad}  <dd data-g-id=\"{id}\" class=\"{}\">{}</dd>",
+                        esc_attr(&classes("stat-delta", &mods)),
+                        esc(&text_of(v, ctx))
+                    );
+                }
+            }
+        }
+        let _ = writeln!(out, "{pad}</dl>");
+        out
+    }
+
+    fn item_fields(&self, resource: &str) -> Vec<String> {
+        let Some(r) = self.program.resources.iter().find(|r| r.name == resource) else {
+            return Vec::new();
+        };
+        let ty = r.ty.trim_end_matches("[]");
+        self.program
+            .types
+            .iter()
+            .find(|t| t.name == ty)
+            .map(|t| t.fields.iter().map(|f| f.name.clone()).collect())
+            .unwrap_or_default()
+    }
+
+    fn lower_action(&mut self, action: &str, ctx: &Ctx, el: Option<&Element>) -> String {
+        let toggle = el
+            .filter(|e| e.tag == "check" || e.tag == "toggle")
+            .and_then(|e| e.binding().map(|b| b.trim().to_string()));
+        lower_action_with(action, &self.collections, ctx, toggle.as_deref())
+    }
+}
+
+/// Statement lowering, shared by the element path and the effect path.
+///
+/// State reads go through `s.` — the update closures receive the state object as `s`, so an expression
+/// lowered for a *binding* and one lowered for an *action* need the same prefix or the two disagree about
+/// where a value lives.
+fn lower_action_with(
+    action: &str,
+    collections: &[String],
+    ctx: &Ctx,
+    toggle: Option<&str>,
+) -> String {
+    let mut stmts: Vec<String> = Vec::new();
+    for raw in action.split(';') {
+        let stmt = raw.trim();
+        if stmt.is_empty() {
+            continue;
+        }
+        if let Some(name) = stmt.strip_suffix("++") {
+            let n = name.trim();
+            stmts.push(format!("this.#set({{ {n}: this.#state.{n} + 1 }});"));
+            continue;
+        }
+        if let Some(name) = stmt.strip_suffix("--") {
+            let n = name.trim();
+            stmts.push(format!("this.#set({{ {n}: this.#state.{n} - 1 }});"));
+            continue;
+        }
+        if let Some((head, rest)) = stmt.split_once('.')
+            && collections.iter().any(|c| c == head.trim())
+        {
+            let call = rest.split('{').next().unwrap_or(rest).trim();
+            if call == "list" {
+                stmts.push(format!("this.{}List();", head.trim()));
+                continue;
+            }
+            let body = match (toggle, rest.contains('{')) {
+                (Some(field), false) => format!("{{ {field}: !item.{field} }}"),
+                _ => rest
+                    .split_once('{')
+                    .map(|(_, b)| {
+                        let inner = b.trim_end_matches('}');
+                        let pairs: Vec<String> = inner
+                            .split(',')
+                            .filter_map(|p| p.split_once(':'))
+                            .map(|(k, v)| {
+                                format!("{}: {}", k.trim(), expr::lower_in(v.trim(), ctx))
+                            })
+                            .collect();
+                        format!("{{ {} }}", pairs.join(", "))
+                    })
+                    .unwrap_or_else(|| "{}".to_string()),
+            };
+            let item = if ctx.item_fields.is_empty() { "" } else { "item, " };
+            stmts.push(format!("this.{}{}({item}{body});", head.trim(), capitalize(call)));
+            continue;
+        }
+        if let Some((lhs, rhs)) = stmt.split_once('=')
+            && !stmt.contains("==")
+        {
+            stmts.push(format!(
+                "this.#set({{ {}: {} }});",
+                lhs.trim(),
+                expr::lower_in(rhs.trim(), ctx)
+            ));
+            continue;
+        }
+        stmts.push(format!("{};", expr::lower_in(stmt, ctx)));
+    }
+    stmts.join(" ")
+}
+
+fn lower_action_free(action: &str, collections: &[String], ctx: &Ctx) -> String {
+    lower_action_with(action, collections, ctx, None)
+}
+
+/// The `#update` method: every dynamic text, attribute, conditional and repeater in one place.
+fn update_method(
+    texts: &[Text],
+    attrs: &[Attr],
+    conds: &[Text],
+    repeaters: &[Repeater],
+    program: &Program,
+) -> String {
+    let mut out = String::new();
+    let _ = writeln!(out, "  #update() {{");
+    if texts.is_empty() && attrs.is_empty() && conds.is_empty() && repeaters.is_empty() {
+        // A static document needs no update pass at all, and an empty method that reads `#state` would
+        // make the emitted file look like it does something it does not.
+        let _ = writeln!(out, "    // Nothing on this page depends on state.");
+        let _ = writeln!(out, "  }}\n");
+        return out;
+    }
+    let _ = writeln!(out, "    const s = this.#state;");
+    for (id, expr) in texts {
+        let _ = writeln!(
+            out,
+            "    {{ const el = this.#el({id}); if (el) el.textContent = String({} ?? \"\"); }}",
+            to_alias(expr)
+        );
+    }
+    for (id, name, expr) in attrs {
+        let value = to_alias(expr);
+        if name == "data-g-strike" {
+            // `strike` is presentation, so it is a class toggle rather than an attribute.
+            let _ = writeln!(
+                out,
+                "    {{ const el = this.#el({id}); if (el) el.classList.toggle(\"line-through\", Boolean({value})); }}"
+            );
+        } else if matches!(
+            name.as_str(),
+            "checked" | "disabled" | "readonly" | "required" | "hidden"
+        ) {
+            let _ = writeln!(
+                out,
+                "    {{ const el = this.#el({id}); if (el) el.{name} = Boolean({value}); }}"
+            );
+        } else {
+            let _ = writeln!(
+                out,
+                "    {{ const el = this.#el({id}); if (el) el.setAttribute({name:?}, String({value})); }}"
+            );
+        }
+    }
+    for (id, expr) in conds {
+        let _ = writeln!(
+            out,
+            "    {{ const el = this.#el({id}); if (el) el.hidden = !({}); }}",
+            to_alias(expr)
+        );
+    }
+    for (id, source, visible, row, empty, tabular) in repeaters {
+        // A `<li>` inside a `<tbody>` is dropped by the HTML parser, so the placeholder states need a row
+        // and a cell too. `colspan` is not set: the compiler does not know the column count here, and a
+        // single cell that does not span is a visible imperfection rather than a broken table.
+        let (open, close) = if *tabular { ("<tr><td", "</td></tr>") } else { ("<li", "</li>") };
+        let key = program
+            .resources
+            .iter()
+            .find(|r| r.name == *source)
+            .map(|r| r.ty.trim_end_matches("[]").to_string())
+            .and_then(|ty| {
+                program
+                    .types
+                    .iter()
+                    .find(|t| t.name == ty)
+                    .map(|t| t.fields.iter().any(|f| f.name == "id"))
+            })
+            .unwrap_or(false);
+        let _ = writeln!(out, "    {{");
+        let _ = writeln!(out, "      const el = this.#el({id});");
+        let _ = writeln!(out, "      if (el) {{");
+        let _ = writeln!(out, "        if (s.{source}Error) {{");
+        let _ = writeln!(
+            out,
+            "          el.innerHTML = `{open} role=\"alert\" class=\"mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700\">${{s.{source}Error}}{close}`;"
+        );
+        let _ = writeln!(out, "        }} else if (s.{source}Loading) {{");
+        let _ = writeln!(
+            out,
+            "          el.innerHTML = [0, 1, 2].map(() => `{open} class=\"h-12 animate-pulse rounded-md bg-slate-100\">{close}`).join(\"\");"
+        );
+        let _ = writeln!(out, "        }} else {{");
+        let _ = writeln!(out, "          const rows = {visible};");
+        let _ = writeln!(out, "          el.innerHTML = rows.length");
+        if *tabular {
+            let _ = writeln!(
+                out,
+                "            ? rows.map((item, i) => `<tr data-g-row=\"${{{}}}\">{row}</tr>`).join(\"\")",
+                if key { "item.id" } else { "i" }
+            );
+        } else {
+            let _ = writeln!(
+                out,
+                "            ? rows.map((item, i) => `<li data-g-row=\"${{{}}}\">{row}</li>`).join(\"\")",
+                if key { "item.id" } else { "i" }
+            );
+        }
+        let _ = writeln!(
+            out,
+            "            : `{open} class=\"mt-10 text-center text-sm text-slate-500\">{}{close}`;",
+            esc(empty)
+        );
+        let _ = writeln!(out, "        }}");
+        let _ = writeln!(out, "      }}");
+        let _ = writeln!(out, "    }}");
+    }
+    let _ = writeln!(out, "  }}\n");
+    out
+}
+
+/// A lowered expression rewritten for the `s` alias `#update` holds.
+///
+/// The only textual step left, and it is safe in a way the old `state_read` was not: it replaces an
+/// exact, compiler-generated prefix with a shorter one, rather than trying to recognise identifiers in
+/// arbitrary JavaScript. Nothing in a string literal or a lambda parameter can look like `this.#state.`.
+fn to_alias(js: &str) -> String {
+    js.replace("this.#state.", "s.")
+}
+
+/// Content with `{bindings}` in it, as a single JavaScript expression.
+///
+/// `expr::lower_text_in` is the *JSX* answer: it returns `Tasks — {expr} open`, where the braces are
+/// JSX interpolation syntax. Emitted into `String(…)` that is a syntax error, which is exactly what
+/// happened — `String({s.count} ?? "")`. There is no JSX here, so mixed content becomes a template
+/// literal and a lone binding stays a bare expression, which keeps the common case readable.
+fn js_text(text: &str, ctx: &Ctx) -> String {
+    let trimmed = text.trim();
+    // A lone binding: `{count}`. No literal to join, so no template literal either.
+    if trimmed.starts_with('{')
+        && trimmed.ends_with('}')
+        && trimmed[1..trimmed.len() - 1].find('{').is_none()
+    {
+        return expr::lower_in(&trimmed[1..trimmed.len() - 1], ctx);
+    }
+    if !text.contains('{') {
+        return format!("{text:?}");
+    }
+    let mut out = String::from("`");
+    let mut rest = text;
+    while let Some(open) = rest.find('{') {
+        out.push_str(&escape_template(&rest[..open]));
+        let after = &rest[open + 1..];
+        match after.find('}') {
+            Some(close) => {
+                let _ = write!(out, "${{{}}}", expr::lower_in(&after[..close], ctx));
+                rest = &after[close + 1..];
+            }
+            None => {
+                // An unclosed brace is a lexer error the parser already reported; emitting the rest
+                // literally keeps this from producing an unterminated template literal on top of it.
+                out.push_str(&escape_template(after));
+                rest = "";
+            }
+        }
+    }
+    out.push_str(&escape_template(rest));
+    out.push('`');
+    out
+}
+
+fn escape_template(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('`', "\\`").replace("${", "\\${")
+}
+
+/// The delegated event dispatcher.
+fn dispatch_method(actions: &[(usize, String, String)], fields: &[(usize, String)]) -> String {
+    let mut out = String::new();
+    let _ = writeln!(out, "  #dispatch(type, e) {{");
+    if !fields.is_empty() {
+        // A bound field writes state and must *not* be written back — see the module docs on cursors.
+        let _ = writeln!(out, "    const bound = e.target?.closest?.(\"[data-g-field]\");");
+        let _ = writeln!(out, "    if (bound && (type === \"input\" || type === \"change\")) {{");
+        let _ = writeln!(
+            out,
+            "      this.#set({{ [bound.dataset.gField]: bound.value }});\n      return;\n    }}"
+        );
+    }
+    if !actions.is_empty() {
+        let _ = writeln!(out, "    const host = e.target?.closest?.(\"[data-g-act]\");");
+        let _ = writeln!(out, "    if (!host) return;");
+        // The row an action belongs to, when it is inside a repeater. Resolved from the DOM at click
+        // time rather than captured in a closure, which is what lets rows be replaced wholesale.
+        let _ = writeln!(out, "    const rowEl = host.closest(\"[data-g-row]\");");
+        let _ =
+            writeln!(out, "    const item = rowEl ? this.#rowFor(rowEl.dataset.gRow) : undefined;");
+        let _ = writeln!(out, "    switch (`${{type}}:${{host.dataset.gAct}}`) {{");
+        for (i, event, body) in actions {
+            let _ = writeln!(out, "      case \"{event}:{i}\":");
+            if event == "submit" {
+                let _ = writeln!(out, "        e.preventDefault();");
+            }
+            let _ = writeln!(out, "        {body}");
+            let _ = writeln!(out, "        break;");
+        }
+        let _ = writeln!(out, "      default:");
+        let _ = writeln!(out, "        break;");
+        let _ = writeln!(out, "    }}");
+    }
+    let _ = writeln!(out, "  }}\n");
+
+    if !actions.is_empty() {
+        // Looks a row up by the key its `<li>` carries. A linear scan is the right shape here: the
+        // alternative is an index that has to be invalidated on every refetch, and a list long enough for
+        // the scan to matter is a list that should be paginated.
+        let _ = writeln!(
+            out,
+            "  #rowFor(key) {{\n    for (const value of Object.values(this.#state)) {{\n      \
+             if (!Array.isArray(value)) continue;\n      \
+             const hit = value.find((row, i) => String(row?.id ?? i) === String(key));\n      \
+             if (hit) return hit;\n    }}\n    return undefined;\n  }}\n"
+        );
+    }
+    out
+}
+
+/// A resource's fetch and one method per mutation.
+fn resource_methods(r: &Resource, ctx: &Ctx) -> String {
+    let name = &r.name;
+    let cap = capitalize(name);
+    let mut out = String::new();
+
+    let _ = writeln!(out, "  async {name}List() {{");
+    let _ = writeln!(out, "    this.#set({{ {name}Loading: true, {name}Error: null }});");
+    let _ = writeln!(out, "    try {{");
+    // `cached`, not `retrying` directly: deduplication, stale-while-revalidate and stale-on-failure,
+    // shared with the other backends so a remount behaves the same way in all of them.
+    let _ = writeln!(out, "      this.#set({{ {name}: await cached({:?}) }});", r.url);
+    let _ = writeln!(out, "    }} catch (err) {{");
+    let _ = writeln!(out, "      this.#set({{ {name}Error: err.message }});");
+    let _ = writeln!(out, "    }} finally {{");
+    let _ = writeln!(out, "      this.#set({{ {name}Loading: false }});");
+    let _ = writeln!(out, "    }}");
+    let _ = writeln!(out, "  }}\n");
+
+    for m in &r.mutations {
+        let takes_item = m.url.contains('{');
+        let args = if takes_item { "item, body" } else { "body" };
+        let _ = writeln!(out, "  async {name}{}({args}) {{", capitalize(&m.name));
+        // Optimistic apply plus a snapshot to roll back to. The strategy is the author's declaration,
+        // not a guess: `prepend`, `append` or `replace`.
+        if let Some(strategy) = &m.optimistic {
+            let _ = writeln!(out, "    const snapshot = this.#state.{name};");
+            // `Mutation::optimistic` already holds the bare strategy — the parser strips `optimistic:`
+            // and defaults to `replace`. Splitting on `:` here looked for a prefix that is never present,
+            // so every strategy silently fell through to `replace` and `optimistic:prepend` appended
+            // nothing to the front of the list.
+            let apply = match strategy.as_str() {
+                "prepend" => "[{ id: `tmp-${Date.now()}`, ...body }, ...snapshot]".to_string(),
+                "append" => "[...snapshot, { id: `tmp-${Date.now()}`, ...body }]".to_string(),
+                _ if m.method == "DELETE" => "snapshot.filter((row) => row !== item)".to_string(),
+                _ => {
+                    "snapshot.map((row) => (row === item ? { ...row, ...body } : row))".to_string()
+                }
+            };
+            let _ = writeln!(out, "    this.#set({{ {name}: {apply} }});");
+        }
+        let url = interpolate_path(&m.url);
+        let _ = writeln!(out, "    try {{");
+        let _ = writeln!(out, "      const res = await retrying({url}, {{");
+        let _ = writeln!(out, "        method: {:?},", m.method);
+        let _ = writeln!(out, "        headers: {{ \"content-type\": \"application/json\" }},");
+        let _ = writeln!(out, "        body: JSON.stringify(body ?? {{}}),");
+        let _ = writeln!(out, "      }});");
+        let _ = writeln!(out, "      if (!res.ok) throw new Error(`HTTP ${{res.status}}`);");
+        // Before the refetch, or the refetch is a cache hit on the pre-mutation list and the row the user
+        // just added visibly disappears. Same prefix rule as the other backends, from one function.
+        let _ = writeln!(out, "      invalidate({:?});", crate::invalidation_prefix(&r.url));
+        let _ = writeln!(out, "      await this.{name}List();");
+        let _ = writeln!(out, "    }} catch (err) {{");
+        if m.optimistic.is_some() {
+            // Rolling back is the half every hand-written optimistic update forgets, which is exactly
+            // why the compiler owns it.
+            let _ =
+                writeln!(out, "      this.#set({{ {name}: snapshot, {name}Error: err.message }});");
+        } else {
+            let _ = writeln!(out, "      this.#set({{ {name}Error: err.message }});");
+        }
+        let _ = writeln!(out, "    }}");
+        let _ = writeln!(out, "  }}\n");
+        let _ = ctx;
+        let _ = cap;
+    }
+    out
+}
+
+/// `/api/tasks/{id}` → a template literal reading the row.
+fn interpolate_path(url: &str) -> String {
+    if !url.contains('{') {
+        return format!("{url:?}");
+    }
+    let mut out = String::from("`");
+    let mut rest = url;
+    while let Some(open) = rest.find('{') {
+        out.push_str(&rest[..open]);
+        let after = &rest[open + 1..];
+        match after.find('}') {
+            Some(close) => {
+                let _ = write!(out, "${{item.{}}}", &after[..close]);
+                rest = &after[close + 1..];
+            }
+            None => {
+                out.push_str(after);
+                rest = "";
+            }
+        }
+    }
+    out.push_str(rest);
+    out.push('`');
+    out
+}
+
+/// Interpolate a row template's bindings directly into its HTML.
+///
+/// A row is rebuilt wholesale on every update, so registering its parts with `#update` would create a
+/// second mechanism that never runs. The markers written during rendering are replaced with `${…}`
+/// here — the one place in this backend where markup is built by string substitution, and it is bounded
+/// to a template whose ids were generated moments earlier by the same code.
+fn inline_row_bindings(
+    markup: &str,
+    texts: &[Text],
+    attrs: &[Attr],
+    actions: &[(usize, String, String)],
+) -> String {
+    let mut out = String::new();
+    // **One element per line, and the caller has to keep it that way.** Every substitution below is
+    // line-scoped and targets the *first* match on the line, so two elements sharing a line makes the second
+    // binding land in the first one's closing junction — `</span></td>` contains `></`, so a table row built
+    // as a single line put the second column's value inside the first column's cell and left the second
+    // empty. Cheap and correct as long as the invariant holds; the alternative is a real HTML parser here.
+    for line in markup.lines() {
+        let mut line = line.to_string();
+        // The id marker itself is not needed in a row: nothing looks a row's parts up by id.
+        for (id, expr) in texts {
+            let marker = format!("data-g-id=\"{id}\"");
+            if line.contains(&marker) {
+                // `></` is the empty element the text belongs in.
+                line = line.replacen("></", &format!(">${{{}}}</", row_expr(expr)), 1);
+            }
+        }
+        for (id, name, expr) in attrs {
+            let marker = format!("data-g-id=\"{id}\"");
+            if !line.contains(&marker) {
+                continue;
+            }
+            // `strike` is a class toggle, so it has to be *merged into* the existing `class` rather than
+            // added beside it. Emitting a second `class` attribute produced
+            // `class="${…}" class="flex-1 …"`, and HTML keeps the first and discards the rest — so the
+            // element lost every one of its theme classes and the strike never appeared either.
+            if name == "data-g-strike" {
+                let toggle =
+                    format!("${{{} ? 'line-through text-slate-400' : ''}}", row_expr(expr));
+                line = match line.find("class=\"") {
+                    Some(at) => {
+                        let open = at + "class=\"".len();
+                        format!("{}{toggle} {}", &line[..open], &line[open..])
+                    }
+                    None => line.replacen(&marker, &format!("{marker} class=\"{toggle}\""), 1),
+                };
+                continue;
+            }
+            let lowered = row_expr(expr);
+            let attr = match name.as_str() {
+                "checked" => format!(" ${{{lowered} ? 'checked' : ''}}"),
+                // An interpolated string attribute already *is* a template literal, so wrapping it in
+                // `${…}` nests one inside another: `aria-label="${`Delete ${item.title}`}"`. Valid, and
+                // emitted code is something a person opens — so the backticks are unwrapped instead.
+                other if lowered.starts_with('`') && lowered.ends_with('`') => {
+                    format!(" {other}=\"{}\"", &lowered[1..lowered.len() - 1])
+                }
+                other => format!(" {other}=\"${{{lowered}}}\""),
+            };
+            line = line.replacen(&marker, &format!("{marker}{attr}"), 1);
+        }
+        // A row's actions keep their indices; the dispatcher resolves the row from the DOM.
+        let _ = actions;
+        out.push_str(line.trim_start());
+        out.push(' ');
+    }
+    out.trim_end().to_string()
+}
+
+/// A row-scoped expression. Already lowered with the state prefix applied, so this is identity — kept
+/// as a named function so the row path reads the same as the update path.
+fn row_expr(js: &str) -> String {
+    js.to_string()
+}
+
+/// Layout attributes folded into classes, matching the other backends.
+fn layout(el: &Element) -> String {
+    let mut out: Vec<String> = Vec::new();
+    for a in &el.attrs {
+        match a.name.as_str() {
+            "cols" => {
+                if let Some(n) = match &a.value {
+                    Value::Num(n) => Some(format!("{}", *n as i64)),
+                    v => v.as_text().map(str::to_string),
+                } {
+                    out.push(format!("grid gap-6 md:grid-cols-{n}"));
+                }
+            }
+            "gap" => {
+                if let Value::Num(n) = &a.value {
+                    out.push(format!("gap-{}", *n as i64));
+                }
+            }
+            "w" => {
+                if let Some(w) = a.value.as_text() {
+                    out.push(format!("max-w-{w}"));
+                }
+            }
+            _ => {}
+        }
+    }
+    out.join(" ")
+}
+
+/// Attributes fixed by the tag, mirroring the React backend's `html_tag`.
+fn fixed_attrs(tag: &str, el: &Element) -> Vec<String> {
+    match tag {
+        "link" => {
+            let href = el
+                .route()
+                .map(str::to_string)
+                .or_else(|| el.anchor().map(|a| format!("#{a}")))
+                .unwrap_or_else(|| "#".to_string());
+            vec![format!("href=\"{}\"", esc_attr(&href))]
+        }
+        "check" => vec!["type=\"checkbox\"".to_string()],
+        "toggle" => vec!["type=\"checkbox\"".to_string(), "role=\"switch\"".to_string()],
+        "input" => {
+            let kind = el.attr("kind").and_then(|v| v.as_text()).unwrap_or("text");
+            vec![format!("type=\"{}\"", esc_attr(kind))]
+        }
+        "img" => {
+            let src = el.attr("src").and_then(|v| v.as_text()).unwrap_or("");
+            let alt = el
+                .attr("alt")
+                .and_then(|v| v.as_text())
+                .or_else(|| el.attr("aria").and_then(|v| v.as_text()))
+                .unwrap_or("");
+            vec![format!("src=\"{}\"", esc_attr(src)), format!("alt=\"{}\"", esc_attr(alt))]
+        }
+        "progress" => {
+            let value = el.attr("value").map(|v| v.to_js()).unwrap_or_else(|| "0".into());
+            let max = el.attr("max").map(|v| v.to_js()).unwrap_or_else(|| "100".into());
+            vec![format!("value=\"{value}\""), format!("max=\"{max}\"")]
+        }
+        "toolbar" => vec!["role=\"toolbar\"".to_string()],
+        "alert" => vec!["role=\"alert\"".to_string()],
+        "menu" => vec!["role=\"menu\"".to_string()],
+        "breadcrumb" => vec!["aria-label=\"Breadcrumb\"".to_string()],
+        "pagination" => vec!["aria-label=\"Pagination\"".to_string()],
+        "modal" | "drawer" => {
+            let title = el.label().unwrap_or("Dialog");
+            vec![
+                "role=\"dialog\"".to_string(),
+                "aria-modal=\"true\"".to_string(),
+                format!("aria-label=\"{}\"", esc_attr(title)),
+            ]
+        }
+        "toast" => vec!["role=\"status\"".to_string(), "aria-live=\"polite\"".to_string()],
+        _ => vec![],
+    }
+}
+
+fn text_of(v: &Value, ctx: &Ctx) -> String {
+    match v {
+        Value::Str(s) | Value::Word(s) => s.clone(),
+        Value::Num(_) | Value::Bool(_) => v.to_js(),
+        Value::Binding(b) => expr::lower_expr(&b.expr, ctx),
+        Value::Flag => String::new(),
+    }
+}
+
+fn initial(v: &Value, domain: &[String]) -> String {
+    if let Some(first) = domain.first() {
+        return format!("{first:?}");
+    }
+    match v {
+        Value::Num(_) | Value::Bool(_) => v.to_js(),
+        Value::Str(s) | Value::Word(s) => format!("{s:?}"),
+        Value::Binding(b) => b.source.clone(),
+        Value::Flag => "true".to_string(),
+    }
+}
+
+fn capitalize(s: &str) -> String {
+    let mut c = s.chars();
+    match c.next() {
+        Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+        None => String::new(),
+    }
+}
+
+fn esc(text: &str) -> String {
+    text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+}
+
+fn esc_attr(text: &str) -> String {
+    esc(text).replace('"', "&quot;")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_custom_element_name_contains_a_hyphen() {
+        // The standard requires one, precisely so a custom element cannot collide with a future
+        // built-in. `guml-` also keeps two compiled documents on one page from colliding with each
+        // other or with the host's components.
+        assert_eq!(custom_tag("Counter"), "guml-counter");
+        assert_eq!(custom_tag("TaskList"), "guml-task-list");
+        for name in ["Counter", "TaskList", "Page"] {
+            assert!(custom_tag(name).contains('-'));
+        }
+    }
+
+    #[test]
+    fn state_reads_are_qualified_at_lowering_time_not_by_rewriting_text() {
+        // The bug that forced this design. A textual pass over lowered JavaScript cannot tell an
+        // identifier from the contents of a string, the literal text of a template, or a lambda's own
+        // parameter — and it got all three wrong at once:
+        //
+        //   `s.Invoices — ${…} s.awaiting s.payment`     every word of the literal text
+        //   (s.a, s.b) => s.a + Number(s.b)             the reduce callback's parameters
+        //   s.view === "s.all"                          inside a string literal
+        //
+        // `Ctx::with_scope` applies the prefix where the tree says "this is a path head", so none of
+        // those are reachable.
+        let ctx = Ctx::default().with_scope(STATE);
+        assert_eq!(expr::lower_in("count + 1", &ctx), "(this.#state.count + 1)");
+        assert_eq!(expr::lower_in("!draft.trim()", &ctx), "!this.#state.draft.trim()");
+        // A string literal is untouched.
+        assert_eq!(expr::lower_in("view == \"all\"", &ctx), "(this.#state.view === \"all\")");
+        // A row field wins over the scope prefix, and the aggregate's own lambda parameters survive.
+        let rows = Ctx::item(&["paid".to_string()])
+            .with_collections(&["invoices".to_string()])
+            .with_scope(STATE);
+        assert_eq!(expr::lower_in("paid", &rows), "item.paid");
+        let summed = expr::lower_in("invoices.amount.sum", &rows);
+        assert!(summed.contains("(a, b) => a + Number(b)"), "{summed}");
+        assert!(summed.starts_with("this.#state.invoices"), "{summed}");
+    }
+
+    #[test]
+    fn the_update_alias_only_rewrites_a_generated_prefix() {
+        // The one textual step left. Safe because the thing being replaced is a string the compiler
+        // emitted, not a pattern it has to recognise in arbitrary code.
+        assert_eq!(to_alias("this.#state.count + 1"), "s.count + 1");
+        assert_eq!(to_alias("\"this.#state.x is prose\""), "\"s.x is prose\"");
+    }
+
+    #[test]
+    fn a_template_literal_cannot_be_ended_early_by_the_markup() {
+        // A backtick or a `${` in prose would close the literal or open an interpolation, and the
+        // emitted file would not parse at all.
+        let out = js_template("<p>a `b` ${c} \\d</p>\n");
+        assert!(out.contains("\\`b\\`"), "{out}");
+        assert!(out.contains("\\${c}"), "{out}");
+        assert!(out.contains("\\\\d"), "{out}");
+    }
+
+    #[test]
+    fn a_path_parameter_becomes_a_row_read() {
+        assert_eq!(interpolate_path("/api/tasks"), "\"/api/tasks\"");
+        assert_eq!(interpolate_path("/api/tasks/{id}"), "`/api/tasks/${item.id}`");
+    }
+}

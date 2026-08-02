@@ -116,7 +116,26 @@ function windowKey(kind: string, id: string): string {
 function secret(): string {
   // A dedicated secret if configured; otherwise derived from the API key so the signature
   // is stable per deployment without asking for more configuration. Never the key itself.
-  const base = process.env.DEMO_COOKIE_SECRET || process.env.NVIDIA_API_KEY || "guml-demo";
+  const base = process.env.DEMO_COOKIE_SECRET || process.env.NVIDIA_API_KEY;
+
+  if (!base) {
+    // **Fail closed.** This used to fall back to the literal `"guml-demo"`, which is a fine default
+    // for `pnpm dev` and a hole in production: the identity cookie is what the per-identity quota is
+    // counted against, so a signing key published in a public repository lets anyone mint an
+    // identity and spend the demo's daily cap at will. The IP half of the quota would still apply,
+    // but the cookie half — the half that survives a changing address — would not.
+    //
+    // A misconfigured deployment must not silently become an open one, so this throws instead.
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "DEMO_COOKIE_SECRET is not set. It signs the identity cookie the rate limit is counted " +
+          "against; without it the signing key would be a constant compiled into a public repository.",
+      );
+    }
+    // Development only, and only ever reached when neither variable is present.
+    return createHmac("sha256", "guml-demo-cookie").update("guml-demo-dev").digest("hex");
+  }
+
   return createHmac("sha256", "guml-demo-cookie").update(base).digest("hex");
 }
 

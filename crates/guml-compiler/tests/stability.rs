@@ -52,6 +52,50 @@ const TAGS: &[(&str, TagKind, Level)] = &[
     ("select", TagKind::Field, Level::Core),
     ("list", TagKind::Repeater, Level::App),
     ("table", TagKind::Repeater, Level::App),
+    // Meaningful only inside a `def` body, where it marks the insertion point for a call's children.
+    ("slot", TagKind::Container, Level::Core),
+    // ---- 0.2: the production vocabulary ----
+    //
+    // Adding these was *not* free, and the cost is worth recording where the policy lives. A document
+    // that had `def stat` in it stops compiling, because a def may not shadow a tag (`GUML0093`). Two
+    // cases in this repo hit exactly that and were renamed to `kpi`. The failure mode is the acceptable
+    // one — compile time, loud, with the name in the message — but "a tag may be added" is only
+    // additive for documents that did not already use the name.
+    ("option", TagKind::Text, Level::Core),
+    ("note", TagKind::Text, Level::Core),
+    // `Container`, not `Text`, and this line is the visible edit the policy asks for rather than a
+    // one-character diff somewhere else.
+    //
+    // As a text tag `badge` took its remainder as prose, so `badge danger Breaking` rendered the string
+    // "danger Breaking" — while this tag's own registry doc said "use `danger`/`primary`/`quiet` for
+    // tone" and `themes/slate.json` carried three tone rules keyed on those exact modifiers. All three
+    // were unreachable. Nothing failed, because no fixture used them.
+    //
+    // Permissible *only* because 0.2 is unreleased: the workspace is 0.1.0 and `badge` is `since: 0.2`,
+    // so no published document can contain one. After a release this same change would be forbidden by
+    // the assertion below, and the answer would have had to be a second tag.
+    ("badge", TagKind::Container, Level::Core),
+    ("divider", TagKind::Text, Level::Core),
+    ("avatar", TagKind::Text, Level::Core),
+    ("img", TagKind::Text, Level::Core),
+    ("skeleton", TagKind::Text, Level::Core),
+    ("step", TagKind::Text, Level::Core),
+    ("alert", TagKind::Container, Level::Core),
+    ("grid", TagKind::Container, Level::Core),
+    ("sidebar", TagKind::Container, Level::Core),
+    ("toolbar", TagKind::Container, Level::Core),
+    ("breadcrumb", TagKind::Container, Level::Core),
+    ("pagination", TagKind::Container, Level::Core),
+    ("stepper", TagKind::Container, Level::Core),
+    ("menu", TagKind::Container, Level::Core),
+    ("stat", TagKind::Container, Level::Core),
+    ("progress", TagKind::Control, Level::Core),
+    // These three need a runtime to be anything but dead markup, so they are app-level and say so in
+    // `capabilities.needs_runtime` as well. A core host renders documents from untrusted agents; a
+    // dialog that traps focus is not something to hand such a document.
+    ("modal", TagKind::Container, Level::App),
+    ("drawer", TagKind::Container, Level::App),
+    ("toast", TagKind::Container, Level::App),
 ];
 
 /// Modifiers that have shipped. Append only.
@@ -174,6 +218,8 @@ fn diagnostic_ids_are_append_only() {
         ("GUML0093", "a def may not shadow an existing tag"),
         ("GUML0094", "def arity"),
         ("GUML0095", "recursive def"),
+        ("GUML0099", "a bare word past the last positional slot"),
+        ("GUML0100", "a child the component does not accept"),
     ] {
         assert!(Code::from_id(id).is_some(), "`{id}` ({what}) has shipped and may not disappear");
     }

@@ -1,0 +1,44 @@
+// Reference answer for GUML-Bench task `c02-contacts`.
+//
+// # The dialog lives inside the row, and that is not a stylistic choice
+//
+// `save` and `drop` interpolate `{id}`, so `GUML0101` refuses to invoke either where there is no row —
+// a toolbar button calling `contacts.save` would have posted to `/api/contacts/undefined`. The edit
+// dialog therefore belongs to the row template, guarded by `if={editing == id}` so exactly one is open.
+//
+// That is worth knowing as a *finding* rather than a workaround: the obvious shape a model reaches for —
+// one dialog at page level, a `selected` state, a save button beside it — is a compile error in GUML with
+// the reason named, and the shape that does work is shorter.
+
+page Contacts title="Contacts" description="Everyone in the book, searchable." lang=en
+
+type Contact {id, name, email, company, tier}
+data contacts:Contact[] GET /api/contacts
+  save PATCH  /api/contacts/{id} {name, email} optimistic
+  drop DELETE /api/contacts/{id}               optimistic
+
+state query=""
+// The id of the contact being edited, or empty. A boolean would open every row's dialog at once.
+state editing=""
+state draftName=""
+state draftEmail=""
+
+head Contacts — {contacts.count} in the book
+
+toolbar
+  input query aria="Search contacts" placeholder="Search name, email or company"
+
+table contacts where={query} cols="Name, Email, Company, Tier, Edit, Delete, Dialog"
+  text {name}
+  text {email}
+  text {company}
+  badge {tier}
+  btn Edit quiet aria="Edit {name}" >editing = id; draftName = name; draftEmail = email
+  btn Delete quiet danger aria="Delete {name}" >contacts.drop
+  modal "Edit contact" if={editing == id}
+    form >contacts.save{name:draftName, email:draftEmail}; editing = ""
+      input draftName aria="Name"
+      input draftEmail aria="Email address"
+      btn Save primary busy="Saving…"
+      btn Cancel outline >editing = ""
+  empty No contact matches that search.

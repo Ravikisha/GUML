@@ -7,6 +7,7 @@ export const fix: (a: number, b: number, c: number) => [number, number, number];
 export const format: (a: number, b: number, c: number) => [number, number, number];
 export const highlight: (a: number, b: number) => [number, number, number];
 export const registry: (a: number, b: number) => [number, number, number];
+export const repair: (a: number, b: number, c: number) => [number, number, number];
 export const tree: (a: number, b: number) => [number, number, number];
 export const version: () => [number, number];
 export const __wbindgen_malloc: (a: number, b: number) => number;

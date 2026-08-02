@@ -7,25 +7,25 @@ export default function Landing() {
 
   return (
     <>
-      <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
+      <nav className="flex items-center justify-between border-b border-border pb-4">
         <h3 className="font-medium">Northwind</h3>
-        <a className="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100" href="#features" id="features">Features</a>
-        <a className="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100" href="#pricing" id="pricing">Pricing</a>
-        <a className="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100" href="#faq" id="faq">FAQ</a>
-        <button className="rounded-md px-4 py-2 text-sm font-medium transition-colors bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-200 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100 disabled:opacity-40" type="submit">Get started</button>
+        <a className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none" href="#features" id="features">Features</a>
+        <a className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none" href="#pricing" id="pricing">Pricing</a>
+        <a className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none" href="#faq" id="faq">FAQ</a>
+        <button className="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all h-9 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none disabled:pointer-events-none disabled:opacity-50" type="submit">Get started</button>
       </nav>
-      <header className="mx-auto max-w-3xl px-6 py-24 text-center">
-        <h1 className="text-4xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-5xl">Build the interface, skip the boilerplate</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Northwind turns a short description into a working, accessible web app you actually own.</p>
-        <button className="rounded-md px-4 py-2 text-sm font-medium transition-colors bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-200 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100 disabled:opacity-40" type="submit">Start free</button>
-        <button className="rounded-md px-4 py-2 text-sm font-medium transition-colors border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100 disabled:opacity-40" type="button">Watch demo</button>
+      <header className="mt-12 flex flex-col items-center gap-4 text-center">
+        <h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight text-foreground">Build the interface, skip the boilerplate</h1>
+        <p className="leading-7 text-foreground">Northwind turns a short description into a working, accessible web app you actually own.</p>
+        <button className="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all h-9 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none disabled:pointer-events-none disabled:opacity-50" type="submit">Start free</button>
+        <button className="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all h-9 px-4 py-2 border border-input bg-background shadow-xs hover:bg-accent hover:text-accent-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none disabled:pointer-events-none disabled:opacity-50" type="button">Watch demo</button>
       </header>
-      <section className="mx-auto max-w-6xl px-6 py-16 grid gap-6 md:grid-cols-3" id="features">
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">Describe the page, get a deployable build. No boilerplate to review.</div>
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">Every project exports as plain framework code you can keep editing.</div>
-        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">Focus states, labels and contrast are handled before you ask.</div>
+      <section className="mt-10 scroll-mt-16 grid gap-6 md:grid-cols-3" id="features">
+        <div className="rounded-xl border border-border bg-card text-card-foreground shadow-sm p-6">Describe the page, get a deployable build. No boilerplate to review.</div>
+        <div className="rounded-xl border border-border bg-card text-card-foreground shadow-sm p-6">Every project exports as plain framework code you can keep editing.</div>
+        <div className="rounded-xl border border-border bg-card text-card-foreground shadow-sm p-6">Focus states, labels and contrast are handled before you ask.</div>
       </section>
-      <section className="mx-auto max-w-6xl px-6 py-16 grid gap-6 md:grid-cols-3" id="pricing">
+      <section className="mt-10 scroll-mt-16 grid gap-6 md:grid-cols-3" id="pricing">
         <h3 className="font-medium">Pricing</h3>
         <div className="rounded-xl border border-slate-200 p-6">
           <h3 className="font-medium">Hobby</h3>
@@ -67,7 +67,7 @@ export default function Landing() {
           </a>
         </div>
       </section>
-      <section className="mx-auto max-w-6xl px-6 py-16" id="faq">
+      <section className="mt-10 scroll-mt-16" id="faq">
         <h3 className="font-medium">Questions</h3>
         <div className="mt-8 divide-y divide-slate-200 border-y border-slate-200">
           {[
@@ -84,10 +84,10 @@ export default function Landing() {
           ))}
         </div>
       </section>
-      <footer className="border-t border-slate-200 dark:border-slate-800 px-6 py-8 text-sm text-slate-500 dark:text-slate-400">
+      <footer className="mt-16 border-t border-border pt-6 text-sm text-muted-foreground">
         <h3 className="font-medium">© 2026 Northwind Labs</h3>
-        <a className="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100" href="/privacy">Privacy</a>
-        <a className="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100" href="/terms">Terms</a>
+        <a className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none" href="/privacy">Privacy</a>
+        <a className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none" href="/terms">Terms</a>
       </footer>
     </>
   );

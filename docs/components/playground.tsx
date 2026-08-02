@@ -1,11 +1,11 @@
 "use client";
 
-import type { Diagnostic } from "guml";
-import { applyAllSuggestions, check, compile, format } from "guml";
-import { Guml } from "guml/react";
+import type { Diagnostic } from "@guml/core";
+import { applyAllSuggestions, check, compile, format } from "@guml/core";
+import { Guml } from "@guml/core/react";
 import { AlignLeft, Check, Loader2, Play, RotateCcw, Wand2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { highlight, CLASS_STYLE } from "@/lib/highlight";
+import { highlight, CLASS_STYLE } from "@guml/highlight";
 import { cn, commas } from "@/lib/utils";
 import { CopyButton } from "./copy-button";
 import { MOCK_DATA } from "./live-preview";
@@ -260,6 +260,8 @@ export function Playground({ samples }: { samples: Sample[] }) {
                 <Guml
                   source={source}
                   data={MOCK_DATA}
+                  // No server behind the playground: see the note in `live-preview.tsx`.
+                  offline
                   fallback={
                     <div className="flex items-center gap-2 text-sm text-slate-400">
                       <Loader2 className="size-3.5 animate-spin" /> loading the compiler…

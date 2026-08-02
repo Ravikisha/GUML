@@ -14,7 +14,7 @@ head Spend — {entries.count} entries
 
 tabs month
 
-table entries where={month} sort=month
+table entries where={month} sort=month cols="Entry, Amount"
   text {label}
   text {amount}
 

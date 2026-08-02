@@ -109,15 +109,22 @@ card "Ship in minutes" | Describe the page, get a deployable build.`,
    */
 
   /* ------------------------------------------------------- user components */
+  /*
+   * `kpi`, not `stat`. This sample said `def stat` until `stat` became a builtin in 0.2, at which point
+   * it stopped compiling with `GUML0093` — a def may not shadow a tag. Worth keeping the name change
+   * visible rather than quietly editing it: it is the third place in this repo that collision landed,
+   * and `spec/STABILITY.md` now records that adding a tag is not purely additive for a document that
+   * already used the name.
+   */
   "defs.stat": {
-    code: `def stat label value
+    code: `def kpi label value
   card sm center
     h {label}
     metric {value}
     p Measured this quarter.
 
-stat "Revenue" {revenue}
-stat "Signups" {signups}`,
+kpi "Revenue" {revenue}
+kpi "Signups" {signups}`,
     scaffold: `state revenue=0
 state signups=0`,
   },

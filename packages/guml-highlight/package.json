@@ -1,0 +1,55 @@
+{
+  "name": "@guml/highlight",
+  "version": "0.1.2",
+  "type": "module",
+  "description": "Syntax highlighting for GUML. Pure TypeScript, no WebAssembly, runs during server rendering.",
+  "license": "MIT",
+  "author": "GUML contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/guml-lang/guml.git",
+    "directory": "packages/guml-highlight"
+  },
+  "homepage": "https://guml.vercel.app",
+  "bugs": {
+    "url": "https://github.com/guml-lang/guml/issues"
+  },
+  "keywords": [
+    "guml",
+    "syntax-highlighting",
+    "highlight",
+    "tokenizer",
+    "generative-ui"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "build": "pnpm clean && tsc -p tsconfig.build.json",
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "pnpm build"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "engines": {
+    "node": ">=20"
+  }
+}

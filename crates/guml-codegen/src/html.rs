@@ -69,7 +69,7 @@ impl Backend for HtmlBackend {
         // produce eight copies of the same architectural fact.
         if !program.states.is_empty() {
             let span = program.states[0].span;
-            unsupported_in(
+            crate::unsupported_in(
                 &mut out.diagnostics,
                 "html",
                 span,
@@ -98,6 +98,22 @@ impl Backend for HtmlBackend {
                         .map(|r| format!("`{}`", r.name))
                         .collect::<Vec<_>>()
                         .join(", ")
+                ),
+            );
+        }
+
+        // An effect is behaviour, and this backend has none. Silence here would be the worst option:
+        // the page would look complete and the refetch would simply never happen, which is exactly the
+        // silent mis-lowering invariant 3 forbids.
+        if !program.effects.is_empty() {
+            let span = program.effects[0].span;
+            unsupported_in(
+                &mut out.diagnostics,
+                "html",
+                span,
+                format!(
+                    "{} declared effect(s) need a runtime — nothing runs them, so the page renders as it was on first paint",
+                    program.effects.len()
                 ),
             );
         }
@@ -167,11 +183,17 @@ impl Backend for HtmlBackend {
             }
             Style::None => {}
         }
-        // Page chrome, outside the theme's per-tag rules but styled from the same palette — including
-        // the dark variants, or a dark-capable document would sit on a permanently white page.
-        src.push_str(
-            "  </head>\n  <body class=\"bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100\">\n",
-        );
+        // No class on `<body>`.
+        //
+        // It carried `bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100` — four colour
+        // literals compiled into a backend, on the one element every page has. So the *page background* was
+        // the single thing no theme could change, and with a token-driven default that showed immediately: a
+        // slate page around token-coloured cards.
+        //
+        // The theme's stylesheet sets `body { background-color: var(--background); color: var(--foreground) }`
+        // in its reset, which is where a page-level surface belongs. A theme that wants a different one
+        // changes a variable instead of fighting a class the compiler emitted.
+        src.push_str("  </head>\n  <body>\n");
         src.push_str("    <main class=\"mx-auto max-w-3xl p-6\">\n");
         if body.trim().is_empty() {
             src.push_str("      <!-- the document has no renderable elements -->\n");
@@ -218,6 +240,60 @@ impl Gen<'_> {
             return String::new();
         }
 
+        // `if={cond}` with no runtime. Nothing can *change* here, so the condition is fixed at whatever
+        // the referenced state was initialised to — which is exactly the rule this backend already
+        // applies to a binding in prose ("state renders its initial value"). Applying it consistently
+        // means a `card X if={open}` with `state open=false` is omitted rather than shown, and the
+        // reader gets the page as it first loads.
+        //
+        // Anything more complex than a bare state reference is reported instead of guessed at: a static
+        // page that silently picked one branch of `{count > 3}` would be asserting a fact about runtime
+        // data this backend cannot see.
+        if let Some(cond) = el.attr("if") {
+            match self.static_truth(cond) {
+                Some(true) => {}
+                Some(false) => {
+                    return format!(
+                        "{pad}<!-- guml: `{}` hidden — `if=` is false at initial state -->\n",
+                        el.tag
+                    );
+                }
+                None => {
+                    unsupported_in(
+                        self.diags,
+                        "html",
+                        el.span,
+                        "`if=` cannot be evaluated without a runtime unless it is a plain state reference — the element is rendered",
+                    );
+                }
+            }
+        }
+
+        // A component that declares `needs_runtime` cannot work here, and the *registry* is what says
+        // so — this backend does not carry a list of such tags. That is what makes the check extend to
+        // components it has never heard of: a `modal` and a third-party `combobox` are refused by the
+        // same three lines.
+        //
+        // `tabs` and the repeaters are excluded because they have real partial lowerings below:
+        // `tabs` is handled just under this, and a repeater renders its `empty` slot. "Needs a runtime"
+        // decides whether a tag can be *complete* here, not whether it renders nothing.
+        if crate::needs_runtime(&el.tag) && !matches!(el.tag.as_str(), "tabs" | "list" | "table") {
+            unsupported_in(
+                self.diags,
+                "html",
+                el.span,
+                format!(
+                    "`{}` needs a JavaScript runtime, and this backend emits none — it is marked `data-guml-inert` rather than rendered as a visible element that does nothing",
+                    el.tag
+                ),
+            );
+            let pad = "  ".repeat(depth);
+            return format!(
+                "{pad}<template data-guml-inert=\"needs runtime\" data-guml-tag=\"{}\"></template>\n",
+                el.tag
+            );
+        }
+
         match el.tag.as_str() {
             "list" | "table" => self.repeater(el, depth),
             "faq" => self.faq(el, depth),
@@ -239,14 +315,86 @@ impl Gen<'_> {
     fn plain(&mut self, el: &Element, depth: usize) -> String {
         let pad = "  ".repeat(depth);
         let mods = modifiers_of(el);
-        let class = classes(&el.tag, &mods);
+        // `class_list`, not `classes`: it folds in the layout attributes too. Without them `grid cols=3`
+        // emitted `grid gap-6` here while React emitted `grid gap-6 md:grid-cols-3` — the same document with
+        // three columns in one representation and an unspecified number in the no-JavaScript build that
+        // ships to a browser with no way to fix it.
+        let class = crate::class_list(el);
         let text = self.text_of(el);
 
         let mut out = String::new();
         match el.tag.as_str() {
-            "h1" | "h2" | "h" | "p" | "text" | "metric" | "head" | "label" | "note" => {
+            "h1" | "h2" | "h" | "p" | "text" | "metric" | "head" | "label" | "note" | "badge"
+            | "avatar" | "step" | "option" => {
                 let tag = html_tag(&el.tag);
                 let _ = writeln!(out, "{pad}<{tag} class={class:?}>{}</{tag}>", escape(&text));
+            }
+            // `<hr>` is void, so a closing tag would be a parse error; `skeleton` is a `<div>` and
+            // needs one even though it has no content.
+            "divider" => {
+                let _ = writeln!(out, "{pad}<hr class={class:?} />");
+            }
+            "skeleton" => {
+                let _ = writeln!(out, "{pad}<div class={class:?}></div>");
+            }
+            "img" => {
+                let src = attr_of(el, "src").unwrap_or_default();
+                // `alt` is required by the registry, so `sema` has already rejected the empty case.
+                let alt = attr_of(el, "alt").or_else(|| aria_of(el)).unwrap_or_default();
+                let _ = writeln!(
+                    out,
+                    "{pad}<img class={class:?} src={:?} alt={:?} />",
+                    escape(&src),
+                    escape(&alt)
+                );
+            }
+            // `<progress>` is one of the few interactive-looking elements that needs no script at
+            // all, so unlike every other control this one is *not* inert here.
+            "progress" => {
+                let value = attr_of(el, "value").unwrap_or_default();
+                let max = attr_of(el, "max").unwrap_or_else(|| "100".to_string());
+                let name = aria_of(el).unwrap_or_else(|| "Progress".to_string());
+                let _ = writeln!(
+                    out,
+                    "{pad}<progress class={class:?} value={:?} max={:?} aria-label={:?}></progress>",
+                    escape(&value),
+                    escape(&max),
+                    escape(&name)
+                );
+            }
+            "stat" => {
+                let mut parts = el.positionals.iter().filter_map(|p| match p {
+                    Positional::Text(t) => Some(t.clone()),
+                    Positional::Binding(b) => Some(format!("{{{}}}", b.source)),
+                    _ => None,
+                });
+                let label = parts.next().unwrap_or_default();
+                let value = parts.next().unwrap_or_default();
+                let label = self.resolve_bindings(&label, el);
+                let value = self.resolve_bindings(&value, el);
+                let _ = writeln!(out, "{pad}<dl class={:?}>", classes("stat", &mods));
+                let _ = writeln!(
+                    out,
+                    "{pad}  <dt class={:?}>{}</dt>",
+                    classes("stat-label", &mods),
+                    escape(&label)
+                );
+                let _ = writeln!(
+                    out,
+                    "{pad}  <dd class={:?}>{}</dd>",
+                    classes("stat-value", &mods),
+                    escape(&value)
+                );
+                if let Some(delta) = attr_of(el, "delta") {
+                    let delta = self.resolve_bindings(&delta, el);
+                    let _ = writeln!(
+                        out,
+                        "{pad}  <dd class={:?}>{}</dd>",
+                        classes("stat-delta", &mods),
+                        escape(&delta)
+                    );
+                }
+                let _ = writeln!(out, "{pad}</dl>");
             }
             "btn" => {
                 // An action is the whole point of a button, so a button without one is inert and
@@ -280,7 +428,33 @@ impl Gen<'_> {
                 let _ =
                     writeln!(out, "{pad}<a class={class:?} href={:?}>{}</a>", href, escape(&text));
             }
-            "input" | "check" | "toggle" | "select" => {
+            // A `select` is a real `<select>`, not an `<input>`. It was the latter, which meant the
+            // no-JavaScript build rendered a dropdown as a text box and showed none of its choices —
+            // the same missing-options bug the React backend had, plus a wrong element on top.
+            //
+            // `disabled` rather than `readonly`: `readonly` has no effect on a `<select>`, so the
+            // control would have looked inert and still been operable, changing a value nothing reads.
+            "select" => {
+                let name = aria_of(el).unwrap_or_else(|| el.tag.clone());
+                let _ = writeln!(
+                    out,
+                    "{pad}<select class={class:?} aria-label={:?} disabled data-guml-inert=\"no runtime\">",
+                    escape(&name)
+                );
+                if let Some(hint) = attr_of(el, "placeholder") {
+                    let _ = writeln!(
+                        out,
+                        "{pad}  <option value=\"\" disabled>{}</option>",
+                        escape(&hint)
+                    );
+                }
+                for opt in crate::select_options(self.program, el) {
+                    let _ =
+                        writeln!(out, "{pad}  <option value={:?}>{}</option>", opt, escape(&opt));
+                }
+                let _ = writeln!(out, "{pad}</select>");
+            }
+            "input" | "check" | "toggle" => {
                 let kind = match el.tag.as_str() {
                     "check" | "toggle" => "checkbox".to_string(),
                     _ => attr_of(el, "kind").unwrap_or_else(|| "text".to_string()),
@@ -300,6 +474,13 @@ impl Gen<'_> {
                 // content — two different slots. Using `text_of` here rendered the prose as both,
                 // because that helper prefers content (which is right for a text tag and wrong here).
                 let tag = html_tag(&el.tag);
+                // A void element reaching this arm would be emitted as `<hr>…</hr>`, which is not
+                // parseable HTML. Every void tag has its own arm above; this is the backstop so adding
+                // one and forgetting the arm produces valid markup rather than a broken document.
+                if is_void(&el.tag) {
+                    let _ = writeln!(out, "{pad}<{tag} class={class:?} />");
+                    return out;
+                }
                 let title = self.title_of(el);
                 let id = attr_of(el, "id").or_else(|| anchor_of(el));
                 match id {
@@ -393,6 +574,18 @@ impl Gen<'_> {
     /// A pricing tier: a heading, a price, and the feature lines below it.
     fn tier(&mut self, el: &Element, depth: usize) -> String {
         let pad = "  ".repeat(depth);
+        // A `tier`'s call to action is an `<a href>` built from its `cta` and its route, so an action on
+        // one has nowhere to go. It used to be dropped in silence: `tier Team … >subscription.setPlan`
+        // emitted a plain link and the plan never changed, with exit code 0. Report it — invariant 3 — and
+        // the author gets a `card` with a `btn` in it, which works today.
+        if !el.actions.is_empty() {
+            unsupported_in(
+                self.diags,
+                "html",
+                el.span,
+                "an action on a `tier`: its call to action is a link built from `cta` and the route. Put a `btn` in a `card` instead",
+            );
+        }
         let mods = modifiers_of(el);
         let words: Vec<String> = el
             .positionals
@@ -441,6 +634,41 @@ impl Gen<'_> {
 
     /// A container's title: its first text positional, with bindings resolved. Empty when it has
     /// none, which is the common case — most containers are pure layout.
+    /// The truth of an `if=` condition at the document's initial state, or `None` when this backend
+    /// cannot know it.
+    ///
+    /// Deliberately narrow. A bare `{open}` naming a declared `state` is answerable — its initial value
+    /// is in the document. `{!open}` is answerable for the same reason. Anything else (a comparison, an
+    /// aggregate over a fetched resource, an unknown name) is not, and returning `None` there is what
+    /// keeps this from asserting something about data no static page has.
+    fn static_truth(&self, cond: &Value) -> Option<bool> {
+        match cond {
+            Value::Bool(b) => Some(*b),
+            Value::Binding(b) => {
+                let src = b.source.trim();
+                let (negated, name) = match src.strip_prefix('!') {
+                    Some(rest) => (true, rest.trim()),
+                    None => (false, src),
+                };
+                if !name.chars().all(|c| c.is_alphanumeric() || c == '_') || name.is_empty() {
+                    return None;
+                }
+                let state = self.program.states.iter().find(|s| s.name == name)?;
+                let truth = match &state.init {
+                    Value::Bool(v) => *v,
+                    Value::Num(n) => *n != 0.0,
+                    Value::Str(s) => !s.is_empty(),
+                    Value::Word(w) => !w.is_empty(),
+                    // A flag with no value is `true`; a binding initialiser is not statically known.
+                    Value::Flag => true,
+                    Value::Binding(_) => return None,
+                };
+                Some(truth != negated)
+            }
+            _ => None,
+        }
+    }
+
     fn title_of(&mut self, el: &Element) -> String {
         let raw = el.positionals.iter().find_map(|p| match p {
             Positional::Text(t) => Some(t.clone()),
@@ -529,17 +757,24 @@ impl Gen<'_> {
 
 /// GUML tag → HTML element. Kept beside the React backend's choices on purpose: `head` is a big
 /// number, not a `<head>`.
+/// The element this backend emits for a tag.
+///
+/// Delegates to [`crate::element_for`], which is shared with the React backend. This function used to
+/// hold its own table with a `_ => "div"` fallback, and the two had drifted: `nav`, `hero` and `footer`
+/// all became `<div>` here while React emitted `<nav>`, `<header>` and `<footer>`. The no-JavaScript
+/// build therefore shipped a page with **no landmarks at all**, so a screen-reader user could not jump
+/// to the navigation on a document where the React build let them — a pure accessibility regression
+/// that no test could see, because each backend's snapshot only ever agreed with itself.
+///
+/// `div` remains the fallback for a tag no table knows, since this backend has nothing better to do
+/// with an unknown container and `sema` has already rejected an unknown *tag*.
 fn html_tag(tag: &str) -> &'static str {
-    match tag {
-        "h1" => "h1",
-        "h2" => "h2",
-        "h" => "h3",
-        "p" | "text" | "note" => "p",
-        "metric" | "head" => "p",
-        "label" => "label",
-        "row" | "col" | "card" | "section" | "grid" => "div",
-        _ => "div",
-    }
+    crate::element_for(tag).unwrap_or("div")
+}
+
+/// Elements with no closing tag. Getting this wrong emits `<hr></hr>`, which is not parseable HTML.
+fn is_void(tag: &str) -> bool {
+    matches!(tag, "input" | "check" | "toggle" | "divider" | "img")
 }
 
 fn attr_of(el: &Element, name: &str) -> Option<String> {

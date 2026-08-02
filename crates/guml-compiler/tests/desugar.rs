@@ -63,7 +63,10 @@ fn counter_still_compiles() {
     assert!(!d.has_errors());
     assert!(src.contains("const [count, setCount] = useState(0);"));
     assert!(src.contains("onClick={() => { setCount(count + 1); }}"));
-    assert!(src.contains("bg-slate-900"));
+    // The *token*, not a colour. This read `bg-slate-900` and so pinned the default palette into a test
+    // about desugaring — `btn … primary` selecting the primary role is the claim; which colour that role
+    // is belongs to the theme, and the default is shadcn now.
+    assert!(src.contains("bg-primary"));
 }
 
 // ---- the desugar pass: what the model no longer has to write ----
@@ -79,8 +82,74 @@ fn a_resource_becomes_state_a_fetch_and_callbacks() {
 
     // Cancellation is the thing hand-written effects get wrong.
     assert!(src.contains("const controller = new AbortController();"));
-    assert!(src.contains("return () => controller.abort();"));
+    assert!(src.contains("controller.abort();"));
     assert!(src.contains("err.name === \"AbortError\""));
+    // An `alive` flag *as well as* the abort. A cache hit can resolve after unmount without the abort
+    // ever firing, so the guard has to be on the `setState` rather than only on the request — which is
+    // where React's "setState on an unmounted component" warning comes from.
+    assert!(src.contains("let alive = true;"), "no unmount guard on the state writes");
+    assert!(src.contains("alive = false;"), "the guard is never cleared");
+
+    // The four cache behaviours, generated once per file: deduplication, stale-while-revalidate,
+    // invalidation on mutation, and stale-on-failure. Every application needs all four and nobody writes
+    // them on the first pass.
+    assert!(src.contains("const GUML_INFLIGHT"), "no in-flight deduplication");
+    assert!(src.contains("GUML_STALE_MS"), "no stale-while-revalidate window");
+    assert!(src.contains("function invalidate("), "no cache invalidation");
+    assert!(
+        src.contains("cached<Task[]>(\"/api/tasks\""),
+        "the fetch does not go through the cache"
+    );
+}
+
+#[test]
+fn an_error_boundary_is_emitted_only_where_the_compiler_stops_checking() {
+    // The tempting rule is "wrap every page, it costs nothing". It costs ~25 lines on every page, and it
+    // would be ceremony: an error boundary catches render errors, and generated render code comes from a
+    // typechecked expression tree. There is nothing in it to throw.
+    //
+    // Except in a `js` or `raw` block, which the compiler emits verbatim and never checks — and one throw
+    // in there blanks the whole page. So the boundary exists to contain exactly that.
+    let (plain, _) = emit(TASKS);
+    assert!(
+        !plain.contains("GumlBoundary"),
+        "a document with no escape hatch got a boundary it cannot need"
+    );
+
+    let hatched = "page P\nstate n=0\n\njs\n  const helper = () => 1;\nmetric {n}\n";
+    let (out, _) = emit(hatched);
+    assert!(out.contains("class GumlBoundary extends Component"), "{out}");
+    assert!(out.contains("<GumlBoundary>"), "the boundary was defined but not used:\n{out}");
+    assert!(out.contains("getDerivedStateFromError"), "{out}");
+    // `import type` for a type-only import, or `verbatimModuleSyntax` rejects it.
+    assert!(out.contains("import type { ReactNode }"), "{out}");
+    // And the fallback names the likely cause rather than saying "something went wrong", which would send
+    // a reader hunting through generated code.
+    assert!(out.contains("`js` or `raw` block"), "{out}");
+
+    // A `raw` block counts too.
+    let (raw, _) = emit("page P\nraw react\n  <Chart />\np Body.\n");
+    assert!(raw.contains("GumlBoundary"), "{raw}");
+}
+
+#[test]
+fn a_mutation_invalidates_the_collection_it_changed() {
+    // The subtle one, and the reason the cache is not just an optimisation. Without invalidation the
+    // refetch after a mutation is a cache *hit* on the pre-mutation list, so the row the user just added
+    // visibly disappears — and it reads as a broken optimistic update rather than a stale cache.
+    let (src, _) = emit(TASKS);
+    // The prefix is the resource's URL trimmed at its first interpolation, so a `PATCH /api/tasks/{id}`
+    // invalidates the list the row came from rather than only the row's own URL, which nothing cached.
+    assert_eq!(
+        src.matches(r#"invalidate("/api/tasks")"#).count(),
+        3,
+        "every mutation must invalidate, not just the first:\n{src}"
+    );
+    // And it happens before the refetch, or the refetch reads what it was supposed to discard.
+    let add = src.split("const tasksAdd").nth(1).unwrap_or_default();
+    let invalidate_at = add.find("invalidate(").expect("invalidate in the add callback");
+    let created_at = add.find("const created").unwrap_or(usize::MAX);
+    assert!(invalidate_at < created_at, "the cache was read before it was invalidated");
 }
 
 #[test]
@@ -372,4 +441,66 @@ fn emitted_code_carries_line_provenance() {
         "the form maps to its own line, got {:?}",
         source[origin - 1]
     );
+}
+
+/// Retry with backoff, and the policy the two spellings of it must share.
+///
+/// Emitted rather than imported: a compiled page has no GUML runtime dependency. That means the helper
+/// exists twice — TypeScript for React, plain JavaScript for Svelte — and two copies of a policy is how
+/// they start to differ. So this asserts the *policy*, not the text, and lets the type annotations be
+/// the only thing that varies.
+mod retry_with_backoff {
+    use guml_codegen::Backend as _;
+    use guml_compiler::check;
+
+    fn emitted(backend: &dyn guml_codegen::Backend) -> String {
+        let src = std::fs::read_to_string("../../fixtures/invoices.guml").expect("fixture");
+        let (program, diags) = check(&src);
+        assert!(!diags.has_errors(), "{:?}", diags.items);
+        backend.emit(&program).files[0].contents.clone()
+    }
+
+    #[test]
+    fn both_backends_emit_it_and_route_every_request_through_it() {
+        for out in [
+            emitted(&guml_codegen::react::ReactBackend),
+            emitted(&guml_codegen::svelte::SvelteBackend),
+        ] {
+            assert!(out.contains("function retrying("), "{out}");
+            // The point of the helper is that nothing bypasses it. Exactly one `fetch(` should appear
+            // in the whole file — the one *inside* `retrying`. A second is a request with no backoff.
+            assert_eq!(
+                out.matches("fetch(").count(),
+                1,
+                "a request bypasses the retry helper:\n{out}"
+            );
+            // And it is called rather than emitted and ignored: the list plus each mutation.
+            assert!(out.matches("retrying(").count() >= 3, "{out}");
+        }
+    }
+
+    #[test]
+    fn the_policy_is_the_same_in_both_spellings() {
+        for policy in [
+            // Only idempotent methods: a repeated POST with no idempotency key creates two rows.
+            r#"["GET", "HEAD", "PUT", "DELETE"].includes(init.method)"#,
+            // Only 5xx and transport failures. A 4xx answers the same way next time.
+            "res.status < 500 || last",
+            // An abort is not a failure to retry past.
+            "AbortError",
+            // Exponential, not fixed.
+            "wait *= 2",
+        ] {
+            assert!(guml_codegen::RETRY_TS.contains(policy), "TS is missing {policy}");
+            assert!(guml_codegen::RETRY_JS.contains(policy), "JS is missing {policy}");
+        }
+    }
+
+    #[test]
+    fn a_document_that_fetches_nothing_does_not_carry_it() {
+        // ~90 tokens of output is cheap once and pointless on a page with no `data` declaration.
+        let (program, _) = check("page P\nstate count=0\nmetric {count}\n");
+        let out = guml_codegen::react::ReactBackend.emit(&program).files[0].contents.clone();
+        assert!(!out.contains("retrying"), "{out}");
+    }
 }

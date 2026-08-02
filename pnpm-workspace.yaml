@@ -2,3 +2,7 @@ packages:
   - docs
   - packages/*
   - bench/phase0
+  # The VS Code extension sat outside the workspace, so its dependencies were never installed and
+  # `tsc -p .` never ran on it — the one piece of first-party TypeScript in this repository with no
+  # typecheck at all, and the piece users install.
+  - editors/vscode

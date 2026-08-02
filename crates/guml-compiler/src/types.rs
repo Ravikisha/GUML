@@ -161,7 +161,7 @@ pub fn infer(expr: &Expr, scope: &Scope, span: Span, diags: &mut Diagnostics) ->
             Type::Num
         }
 
-        Expr::Path { head, steps } => path_type(head, steps, scope),
+        Expr::Path { head, steps } => path_type(head, steps, scope, span, diags),
 
         Expr::Bin { op, lhs, rhs } => {
             let l = infer(lhs, scope, span, diags);
@@ -174,27 +174,187 @@ pub fn infer(expr: &Expr, scope: &Scope, span: Span, diags: &mut Diagnostics) ->
     }
 }
 
-fn path_type(head: &str, steps: &[Step], scope: &Scope) -> Type {
+/// The type of a path, checking each aggregate against what it is applied to.
+///
+/// The aggregates used to be unconditional — `.sum` was always `Num`, `.trim` always `Str` — which made
+/// `{tasks.title.sum}` and `{count.trim()}` type-check and then emit JavaScript that returns `NaN` or
+/// throws. Threading the row's field types through the steps is what turns those into diagnostics.
+///
+/// `Type::Unknown` is still never an error. A resource whose `type` is not declared, or a field the
+/// declared type does not mention, yields `Unknown` and every check below passes — the alternative is
+/// a compiler that refuses documents it merely cannot reason about.
+fn path_type(
+    head: &str,
+    steps: &[Step],
+    scope: &Scope,
+    span: Span,
+    diags: &mut Diagnostics,
+) -> Type {
     let mut current = scope.lookup(head);
     let mut row_fields: Option<&HashMap<&str, Type>> = scope.resources.get(head);
+    // What the path reads so far, for a message that points at the mistake rather than the whole line.
+    let mut so_far = head.to_string();
+    // Whether `current` is a *row field of a collection* rather than a scalar. This is the distinction
+    // the aggregates turn on, and getting it wrong made a published fixture fail:
+    // `{projects.live.count}` counts the rows where `live` is true, so `.count` after a row field is a
+    // row count and the field's own type is irrelevant. `{user.name.count}` is a string length. Same
+    // syntax, different meaning, and only the collection list separates them.
+    let mut row_field = false;
 
     for step in steps {
         current = match step {
-            Step::Agg(Aggregate::Count) => Type::Num,
-            Step::Agg(Aggregate::Sum) => Type::Num,
-            // A filter over a list is still a list.
-            Step::Agg(Aggregate::Open | Aggregate::Done) => Type::List,
-            Step::Agg(Aggregate::Trim | Aggregate::Lower | Aggregate::Upper) => Type::Str,
-            Step::Field(name) => match row_fields.and_then(|f| f.get(name.as_str())) {
-                Some(t) => *t,
-                // A field of something whose type is not declared. Unknown, not an error.
-                None => Type::Unknown,
-            },
+            Step::Agg(agg @ (Aggregate::Count | Aggregate::Sum)) => {
+                let numeric = matches!(agg, Aggregate::Sum);
+                // `.count` is a length: legal on a list and on a string. `.sum` needs numbers.
+                let ok = match (current, numeric) {
+                    (Type::Unknown, _) => true,
+                    (Type::List, _) => true,
+                    // Counting the rows where a field is truthy: legal whatever the field holds.
+                    (_, false) if row_field => true,
+                    (Type::Str, false) => true,
+                    (Type::Num, true) => true,
+                    _ => false,
+                };
+                if !ok {
+                    let what = if numeric { "sum" } else { "count" };
+                    let needs = if numeric { "a number" } else { "a list or a string" };
+                    mismatch(
+                        diags,
+                        span,
+                        format!("`{so_far}` is {current:?}, and `.{what}` needs {needs}"),
+                    );
+                }
+                Type::Num
+            }
+            // A filter over a list is still a list, and only a list can be filtered.
+            Step::Agg(agg @ (Aggregate::Open | Aggregate::Done)) => {
+                if !matches!(current, Type::List | Type::Unknown) {
+                    mismatch(
+                        diags,
+                        span,
+                        format!(
+                            "`{so_far}` is {current:?}, and `.{}` filters a list of rows",
+                            if matches!(agg, Aggregate::Open) { "open" } else { "done" }
+                        ),
+                    );
+                }
+                // `.open`/`.done` mean "not in the terminal state" / "in it", and the field carrying that
+                // state is whichever `bool` the row declares — not necessarily one named `done`. An
+                // invoice's is `paid`, a message's is `read`. Requiring the name `done` made the idiom
+                // work only for authors who guessed it, and lowered to `!it.done` on a field that did
+                // not exist for everyone else: a count that was silently always zero.
+                //
+                // So: exactly one `bool` is the field. None means there is no state to filter on. Two or
+                // more is genuinely ambiguous — `paid` and `overdue` are different questions — and
+                // picking one would be a guess with no diagnostic, which is invariant 3.
+                if let Some(fields) = row_fields {
+                    let bools: Vec<&&str> =
+                        fields.iter().filter(|(_, t)| **t == Type::Bool).map(|(n, _)| n).collect();
+                    let verb = if matches!(agg, Aggregate::Open) { "open" } else { "done" };
+                    if bools.is_empty() {
+                        mismatch(
+                            diags,
+                            span,
+                            format!(
+                                "`{so_far}` has no boolean field, so `.{verb}` has no state to filter on"
+                            ),
+                        );
+                    } else if bools.len() > 1 {
+                        let mut names: Vec<&str> = bools.iter().map(|n| **n).collect();
+                        names.sort_unstable();
+                        mismatch(
+                            diags,
+                            span,
+                            format!(
+                                "`{so_far}` has more than one boolean field ({}), so `.{verb}` is \
+                                 ambiguous — filter with `where` instead",
+                                names.join(", ")
+                            ),
+                        );
+                    }
+                }
+                Type::List
+            }
+            Step::Agg(agg @ (Aggregate::Trim | Aggregate::Lower | Aggregate::Upper)) => {
+                if !matches!(current, Type::Str | Type::Unknown) {
+                    let name = match agg {
+                        Aggregate::Trim => "trim",
+                        Aggregate::Lower => "lower",
+                        _ => "upper",
+                    };
+                    mismatch(
+                        diags,
+                        span,
+                        format!("`{so_far}` is {current:?}, and `.{name}` needs a string"),
+                    );
+                }
+                Type::Str
+            }
+            Step::Field(name) => {
+                row_field = row_fields.is_some();
+                match row_fields.and_then(|f| f.get(name.as_str())) {
+                    Some(t) => *t,
+                    // The row type *is* declared and has no such field.
+                    //
+                    // `{members.admin.count}` over `type Member {id, name, email, role, active:bool}`
+                    // lowered to `members.filter((it) => it.admin).length` — always zero, because no row
+                    // has an `admin` property. The document meant "how many members have the admin role",
+                    // which is a comparison and not a truthiness filter, and the compiler said nothing:
+                    // the count was wrong, the banner it guarded was permanently visible, and only `tsc`
+                    // over the emitted file would have noticed.
+                    //
+                    // This is the same shape as the `.done` hardcode two arms above, and it is refused for
+                    // the same reason. Only checked at the first step, because `row_fields` is cleared
+                    // after one field lookup — a deeper path has left the row type behind and nothing here
+                    // knows what it is looking at.
+                    None if row_fields.is_some() => {
+                        let mut names: Vec<&str> =
+                            row_fields.map(|f| f.keys().copied().collect()).unwrap_or_default();
+                        names.sort_unstable();
+                        // Its own help rather than `mismatch`'s, whose advice is about state types and
+                        // would send the reader to the wrong declaration entirely.
+                        diags.push(
+                            Diagnostic::error(
+                                Code::TypeMismatch,
+                                format!(
+                                    "`{so_far}` has no field `{name}`; the row declares {}",
+                                    names.join(", ")
+                                ),
+                                span,
+                            )
+                            .with_help(
+                                "an aggregate after a field counts the rows where that field is truthy, \
+                                 so the field has to exist on the row type; comparing a field to a value \
+                                 is `where=` on the repeater, not an aggregate",
+                            ),
+                        );
+                        Type::Unknown
+                    }
+                    // A field of something whose type is not declared. Unknown, not an error.
+                    None => Type::Unknown,
+                }
+            }
         };
-        // Only the first step can be a row field of the head resource; after that the type is a
-        // scalar and there is nothing further to look up.
+
+        so_far.push('.');
+        so_far.push_str(match step {
+            Step::Field(n) => n.as_str(),
+            Step::Agg(Aggregate::Count) => "count",
+            Step::Agg(Aggregate::Sum) => "sum",
+            Step::Agg(Aggregate::Open) => "open",
+            Step::Agg(Aggregate::Done) => "done",
+            Step::Agg(Aggregate::Trim) => "trim",
+            Step::Agg(Aggregate::Lower) => "lower",
+            Step::Agg(Aggregate::Upper) => "upper",
+        });
+
+        // A field lookup consumes the row context; `.open`/`.done` preserve it, because the result is
+        // still a list of the same rows. That is what makes `tasks.open.count` work.
         if !matches!(step, Step::Agg(Aggregate::Open | Aggregate::Done)) {
             row_fields = None;
+        }
+        if !matches!(step, Step::Field(_)) {
+            row_field = false;
         }
     }
 
@@ -274,18 +434,81 @@ pub fn check(program: &Program, diags: &mut Diagnostics) {
     for el in &program.tree {
         element(el, program, &scope, diags);
     }
+
+    // An effect trigger is an expression like any other, so it goes through the same inference: a bad
+    // aggregate in `on {tasks.title.sum}` is the same error there as in `metric {tasks.title.sum}`.
+    // Its *type* is deliberately unconstrained — anything can serve as a dependency.
+    for e in &program.effects {
+        if let guml_ast::Trigger::Change(text) = &e.trigger {
+            let expr = guml_syntax::expr::parse(text);
+            infer(&expr, &scope, e.span, diags);
+            enum_comparisons(&expr, program, e.span, diags);
+        }
+    }
+}
+
+/// A comparison against a value the enumerated state can never hold.
+///
+/// Assignment was already checked — `>filter="opne"` is `GUML0080`. Comparison was not, and it is the
+/// more dangerous half: `{filter == "opne"}` is not a type error, it is **dead code**. The branch
+/// simply never runs, the page silently renders the wrong thing, and nothing in the pipeline had an
+/// opinion about it.
+///
+/// This is the exhaustiveness the domain makes possible: a closed set of values is only useful if the
+/// compiler holds comparisons to it.
+fn enum_comparisons(expr: &Expr, program: &Program, span: Span, diags: &mut Diagnostics) {
+    let Expr::Bin { op, lhs, rhs } = expr else {
+        // Recurse into the shapes that can contain a comparison.
+        match expr {
+            Expr::Not(inner) | Expr::Neg(inner) => enum_comparisons(inner, program, span, diags),
+            _ => {}
+        }
+        return;
+    };
+
+    if matches!(op, BinOp::Eq | BinOp::Ne) {
+        // Either order: `filter == "x"` and `"x" == filter`.
+        for (path, literal) in [(lhs.as_ref(), rhs.as_ref()), (rhs.as_ref(), lhs.as_ref())] {
+            if let Expr::Path { head, steps } = path
+                && steps.is_empty()
+                && let Expr::Str(value) = literal
+                && let Some(state) = program.state(head)
+                && !state.domain.is_empty()
+                && !state.domain.iter().any(|d| d == value)
+            {
+                diags.push(
+                    Diagnostic::error(
+                        Code::NotEnumerated,
+                        format!(
+                            "`{head}` can never equal `{value}`: it is not in its domain"
+                        ),
+                        span,
+                    )
+                    .with_help(format!(
+                        "one of: {} — a comparison outside the domain is dead code, not a type error",
+                        state.domain.join(", ")
+                    )),
+                );
+            }
+        }
+    }
+
+    enum_comparisons(lhs, program, span, diags);
+    enum_comparisons(rhs, program, span, diags);
 }
 
 fn element(el: &Element, program: &Program, scope: &Scope, diags: &mut Diagnostics) {
     for p in &el.positionals {
         if let Positional::Binding(b) = p {
             infer(&b.expr, scope, el.span, diags);
+            enum_comparisons(&b.expr, program, el.span, diags);
         }
     }
     for a in &el.attrs {
         if let Value::Binding(b) = &a.value {
+            enum_comparisons(&b.expr, program, a.span, diags);
             let t = infer(&b.expr, scope, a.span, diags);
-            attribute(&a.name, t, a.span, diags);
+            attribute(&el.tag, &a.name, t, a.span, diags);
         }
     }
 
@@ -297,7 +520,9 @@ fn element(el: &Element, program: &Program, scope: &Scope, diags: &mut Diagnosti
             break;
         }
         for source in guml_syntax::expr::interpolations(text) {
-            infer(&guml_syntax::expr::parse(source), scope, el.span, diags);
+            let expr = guml_syntax::expr::parse(source);
+            infer(&expr, scope, el.span, diags);
+            enum_comparisons(&expr, program, el.span, diags);
         }
     }
 
@@ -313,7 +538,11 @@ fn element(el: &Element, program: &Program, scope: &Scope, diags: &mut Diagnosti
 }
 
 /// Attributes whose value has a required type.
-fn attribute(name: &str, t: Type, span: Span, diags: &mut Diagnostics) {
+fn attribute(tag: &str, name: &str, t: Type, span: Span, diags: &mut Diagnostics) {
+    // `cols` on a repeater is the column *header list*, not a count — see `validate::numeric_on`.
+    if name == "cols" && matches!(tag, "list" | "table") {
+        return;
+    }
     let expected = match name {
         "cols" | "gap" | "min" | "max" | "open" => Type::Num,
         // `disabled={draft}` on a string is a truthiness bug: an empty string is falsy, so it
@@ -346,16 +575,14 @@ fn repeater_fields<'a>(
     if !matches!(el.tag.as_str(), "list" | "table") {
         return None;
     }
-    let source = el
-        .positionals
-        .iter()
-        .find_map(|p| match p {
-            Positional::Text(t) => Some(t.as_str()),
-            _ => None,
-        })
-        .or_else(|| el.attr("of").and_then(|v| v.as_text()))?;
-    let _ = program;
-    scope.resources.get(source).cloned()
+    // `of=` no longer names an alternative *source*; it names the row **type**. So the fields come from the
+    // shared `repeater_rows`, and a derived array gets its row scope exactly like a resource's does.
+    let rows = program.repeater_rows(el)?;
+    if let Some(fields) = scope.resources.get(rows.source.as_str()) {
+        return Some(fields.clone());
+    }
+    let decl = program.types.iter().find(|t| t.name == rows.ty)?;
+    Some(decl.fields.iter().map(|f| (f.name.as_str(), field_type(&f.ty))).collect())
 }
 
 #[cfg(test)]

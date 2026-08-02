@@ -103,6 +103,30 @@ export function registry(tags) {
 }
 
 /**
+ * The whole free repair pipeline: sanitise, format, fix. No model call.
+ *
+ * `fix` only applies edits the compiler described. This also *removes* what a model wrapped around the
+ * document — a ``` fence, markdown rules, trailing commentary — which is a different promise and so a
+ * different function rather than a flag.
+ *
+ * Exposed to the browser for the same reason `fix` is: a playground or a chat surface that shows
+ * "generation failed" before running the free layers is reporting a failure the tool could have
+ * repaired itself.
+ * @param {string} source
+ * @param {number | null} [rounds]
+ * @returns {any}
+ */
+export function repair(source, rounds) {
+    const ptr0 = passStringToWasm0(source, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.repair(ptr0, len0, isLikeNone(rounds) ? Number.MAX_SAFE_INTEGER : (rounds) >>> 0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
  * The render tree, for the runtime renderer. Diagnostics come along so a preview
  * can show the problem instead of rendering something misleading.
  * @param {string} source

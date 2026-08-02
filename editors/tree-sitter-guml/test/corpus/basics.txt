@@ -1,0 +1,333 @@
+================================================================================
+a page directive
+================================================================================
+
+page Counter
+
+--------------------------------------------------------------------------------
+
+(document
+  (directive
+    (page
+      name: (identifier))))
+
+================================================================================
+indentation is nesting
+================================================================================
+
+page P
+card A
+  p One
+
+--------------------------------------------------------------------------------
+
+(document
+  (directive
+    (page
+      name: (identifier)))
+  (element
+    tag: (tag (identifier))
+    (identifier)
+    (element
+      tag: (tag (identifier))
+      (prose))))
+
+================================================================================
+an escape block body is not GUML
+================================================================================
+
+page P
+js
+  if (a) { b(); }
+
+--------------------------------------------------------------------------------
+
+(document
+  (directive
+    (page
+      name: (identifier)))
+  (escape_block
+    (raw_line)))
+
+================================================================================
+a raw block names its target
+================================================================================
+
+page P
+raw react
+  <SomeChart data={rows} />
+
+--------------------------------------------------------------------------------
+
+(document
+  (directive
+    (page
+      name: (identifier)))
+  (escape_block
+    target: (identifier)
+    (raw_line)))
+
+================================================================================
+tier takes content lines, not elements
+================================================================================
+
+page P
+tier Pro
+  Unlimited projects
+  Custom domains
+
+--------------------------------------------------------------------------------
+
+(document
+  (directive
+    (page
+      name: (identifier)))
+  (content_element
+    tag: (tag)
+    (identifier)
+    (content_line)
+    (content_line)))
+
+================================================================================
+faq content lines are verbatim, pipes and all
+================================================================================
+
+page P
+faq open=1
+  Can I export the code? | Yes. Every build is plain source.
+
+--------------------------------------------------------------------------------
+
+(document
+  (directive
+    (page
+      name: (identifier)))
+  (content_element
+    tag: (tag)
+    (attribute
+      name: (identifier)
+      value: (number))
+    (content_line)))
+
+================================================================================
+a text tag's remainder is prose even when it looks structured
+================================================================================
+
+page P
+p Set x=1 to enable the flag.
+
+--------------------------------------------------------------------------------
+
+(document
+  (directive
+    (page
+      name: (identifier)))
+  (element
+    tag: (tag (identifier))
+    (prose)))
+
+================================================================================
+a control's remainder is structure, not prose
+================================================================================
+
+page P
+btn Decrement ghost >count--
+
+--------------------------------------------------------------------------------
+
+(document
+  (directive
+    (page
+      name: (identifier)))
+  (element
+    tag: (tag (identifier))
+    (identifier)
+    (identifier)
+    (action
+      (action_body))))
+
+================================================================================
+a resource's mutations are its indented children
+================================================================================
+
+page P
+data tasks:Task[] GET /api/tasks
+  add POST /api/tasks {title} optimistic:prepend
+
+--------------------------------------------------------------------------------
+
+(document
+  (directive
+    (page
+      name: (identifier)))
+  (directive
+    (data_decl
+      name: (identifier)
+      (type_ref
+        (identifier))
+      method: (method)
+      url: (route)
+      (mutation
+        name: (identifier)
+        method: (method)
+        url: (route)
+        (brace_group)
+        (identifier)))))
+
+================================================================================
+every open block closes at end of file
+================================================================================
+
+page P
+card A
+  col
+    p Deep
+
+--------------------------------------------------------------------------------
+
+(document
+  (directive
+    (page
+      name: (identifier)))
+  (element
+    tag: (tag (identifier))
+    (identifier)
+    (element
+      tag: (tag (identifier))
+      (element
+        tag: (tag (identifier))
+        (prose)))))
+
+================================================================================
+top-level siblings do not nest
+================================================================================
+
+page P
+p One. Two.
+btn Go primary
+p Three.
+
+--------------------------------------------------------------------------------
+
+(document
+  (directive
+    (page
+      name: (identifier)))
+  (element
+    tag: (tag (identifier))
+    (prose))
+  (element
+    tag: (tag (identifier))
+    (identifier)
+    (identifier))
+  (element
+    tag: (tag (identifier))
+    (prose)))
+
+================================================================================
+a body holds more than one child
+================================================================================
+
+page P
+card A
+  p One.
+  p Two.
+card B
+
+--------------------------------------------------------------------------------
+
+(document
+  (directive
+    (page
+      name: (identifier)))
+  (element
+    tag: (tag (identifier))
+    (identifier)
+    (element
+      tag: (tag (identifier))
+      (prose))
+    (element
+      tag: (tag (identifier))
+      (prose)))
+  (element
+    tag: (tag (identifier))
+    (identifier)))
+
+================================================================================
+a bare text tag carries no text
+================================================================================
+
+page P
+col
+  divider
+  skeleton
+
+--------------------------------------------------------------------------------
+
+(document
+  (directive
+    (page
+      name: (identifier)))
+  (element
+    tag: (tag (identifier))
+    (element
+      tag: (tag (identifier)))
+    (element
+      tag: (tag (identifier)))))
+
+================================================================================
+a positional may follow a keyed attribute
+================================================================================
+
+page P
+tier Pro $24/mo "For working developers" cta="Go Pro" /signup featured
+  Unlimited projects
+
+--------------------------------------------------------------------------------
+
+(document
+  (directive
+    (page
+      name: (identifier)))
+  (content_element
+    tag: (tag)
+    (identifier)
+    (identifier)
+    (string)
+    (attribute
+      name: (identifier)
+      value: (string))
+    (route)
+    (identifier)
+    (content_line)))
+
+================================================================================
+a digit run followed by word characters is a word, not a number
+================================================================================
+
+page P
+state cohort=2026-05|2026-06
+card A cols=3
+  link Go /signup
+
+--------------------------------------------------------------------------------
+
+(document
+  (directive
+    (page
+      name: (identifier)))
+  (directive
+    (state_decl
+      name: (identifier)
+      (identifier)
+      (identifier)))
+  (element
+    tag: (tag (identifier))
+    (identifier)
+    (attribute
+      name: (identifier)
+      value: (number))
+    (element
+      tag: (tag (identifier))
+      (identifier)
+      (route))))

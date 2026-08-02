@@ -51,6 +51,39 @@ fn portfolio_react() {
     insta::assert_snapshot!(emitted("portfolio.guml", "react"));
 }
 
+/// Declared effects, and a state field that is not called `done`.
+///
+/// Both were silently wrong before this fixture existed, and for the same reason: every fixture in the
+/// suite happened to name its boolean `done`, so a hardcoded `!it.done` in the backend agreed with a
+/// hardcoded `done` in the type rule and nothing disagreed with either. This one models invoices with
+/// `paid:bool`, so the snapshot pins `!it.paid` — and it carries an `on {view}` effect, which is the
+/// only fixture that does.
+#[test]
+fn invoices_react() {
+    insta::assert_snapshot!(emitted("invoices.guml", "react"));
+}
+
+#[test]
+fn invoices_svelte() {
+    insta::assert_snapshot!(emitted("invoices.guml", "svelte"));
+}
+
+/// The escape-hatch fixture. Worth a snapshot precisely because its output is the part the compiler
+/// promises *not* to touch: a `js` block hoisted verbatim above the return, a `raw react` block left
+/// where it sits, and a `raw svelte` block that must not appear at all. A silent change to any of those
+/// is invisible to every other test.
+#[test]
+fn escape_hatches_react() {
+    insta::assert_snapshot!(emitted("d.guml", "react"));
+}
+
+/// The same fixture through the no-JavaScript backend, where the `js` block is dropped with a warning
+/// and the `raw html` path is the only one that survives.
+#[test]
+fn escape_hatches_html() {
+    insta::assert_snapshot!(emitted("d.guml", "html"));
+}
+
 /// The render tree the browser runtime consumes. A change here moves the live preview and the
 /// playground, not just the emitted file.
 #[test]

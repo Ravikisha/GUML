@@ -10,6 +10,7 @@
 //! *same* errors, which is the property the whole diagnostic design exists to protect.
 
 mod features;
+mod navigate;
 
 use dashmap::DashMap;
 use guml_diagnostics::Severity;
@@ -83,6 +84,15 @@ impl LanguageServer for Backend {
                 }),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 document_formatting_provider: Some(OneOf::Left(true)),
+                document_range_formatting_provider: Some(OneOf::Left(true)),
+                definition_provider: Some(OneOf::Left(true)),
+                references_provider: Some(OneOf::Left(true)),
+                // `prepare` so the editor can refuse before the user types a new name, rather than
+                // after — a rename dialog that accepts input and then errors is the worse order.
+                rename_provider: Some(OneOf::Right(RenameOptions {
+                    prepare_provider: Some(true),
+                    work_done_progress_options: Default::default(),
+                })),
                 code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
                 document_symbol_provider: Some(OneOf::Left(true)),
                 semantic_tokens_provider: Some(
@@ -191,6 +201,105 @@ impl LanguageServer for Backend {
         }))
     }
 
+    /// Go to the declaration a name refers to.
+    async fn goto_definition(
+        &self,
+        params: GotoDefinitionParams,
+    ) -> Result<Option<GotoDefinitionResponse>> {
+        let uri = params.text_document_position_params.text_document.uri.clone();
+        let src = self.text(&uri);
+        let at = pos(params.text_document_position_params.position);
+        Ok(navigate::definition(&src, at)
+            .map(|r| GotoDefinitionResponse::Scalar(Location { uri, range: lsp_range(r) })))
+    }
+
+    async fn references(&self, params: ReferenceParams) -> Result<Option<Vec<Location>>> {
+        let uri = params.text_document_position.text_document.uri.clone();
+        let src = self.text(&uri);
+        let at = pos(params.text_document_position.position);
+        let Some(name) = src
+            .lines()
+            .nth(at.line as usize)
+            .and_then(|l| features::word_at(l, at.character as usize))
+        else {
+            return Ok(None);
+        };
+        Ok(Some(
+            navigate::references(&src, &name)
+                .into_iter()
+                .map(|r| Location { uri: uri.clone(), range: lsp_range(r) })
+                .collect(),
+        ))
+    }
+
+    /// Refuse early, before the user has typed a new name.
+    async fn prepare_rename(
+        &self,
+        params: TextDocumentPositionParams,
+    ) -> Result<Option<PrepareRenameResponse>> {
+        let src = self.text(&params.text_document.uri);
+        let at = pos(params.position);
+        // A name is renameable exactly when it has a definition in this document.
+        match navigate::definition(&src, at) {
+            Some(_) => {
+                let line = src.lines().nth(at.line as usize).unwrap_or("");
+                let Some(name) = features::word_at(line, at.character as usize) else {
+                    return Ok(None);
+                };
+                // The word's own range, so the editor pre-fills the dialog with just the name.
+                // Character offset, not byte offset: the protocol counts UTF-16 code units, and a line
+                // with an em dash before the name would otherwise place the range too far left.
+                let col =
+                    line.find(&name).map(|byte| line[..byte].chars().count() as u32).unwrap_or(0);
+                Ok(Some(PrepareRenameResponse::RangeWithPlaceholder {
+                    range: Range {
+                        start: Position::new(at.line, col),
+                        end: Position::new(at.line, col + name.chars().count() as u32),
+                    },
+                    placeholder: name,
+                }))
+            }
+            None => Ok(None),
+        }
+    }
+
+    async fn rename(&self, params: RenameParams) -> Result<Option<WorkspaceEdit>> {
+        let uri = params.text_document_position.text_document.uri.clone();
+        let src = self.text(&uri);
+        let at = pos(params.text_document_position.position);
+
+        match navigate::rename(&src, at, &params.new_name) {
+            Ok(ranges) if ranges.is_empty() => Ok(None),
+            Ok(ranges) => {
+                let edits: Vec<TextEdit> = ranges
+                    .into_iter()
+                    .map(|r| TextEdit { range: lsp_range(r), new_text: params.new_name.clone() })
+                    .collect();
+                Ok(Some(WorkspaceEdit {
+                    changes: Some([(uri, edits)].into_iter().collect()),
+                    ..Default::default()
+                }))
+            }
+            // Surfaced as a protocol error so the editor shows the reason instead of applying a
+            // rename that would break the document.
+            Err(why) => Err(tower_lsp::jsonrpc::Error {
+                code: tower_lsp::jsonrpc::ErrorCode::InvalidParams,
+                message: describe(&why).into(),
+                data: None,
+            }),
+        }
+    }
+
+    async fn range_formatting(
+        &self,
+        params: DocumentRangeFormattingParams,
+    ) -> Result<Option<Vec<TextEdit>>> {
+        let src = self.text(&params.text_document.uri);
+        let range = navigate::Range { start: pos(params.range.start), end: pos(params.range.end) };
+        Ok(navigate::format_range(&src, range)
+            .map(|(r, text)| vec![TextEdit { range: lsp_range(r), new_text: text }]))
+    }
+
     /// Quick fixes, straight from the diagnostics.
     ///
     /// The compiler already worked out the edit — this is the payoff for `suggestion` being a
@@ -228,6 +337,46 @@ impl LanguageServer for Backend {
                 }))
             })
             .collect();
+        let mut actions: Vec<CodeActionOrCommand> = actions;
+
+        // Document-level actions. The per-diagnostic fix is the wrong shape for the common case: a pasted
+        // generation has six unknown tags, and fixing them one at a time is six keystrokes for six edits
+        // the compiler had already described completely.
+        //
+        // The whole-document range is what an editor expects for a source action, and `u32::MAX` as the
+        // end is how the rest of this file already spells "to the end of the line".
+        let whole = Range {
+            start: Position::new(0, 0),
+            end: Position::new(src.lines().count() as u32, u32::MAX),
+        };
+        let replace_all = |text: String| {
+            let mut changes = std::collections::HashMap::new();
+            changes.insert(uri.clone(), vec![TextEdit { range: whole, new_text: text }]);
+            Some(WorkspaceEdit { changes: Some(changes), ..Default::default() })
+        };
+
+        if let Some(fixed) = features::fix_all(&src) {
+            actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+                title: "Fix all: apply every unambiguous suggestion".to_string(),
+                // `source.fixAll` is the kind an editor can be configured to run on save, which is the
+                // point — a document that can be repaired with no model call should not need a keystroke.
+                kind: Some(CodeActionKind::SOURCE_FIX_ALL),
+                edit: replace_all(fixed),
+                ..Default::default()
+            }));
+        }
+
+        if let Some(repaired) = features::repair(&src) {
+            actions.push(CodeActionOrCommand::CodeAction(CodeAction {
+                title: "Repair: strip packaging, format, fix".to_string(),
+                // Deliberately **not** `SOURCE_FIX_ALL`. This also deletes — a code fence, trailing
+                // commentary — and an editor must not silently remove lines on save under an action a
+                // user configured for "fix".
+                kind: Some(CodeActionKind::SOURCE),
+                edit: replace_all(repaired),
+                ..Default::default()
+            }));
+        }
 
         Ok(Some(actions))
     }
@@ -272,6 +421,34 @@ impl LanguageServer for Backend {
             })
             .collect();
         Ok(Some(SemanticTokensResult::Tokens(SemanticTokens { result_id: None, data })))
+    }
+}
+
+fn pos(p: Position) -> features::Position {
+    features::Position { line: p.line, character: p.character }
+}
+
+fn lsp_range(r: navigate::Range) -> Range {
+    Range {
+        start: Position::new(r.start.line, r.start.character),
+        end: Position::new(r.end.line, r.end.character),
+    }
+}
+
+fn describe(why: &navigate::RenameError) -> String {
+    use navigate::RenameError as E;
+    match why {
+        E::NotADeclaration => {
+            "only a `state`, `data`, `type` or `def` declared in this document can be renamed"
+                .to_string()
+        }
+        E::BadName(n) => format!(
+            "`{n}` cannot be written as a GUML name: letters, digits and `_`, starting with a letter"
+        ),
+        E::Taken(what) => what.clone(),
+        E::WouldBreak(first) => {
+            format!("that rename would break the document — {first}")
+        }
     }
 }
 

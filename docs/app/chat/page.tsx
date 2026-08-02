@@ -12,10 +12,10 @@ export const metadata: Metadata = {
 export default function Page() {
   return (
     <main className="pt-24">
-      <header className="mx-auto max-w-7xl px-4 pb-6 md:px-6">
+      <header className="mx-auto max-w-(--container-page) px-4 pb-6 md:px-6">
         <div className="flex flex-wrap items-baseline justify-between gap-4">
           <div>
-            <h1 className="display-narrow text-3xl font-extrabold tracking-tight text-chalk md:text-4xl">
+            <h1 className="display-narrow text-3xl font-medium text-chalk md:text-4xl">
               Generative UI
             </h1>
             <p className="mt-3 max-w-2xl leading-relaxed text-fog">

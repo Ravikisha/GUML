@@ -13,7 +13,7 @@ state email=""
 state body=""
 state newsletter=false
 
-nav Ravi Kishan
+nav "Ravi Kishan"
   link Work #work
   link About #about
   link Archive #archive
@@ -26,7 +26,7 @@ hero
   btn "Get in touch" primary /contact
   link "Read the work" #work
 
-section #work Selected work cols=3
+section #work "Selected work" cols=3
   card "GUML" | An intermediate representation and compiler for LLM-generated interfaces. Rust, WebAssembly, 162 tests. Emits React that typechecks under strict mode.
   card "Zimyo platform" | HR platform serving payroll and attendance at scale. Owned the reporting pipeline and cut month-end close from hours to minutes.
   card "Ledger" | Double-entry accounting core with an append-only journal. Postgres, Rust, and property tests instead of hope.
@@ -39,15 +39,15 @@ section #about About
     metric {projects.count}
     metric {projects.live.count}
 
-section #stack How I work cols=3
+section #stack "How I work" cols=3
   card "Measured, not asserted" | Every number in a README is traceable to a command you can run. If it is an estimate, it says so.
   card "Errors are a product surface" | Diagnostics get spans, stable codes, and a suggested fix. The best error message is one a machine can apply.
   card "Tests before trust" | Two bugs in the last scaffold were caught by tests written before the code was believed.
 
-section #archive Everything else
+section #archive "Everything else"
   p Filter by area. The list, its loading skeleton, its empty state and its error banner are generated — none of it is written here.
   tabs area
-  table projects where={area} sort=year
+  table projects where={area} sort=year cols="Project, Stack, Year, Live"
     text {name}
     text {stack}
     text {year}

@@ -56,6 +56,13 @@ impl Code {
         Code::RecursiveDef,
         Code::EmptyDef,
         Code::DefParamUnsupported,
+        Code::BadEffect,
+        Code::DroppedPositional,
+        Code::BadChild,
+        Code::RowMutationOutsideRepeater,
+        Code::ModifierInProse,
+        Code::ResourceNotAList,
+        Code::RepeaterNeedsRowType,
     ];
 
     /// Look a code up by its id, as a human types it.
@@ -118,6 +125,13 @@ impl Code {
             Code::RecursiveDef => "component expands into itself",
             Code::EmptyDef => "component has no body",
             Code::DefParamUnsupported => "parameter used where it cannot be substituted",
+            Code::BadEffect => "`on` effect with no trigger or no action",
+            Code::DroppedPositional => "more positional words than the tag reads",
+            Code::BadChild => "child this component does not accept",
+            Code::RowMutationOutsideRepeater => "row mutation invoked with no row in scope",
+            Code::ModifierInProse => "modifier at the start of prose renders as text",
+            Code::ResourceNotAList => "resource type is a single object, not a list",
+            Code::RepeaterNeedsRowType => "repeater over a derived array with no `of=` row type",
         }
     }
 
@@ -430,10 +444,152 @@ question the call site does not answer. Rather than guess, this is rejected: put
 site, where its scope is unambiguous."
             }
 
+            Code::BadEffect => {
+                "\
+`on` takes a trigger and an action: `on mount >tasks.list`, or `on {filter} >tasks.list`.
+
+The trigger *is* the dependency, which is the whole reason this directive exists rather than a `js`
+block containing a `useEffect`. A dependency array is a second list that has to agree with the first,
+and it is wrong in two directions: a missing entry reads stale values, a spurious one loops forever.
+Neither mistake is available here, because there is only one list to get right.
+
+A resource already fetches on mount, so most pages need no `on mount` at all — it is for the cases
+where something else has to happen as well. `on {expr}` re-runs whenever that value changes."
+            }
+
             Code::BadUrl => {
                 "\
 A request needs a path starting with `/`, or an absolute `http` URL. A bare word is not a route
 token, so it never reaches the resource and the emitted code would fetch the current page."
+            }
+
+            Code::DroppedPositional => {
+                "\
+A tag reads a fixed number of positional slots — a `btn` reads one label, a `tier` reads name, price and
+blurb. Bare words past the last slot have nowhere to go.
+
+    btn Add task primary          # two words, one label slot
+    btn \"Add task\" primary        # one label, quoted
+
+This is an error rather than a warning because of what the alternative was. `btn Add task primary`
+compiled with **zero diagnostics** and emitted `<button>Add</button>`: the word `task` was deleted from
+the output with no trace. That is the same data loss as the older `p Set x=1 to enable` bug, where an
+`=` in prose silently discarded four words, and the same rule applies — the content floor is that prose
+survives verbatim, and a rule that drops a word from it is a defect rather than compression.
+
+Quoting is unambiguous, so the suggestion is mechanically applicable: `guml fix` repairs this with no
+model call, which matters because an unquoted multi-word label is one of the most common things a
+language model writes."
+            }
+
+            Code::RowMutationOutsideRepeater => {
+                "\
+A mutation whose path interpolates a field — `retry POST /api/jobs/{id}/retry` — can only run where
+there is a row to take `{id}` from. That means inside the `list` or `table` rendering the item:
+
+    table jobs
+      text {name}
+      btn Retry >jobs.retry        # `{id}` comes from this row
+
+A toolbar button calling the same mutation has no row. The emitted callback was handed an empty object
+where the row type was expected, so `tsc --strict` rejected the output, and at runtime the request would
+have gone to `/api/jobs/undefined/retry`.
+
+The check exists because the type error is a *consequence*: the document is what is wrong, and a
+diagnostic about the document is the one an author or a repair loop can act on. Relying on the emitted
+code failing to compile also assumes somebody runs that step, which is a weaker guarantee than the
+compiler having an opinion."
+            }
+
+            Code::BadChild => {
+                "\
+A component's registry entry may declare what its children can be, and this document put something else
+inside it — or left out a child the entry requires.
+
+    select status                  option, and only option
+      option Open
+      option Closed
+
+    stepper                        requires at least one `step`
+      step Collect
+
+The constraint lives in the registry rather than in the compiler, which is what makes it apply to
+components the compiler did not ship: a third-party entry declares `children.allow` and gets the same
+checking as `select`. `children.deny: [\"*\"]` marks a leaf that takes no children at all.
+
+Widening a constraint is always safe; narrowing one can invalidate a document that compiles today, so
+`spec/STABILITY.md` treats `allow` as extendable and `deny`/`require` as frozen once published."
+            }
+
+            Code::ModifierInProse => {
+                "\
+A text tag takes its whole line remainder as prose, verbatim. So a modifier written at the start of one
+is not a modifier — it is the first word of the text:
+
+    note danger Card declined.     renders \"danger Card declined.\"
+
+That rule is frozen and this diagnostic does not change it, because the alternative is worse: if the
+compiler quietly reclassified a leading word, `p center the label under the field` would lose a word from
+prose, and prose surviving verbatim is a guarantee the whole content floor rests on.
+
+What the warning is for is the case where a modifier is what the author *meant*. That was not
+hypothetical: the registry's description of `badge` said \"use `danger`/`primary`/`quiet` for tone\", the
+slate theme carried tone rules keyed on exactly those modifiers, and `badge danger Breaking` compiled
+with no diagnostic and rendered the string \"danger Breaking\". Two thirds of the compiler documented a
+feature the third could not deliver.
+
+`badge` takes positionals now, so it accepts a modifier like every other non-text tag:
+
+    badge Breaking danger
+    badge \"Breaking change\" danger
+
+For a genuine text tag, the answer is a different tag. Tone on a paragraph is `alert danger` with the
+paragraph inside it; emphasis on a line of prose is not in the vocabulary, and inventing an attribute for
+it here would be presentation leaking into the source."
+            }
+
+            Code::ResourceNotAList => {
+                "A `data` resource is a collection. `data subscription:Subscription GET /api/subscription` — a single
+object — parsed and validated, and then emitted `useState<Subscription[]>([])`, so every read of
+`{subscription.plan}` was a property access on an array and `tsc --strict` rejected the output.
+
+Everything the resource layer generates assumes rows: the empty state, the optimistic apply and rollback,
+`.count`/`.sum`, the keyed `map`. A single object has none of that to do, and pretending otherwise is the
+compiler accepting a shape it cannot emit.
+
+Declare the list and take the first row in a `js` block, which keeps the fetch, the cache, the retry and
+the error state and costs one counted escape hatch:
+
+    data subscription:Subscription[] GET /api/subscription
+    js
+      const sub = subscription[0];
+    metric {sub.plan}
+
+A first-class single-object resource is a real gap and is tracked in `ROADMAP.md`. Reporting it is not the
+fix; it is the guarantee that the gap is visible at compile time rather than in a type error somebody else
+reads."
+            }
+
+            Code::RepeaterNeedsRowType => {
+                "A repeater's source is normally a declared resource, which brings its row type with it. It may also be any
+other array in scope — a `js` block's `const` — and then nothing can infer what a row is: the compiler does
+not read a `js` body, so `{name}` inside the row template has no field list to resolve against.
+
+`of=` is the document saying:
+
+    js
+      const matches = events.filter((e) => e.channel === channel && e.country === country);
+    list matches of=Event
+      text {name}
+      note {country}
+
+This exists because requiring a resource made **more than one client-side filter inexpressible**. `where=`
+takes a single enumerated state, and a predicate over three states can only live in a `js` block — which
+could compute the right numbers and could not feed the list. Two GUML-Bench reference answers had to filter
+on the server and fail their own 'one fetch, not one per change' criterion because of it.
+
+A derived source gets no fetch, no loading state and no error state, because there is no request: those
+belong to `data`. It gets the row scope, the `empty` slot, `where=` and the keyed map."
             }
         }
     }
@@ -474,8 +630,8 @@ mod tests {
         // forgotten variant is simply absent rather than duplicated.
         let ids: std::collections::BTreeSet<&str> = Code::ALL.iter().map(|c| c.id()).collect();
         assert_eq!(ids.len(), Code::ALL.len(), "duplicate id in ALL");
-        // 34 codes as of this change; the assertion is a reminder to add an explanation when a
-        // code is added, not a cap.
-        assert_eq!(Code::ALL.len(), 42, "a code was added — give it a title and an explanation");
+        // 49 codes as of `GUML0104`; the assertion is a reminder to add a title and an explanation
+        // when a code is added, not a cap. It has done its job every time it failed.
+        assert_eq!(Code::ALL.len(), 49, "a code was added — give it a title and an explanation");
     }
 }

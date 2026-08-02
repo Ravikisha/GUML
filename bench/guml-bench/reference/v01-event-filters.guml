@@ -1,0 +1,61 @@
+// Reference answer for GUML-Bench task `v01-event-filters`.
+//
+// # This answer used to fail a checklist item on purpose. It no longer does.
+//
+// The task requires three filters composed **client-side**: "one fetch, not one per change". `where=` takes
+// a single enumerated state, and until `of=` existed a repeater's source had to be a declared *resource* — so
+// a predicate over three states could be computed in a `js` block and then had nothing to feed. This file
+// filtered on the server and failed "filtering does not refetch", with a note saying so.
+//
+// `list matches of=Event` closes it: the source is the `js`-computed array and `of=` names the row type, so
+// `{name}` and `{country}` resolve against `Event`'s fields exactly as a resource's rows would. One fetch,
+// three composed filters, and the counts and the list read the same array.
+//
+// One escape hatch, for the one thing with no binding form: a conjunction over three states. Everything
+// else — the fetch, the loading state, the error state, the empty state, the segmented control, the reset —
+// is vocabulary.
+
+page Events title="Events" description="Filter the event stream and see what is left." lang=en
+
+// `hits`, not `count`. A field named `count` collides with the `.count` aggregate — `events.count` is
+// unambiguously the row count, so `{events.count.sum}` lowered to `events.length.reduce(…)`, which is not
+// valid TypeScript and was caught by `typecheck-emitted`. Renaming the field is the honest fix; a language
+// where a field can shadow an aggregate keyword would need a disambiguating syntax nobody wants.
+type Event {id, name, channel, country, hits:number}
+
+data events:Event[] GET /api/events
+
+state channel=all|web|ios|android
+state region=all|GB|US|DE|IN
+state busy=false
+
+js
+  // The one construct with no binding form: three filters composed. `where=` takes a single enumerated
+  // state, so the conjunction lives here — and the `list` below iterates the result, which is what `of=`
+  // made possible. `region` rather than `country` because a row field shadows a state of the same name.
+  const matches = events.filter(
+    (e) =>
+      (channel === "all" || e.channel === channel) &&
+      (region === "all" || e.country === region) &&
+      (!busy || e.hits > 100),
+  );
+  const total = matches.reduce((a, e) => a + e.hits, 0);
+
+section
+  h1 Events
+
+  toolbar
+    tabs channel
+    select region aria="Country"
+    check {busy} aria="Only events above 100" >busy = !busy
+    btn Reset outline >channel = all; region = all; busy = false
+
+  grid cols=2
+    stat "Matching events" {matches.count}
+    stat "Total count" {total}
+
+  list matches of=Event
+    text {name}
+    note {country}
+    text {hits}
+    empty Nothing matches these filters.

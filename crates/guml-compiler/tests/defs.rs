@@ -29,13 +29,13 @@ const STAT: &str = r#"page Dash
 
 state total=0
 
-def stat label value
+def kpi label value
   card sm center
     h {label}
     metric {value}
 
-stat "Revenue" {total}
-stat "Signups" {total}
+kpi "Revenue" {total}
+kpi "Signups" {total}
 "#;
 
 #[test]
@@ -184,11 +184,63 @@ fn a_parameter_in_an_action_is_rejected_rather_than_guessed() {
 }
 
 #[test]
-fn children_at_a_call_site_are_rejected_because_there_is_no_slot() {
-    // Slots are deliberately deferred — adding them later is additive. Dropping children silently in
-    // the meantime is not.
+fn a_slot_receives_the_call_children() {
+    // What lets a `def` *wrap* content rather than only produce it.
+    let src = "page P\ndef panel title\n  card {title}\n    slot\npanel \"Settings\"\n  p First.\n  p Second.\n";
+    let (program, diags) = check(src);
+    assert!(!diags.has_errors(), "{:?}", diags.items);
+
+    let card = &program.tree[0];
+    assert_eq!(card.tag, "card");
+    // The slot element itself is gone, replaced by the children in order.
+    assert_eq!(card.children.len(), 2, "{:?}", card.children);
+    assert_eq!(card.children[0].content.as_deref(), Some("First."));
+    assert_eq!(card.children[1].content.as_deref(), Some("Second."));
+    assert!(!format!("{:?}", program.tree).contains("\"slot\""), "a slot survived expansion");
+}
+
+#[test]
+fn children_are_resolved_in_the_callers_scope_not_the_defs() {
+    // Macro hygiene. A binding in the children must mean what it meant where the call was written; if a
+    // slot captured the def's parameters, `{title}` below would silently become the def's `title`.
+    let src = "page P\nstate title=\"page\"\ndef panel title\n  card {title}\n    slot\npanel \"def scope\"\n  metric {title}\n";
+    let (program, diags) = check(src);
+    assert!(!diags.has_errors(), "{:?}", diags.items);
+    let card = &program.tree[0];
+    // The def's own use of `title` became the argument…
+    assert_eq!(card.positionals.len(), 1);
+    // …and the child's use of `title` is still the page state.
+    assert_eq!(card.children[0].content.as_deref(), Some("{title}"));
+}
+
+#[test]
+fn children_with_no_slot_are_an_error() {
+    // Dropping them silently is the failure invariant 3 exists to prevent.
     let e = errors("page P\ndef box a\n  card {a}\nbox \"x\"\n  p inner\n");
-    assert!(e.iter().any(|m| m.starts_with("GUML0097") && m.contains("no slot")), "{e:?}");
+    assert!(e.iter().any(|m| m.starts_with("GUML0097") && m.contains("no `slot`")), "{e:?}");
+}
+
+#[test]
+fn a_body_may_have_at_most_one_slot() {
+    // A second slot would duplicate the children, which is far likelier a mistake than an intention.
+    let e = errors("page P\ndef box a\n  card {a}\n    slot\n    slot\nbox \"x\"\n  p y\n");
+    assert!(e.iter().any(|m| m.contains("at most one")), "{e:?}");
+}
+
+#[test]
+fn a_slot_with_no_children_is_a_warning() {
+    // Not an error: a wrapper called without content still renders. But it is almost certainly a
+    // mistake, and it costs nothing to say so.
+    let (_, diags) = check("page P\ndef box a\n  card {a}\n    slot\nbox \"x\"\n");
+    assert!(
+        diags
+            .items
+            .iter()
+            .any(|d| d.id == "GUML0097" && d.message.contains("supplies no children")),
+        "{:?}",
+        diags.items
+    );
+    assert!(!diags.has_errors(), "an empty slot should not fail the build");
 }
 
 #[test]

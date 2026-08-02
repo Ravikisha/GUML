@@ -188,6 +188,28 @@ export function evaluate(expr: string, scope: Scope): unknown {
  * collection of records with a `done` field, and `.count` is its length. These are
  * the v0 aggregate semantics — the full set lands with the resolver.
  */
+/**
+ * The boolean field `.open` / `.done` filter on, read from the rows themselves.
+ *
+ * The compiler reads this from the declared row type and rejects the ambiguous and missing cases at
+ * compile time (`GUML0065`), so by the time data reaches here there is one answer. This mirrors that
+ * rule against the data instead of the type, because the runtime has rows and no `type` declaration.
+ *
+ * It used to be a hardcoded `done`, matching a hardcoded `!it.done` in the Rust backend. Both were
+ * wrong together for any other name — an invoice's flag is `paid` — and once the compiler was fixed,
+ * leaving this alone would have made the preview disagree with the emitted code, which is worse than
+ * either bug alone.
+ */
+function stateField(rows: unknown[]): string {
+  const row = rows.find((r) => r && typeof r === "object") as Record<string, unknown> | undefined;
+  if (!row) return "done";
+  const bools = Object.keys(row).filter((k) => typeof row[k] === "boolean");
+  // `done` wins a tie so the common case stays stable even on rows that carry an extra flag the type
+  // did not declare; a single boolean of any name is used as-is.
+  if (bools.length === 1) return bools[0];
+  return bools.includes("done") ? "done" : (bools[0] ?? "done");
+}
+
 function resolvePath(path: string, scope: Scope): unknown {
   const parts = path.split(".");
   let current: unknown = scope;
@@ -200,12 +222,12 @@ function resolvePath(path: string, scope: Scope): unknown {
         current = current.length;
         continue;
       }
-      if (part === "open") {
-        current = current.filter((x) => !(x as Record<string, unknown>)?.done);
-        continue;
-      }
-      if (part === "done") {
-        current = current.filter((x) => Boolean((x as Record<string, unknown>)?.done));
+      if (part === "open" || part === "done") {
+        const field = stateField(current);
+        current = current.filter((x) => {
+          const flag = Boolean((x as Record<string, unknown>)?.[field]);
+          return part === "done" ? flag : !flag;
+        });
         continue;
       }
       if (part === "sum") {
@@ -322,4 +344,23 @@ function safeEval(expr: string, scope: Scope): unknown {
   } catch {
     return expr;
   }
+}
+
+/**
+ * Whether a declared request should actually be issued.
+ *
+ * One gate, called from all three request sites in the React runtime — the mount fetch, the `.list`
+ * refetch, and each mutation. It lives here rather than inline because the bug it exists to prevent was
+ * a *missing* copy of it: mutations issued requests while the mount fetch already skipped seeded
+ * resources, so a documentation preview with no server showed an optimistic insert appearing and then
+ * being rolled back when the POST 404'd. Nothing errored; the row simply flickered and vanished.
+ *
+ * `offline` is explicit rather than inferred from seeded data. Seeding initial rows and then mutating
+ * against a real server is a legitimate pattern — a server-rendered first paint — and quietly disabling
+ * the network for it would break a real application to make a demo look better.
+ */
+export function shouldRequest(opts: { offline?: boolean; url?: string | null }): boolean {
+  if (opts.offline) return false;
+  if (!opts.url) return false;
+  return typeof fetch !== "undefined";
 }

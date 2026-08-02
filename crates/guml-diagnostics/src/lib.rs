@@ -141,6 +141,47 @@ pub enum Code {
     EmptyDef,
     /// A `def` parameter used somewhere expansion cannot substitute it.
     DefParamUnsupported,
+    /// A malformed `on` effect: no trigger, or no action to run.
+    BadEffect,
+
+    /// More bare positional words than the tag reads, so a word would be dropped from the output.
+    ///
+    /// `btn Add task primary` parses as two text positionals and a modifier; the backend reads one, and
+    /// `task` disappeared from the emitted button with no diagnostic at all. Quoting is the fix, and it
+    /// is unambiguous enough to suggest.
+    DroppedPositional,
+    /// A child a component's registry entry does not admit, or a required child that is absent.
+    BadChild,
+    /// A mutation whose path interpolates a row field, invoked where there is no row.
+    RowMutationOutsideRepeater,
+    /// A `data` resource whose type is a single object rather than a list.
+    ///
+    /// `data subscription:Subscription GET /api/subscription` parsed, validated and emitted
+    /// `useState<Subscription[]>([])` — so `{subscription.plan}` typechecked as a property of an *array*
+    /// and `tsc --strict` rejected the output. The resource layer is written for a collection throughout:
+    /// the loading and empty states, the optimistic apply, the row aggregates. Accepting a shape none of
+    /// that handles is the compiler agreeing to something it cannot do.
+    ResourceNotAList,
+    /// A repeater whose source is not a resource and which does not say what its rows are.
+    ///
+    /// `list matches` over a `js`-computed array is legitimate — it is what makes more than one
+    /// client-side filter expressible at all — but nothing can infer the row type: the compiler does not
+    /// read a `js` block, so `{name}` inside the row has no field list to resolve against. `of=Event` is
+    /// the document saying. Without it the old behaviour was a backend warning and an empty list.
+    RepeaterNeedsRowType,
+    /// A text tag whose prose begins with a modifier word, so the modifier renders as text.
+    ///
+    /// A text tag takes its line remainder verbatim — that rule is frozen — so `note danger Card
+    /// declined.` renders the word "danger". The registry's own description of `badge` said "use
+    /// `danger`/`primary`/`quiet` for tone", the slate theme carried tone rules keyed on exactly those
+    /// modifiers, and `badge danger Breaking` compiled with zero diagnostics and rendered the literal
+    /// string "danger Breaking". Two parts of the compiler documented a feature the third could not
+    /// deliver, and nothing said so.
+    ///
+    /// `badge` is a positional tag now, which fixes that case at the root. This code exists for the rest
+    /// of the kind: prose beginning with `danger`, `primary`, `center`, `sm` and the like is a model
+    /// reaching for a lever that does not exist on a text tag, and it must not pass silently.
+    ModifierInProse,
 }
 
 impl Code {
@@ -192,6 +233,13 @@ impl Code {
             Code::RecursiveDef => "GUML0095",
             Code::EmptyDef => "GUML0096",
             Code::DefParamUnsupported => "GUML0097",
+            Code::BadEffect => "GUML0098",
+            Code::DroppedPositional => "GUML0099",
+            Code::BadChild => "GUML0100",
+            Code::RowMutationOutsideRepeater => "GUML0101",
+            Code::ModifierInProse => "GUML0102",
+            Code::ResourceNotAList => "GUML0103",
+            Code::RepeaterNeedsRowType => "GUML0104",
         }
     }
 }

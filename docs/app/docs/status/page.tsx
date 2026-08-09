@@ -12,7 +12,7 @@ export default function Page() {
   return (
     <DocPage
       pathname="/docs/status"
-      meter={{ label: "version", value: "0.1.0", tone: "iris" }}
+      meter={{ label: "version", value: "0.2.0", tone: "iris" }}
       title="Status and limitations"
       lede="GUML is 0.x. This page says what that means in practice: which parts you can build on, which may change under you, and which things it deliberately will not do."
       toc={[
@@ -52,7 +52,7 @@ export default function Page() {
           ],
           ["50 diagnostic codes", "append-only, machine-readable via --format json"],
           ["Conventions", "loading, empty, error and optimistic states desugared at compile time"],
-          ["Themes", "shadcn/ui by default; a theme below WCAG AA contrast or with no focus ring is refused"],
+          ["Themes", "stock Tailwind by default; shadcn and your own by name; a theme below WCAG AA contrast or with no focus ring is refused"],
           ["Tooling", "CLI, language server, formatter, source maps, tree-sitter grammar, VS Code extension"],
           ["Escape hatches", "js and raw compile through unchanged, and are reported by guml capabilities"],
         ]}
@@ -141,7 +141,7 @@ export default function Page() {
           <strong>React 18 or later</strong> for the emitted React and the registry packages.
         </LI>
         <LI>
-          Only the latest <C>0.1.x</C> release receives fixes, including security fixes. See the
+          Only the latest <C>0.2.x</C> release receives fixes, including security fixes. See the
           security policy in the repository for how to report one privately.
         </LI>
       </UL>

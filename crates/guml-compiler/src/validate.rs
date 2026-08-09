@@ -625,8 +625,32 @@ fn check_assignment_type(
     }
 }
 
-/// `tabs`, `select` and `where=` all need an enumerated state; without a domain there is
-/// nothing to build options from and the control renders empty.
+/// `tabs`, `select` and `where=` all need somewhere to get their choices from; with none, the
+/// control renders empty.
+///
+/// # Two spellings, and this used to accept only one
+///
+/// The choices may be written in either of two places, and both are ordinary GUML:
+///
+/// ```text
+/// state c: a          state c: a
+///   domain: a, b      select c
+/// select c              option a
+///                       option b
+/// ```
+///
+/// This checked *only* the state's domain and never looked at the `option` children — while
+/// `guml_codegen::select_options` reconciles exactly those two sources and has done for a while. So
+/// two halves of one compiler disagreed about where a `select`'s options come from: codegen accepted
+/// either, validation accepted one, and the second form was rejected with "has no domain" while the
+/// options sat directly beneath it.
+///
+/// That is the invariant-8 bug class — two copies of one rule drifting — in a seam invariant 8 does
+/// not cover, because it is sema against codegen rather than backend against backend. It was also the
+/// **single most common reason model-generated GUML failed to compile**: `bench/gen` recorded it as
+/// the first error in two of six applications, unchanged between an 8B and a 70B model.
+///
+/// The fix is to ask the same function codegen asks, so there is one answer rather than two.
 fn enumerated(el: &Element, program: &Program, diags: &mut Diagnostics) {
     let bound = match el.tag.as_str() {
         "tabs" | "select" => el
@@ -642,14 +666,23 @@ fn enumerated(el: &Element, program: &Program, diags: &mut Diagnostics) {
     };
 
     if let Some(name) = bound {
+        // The same reconciliation codegen performs: `option` children first, then the bound state's
+        // domain. Asking the one function means the two can no longer disagree.
+        let has_options = !guml_codegen::select_options(program, el).is_empty();
+
         match program.state(&name) {
-            Some(state) if state.domain.is_empty() => diags.push(
+            Some(state) if state.domain.is_empty() && !has_options => diags.push(
                 Diagnostic::error(
                     Code::NotEnumerated,
-                    format!("`{}` needs an enumerated state; `{name}` has no domain", el.tag),
+                    format!("`{}` has no options; `{name}` has no domain", el.tag),
                     el.span,
                 )
-                .with_help("declare it as `state name=first|second|third`"),
+                // Both spellings, because both work and an author who reached for one should not be
+                // told to use the other.
+                .with_help(
+                    "give the state a domain (`state name=first|second|third`), \
+                     or write `option` children under this element",
+                ),
             ),
             _ => {}
         }

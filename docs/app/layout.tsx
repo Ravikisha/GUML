@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Manrope } from "next/font/google";
 import { SiteFooter } from "@/components/site-footer";
+import { ConsentBanner } from "@/components/consent-banner";
 import { SiteNav } from "@/components/site-nav";
 import {
   analyticsEnabled,
@@ -82,13 +83,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       suppressHydrationWarning
     >
       <head>
-        {/* Applies the stored theme before first paint; a deferred script would
-            let a dark frame flash for a reader who chose light.
+        {/* Applies the stored theme before first paint; a deferred script would let a
+            dark frame flash for a reader who chose light.
 
-            Both scripts here are allowed by the CSP through a SHA-256 hash of their
-            exact contents, computed in `next.config.ts` from the same strings. Edit
-            one anywhere other than `lib/inline-scripts.ts` and the browser will
-            refuse to run it — silently, since a blocked script is not an error. */}
+            Both scripts live in `lib/inline-scripts.ts` rather than here, because
+            `next.config.ts` reads the same module to build the CSP. Editing one in
+            place would separate the script from the policy that permits it. */}
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
 
         {analyticsEnabled ? (
@@ -110,6 +110,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           {children}
         </main>
         <SiteFooter />
+        {/* Renders nothing until it has read the stored choice, and nothing at all once made. Consent
+            Mode is already denied in the bootstrap above, so this gates the identifier rather than the
+            measurement — see the component. */}
+        {analyticsEnabled ? <ConsentBanner /> : null}
       </body>
     </html>
   );

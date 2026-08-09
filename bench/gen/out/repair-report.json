@@ -1,41 +1,46 @@
 {
   "model": "meta/llama-3.1-8b-instruct",
-  "dry": false,
+  "dry": true,
   "rows": [
     {
       "app": "bmi",
-      "raw": 8,
-      "sanitized": 2,
-      "formatted": 2,
-      "fixed": 2,
-      "afterModel": 0,
-      "modelAccepted": true,
-      "final": 0,
-      "modelRounds": 2,
-      "droppedLines": 4,
-      "freeFixed": [
+      "raw": 7,
+      "sanitized": 7,
+      "formatted": 7,
+      "fixed": 7,
+      "afterModel": null,
+      "modelAccepted": null,
+      "final": 7,
+      "modelRounds": 0,
+      "droppedLines": 0,
+      "freeFixed": [],
+      "survived": [
         "GUML0003",
         "GUML0004",
-        "GUML0020"
+        "GUML0020",
+        "GUML0023"
       ],
-      "survived": [],
-      "attempts": [
-        {
-          "errors": 2,
-          "codes": [
-            "GUML0065"
-          ],
-          "accepted": false
-        },
-        {
-          "errors": 0,
-          "codes": [],
-          "accepted": true
-        }
-      ]
+      "attempts": []
     },
     {
       "app": "dashboard",
+      "raw": 2,
+      "sanitized": 2,
+      "formatted": 2,
+      "fixed": 2,
+      "afterModel": null,
+      "modelAccepted": null,
+      "final": 2,
+      "modelRounds": 0,
+      "droppedLines": 0,
+      "freeFixed": [],
+      "survived": [
+        "GUML0023"
+      ],
+      "attempts": []
+    },
+    {
+      "app": "expenses",
       "raw": 0,
       "sanitized": 0,
       "formatted": 0,
@@ -50,98 +55,19 @@
       "attempts": []
     },
     {
-      "app": "expenses",
-      "raw": 5,
-      "sanitized": 5,
-      "formatted": 5,
-      "fixed": 5,
-      "afterModel": 5,
-      "modelAccepted": false,
-      "final": 5,
-      "modelRounds": 3,
-      "droppedLines": 0,
-      "freeFixed": [],
-      "survived": [
-        "GUML0030",
-        "GUML0051",
-        "GUML0080"
-      ],
-      "attempts": [
-        {
-          "errors": 5,
-          "codes": [
-            "GUML0030",
-            "GUML0051",
-            "GUML0080"
-          ],
-          "accepted": false
-        },
-        {
-          "errors": 5,
-          "codes": [
-            "GUML0030",
-            "GUML0051",
-            "GUML0080"
-          ],
-          "accepted": false
-        },
-        {
-          "errors": 8,
-          "codes": [
-            "GUML0030",
-            "GUML0033",
-            "GUML0051",
-            "GUML0080"
-          ],
-          "accepted": false
-        }
-      ]
-    },
-    {
       "app": "signup",
-      "raw": 4,
-      "sanitized": 4,
-      "formatted": 4,
-      "fixed": 4,
-      "afterModel": 4,
-      "modelAccepted": false,
-      "final": 4,
-      "modelRounds": 3,
+      "raw": 0,
+      "sanitized": 0,
+      "formatted": 0,
+      "fixed": 0,
+      "afterModel": null,
+      "modelAccepted": null,
+      "final": 0,
+      "modelRounds": 0,
       "droppedLines": 0,
       "freeFixed": [],
-      "survived": [
-        "GUML0030",
-        "GUML0080"
-      ],
-      "attempts": [
-        {
-          "errors": 6,
-          "codes": [
-            "GUML0030",
-            "GUML0050",
-            "GUML0051",
-            "GUML0080"
-          ],
-          "accepted": false
-        },
-        {
-          "errors": 4,
-          "codes": [
-            "GUML0030",
-            "GUML0080"
-          ],
-          "accepted": false
-        },
-        {
-          "errors": 5,
-          "codes": [
-            "GUML0030",
-            "GUML0050",
-            "GUML0051"
-          ],
-          "accepted": false
-        }
-      ]
+      "survived": [],
+      "attempts": []
     },
     {
       "app": "tip",
@@ -153,7 +79,7 @@
       "modelAccepted": null,
       "final": 0,
       "modelRounds": 0,
-      "droppedLines": 1,
+      "droppedLines": 2,
       "freeFixed": [
         "GUML0030"
       ],

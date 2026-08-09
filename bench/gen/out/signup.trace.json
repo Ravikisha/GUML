@@ -4,48 +4,26 @@
   "trace": [
     {
       "layer": "raw",
-      "errors": 4,
-      "codes": [
-        "GUML0030",
-        "GUML0080"
-      ]
+      "errors": 0,
+      "codes": []
     },
     {
       "layer": "sanitize",
-      "errors": 4,
-      "codes": [
-        "GUML0030",
-        "GUML0080"
-      ],
+      "errors": 0,
+      "codes": [],
       "fenced": false,
-      "separators": 0,
-      "droppedLines": 0
+      "droppedLines": 0,
+      "fixed": 0
     },
     {
       "layer": "format",
-      "errors": 4,
-      "codes": [
-        "GUML0030",
-        "GUML0080"
-      ]
+      "errors": 0,
+      "codes": []
     },
     {
       "layer": "fix",
-      "errors": 4,
-      "codes": [
-        "GUML0030",
-        "GUML0080"
-      ]
-    },
-    {
-      "layer": "model",
-      "errors": 4,
-      "codes": [
-        "GUML0030",
-        "GUML0080"
-      ],
-      "accepted": false,
-      "attempts": 3
+      "errors": 0,
+      "codes": []
     }
   ]
 }

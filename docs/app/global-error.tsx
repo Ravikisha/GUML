@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { reportError } from "@/lib/report-error";
 
 /**
  * The last resort: an error thrown in the root layout itself.
@@ -21,7 +22,7 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("root layout error", error);
+    reportError(error, { boundary: "root", digest: error.digest });
   }, [error]);
 
   return (

@@ -1,0 +1,67 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://guml.vercel.app/schema/guml.json",
+  "title": "guml.json",
+  "description": "GUML project configuration. Referenced by `$schema` so editors autocomplete and validate it; the compiler reads the file directly and does not fetch this.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "This schema, for editor support."
+    },
+    "plugins": {
+      "type": "array",
+      "description": "Packages contributing vocabulary, styling, or both. Each entry is a package name resolved through node_modules (\"@guml/shadcn\") or a directory (\"./design-system\"). The compiler loads whichever of `guml.registry.json` and `guml.theme.json` it finds inside. Naming a design system's tags and its styling separately is two chances to install one and forget the other, which produces correct tags rendering unstyled — so one entry does both.",
+      "items": { "type": "string" },
+      "examples": [["@guml/shadcn"], ["./design-system"]]
+    },
+    "registries": {
+      "type": "array",
+      "description": "Explicit paths to registry files, in order. `plugins` covers the common case; this is for a registry not laid out as a package, and for pinning a version.",
+      "items": {
+        "oneOf": [
+          { "type": "string", "description": "Path to a registry document." },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "version"],
+            "properties": {
+              "path": { "type": "string" },
+              "version": {
+                "type": "string",
+                "description": "Exact version the package must declare. Loading fails on a mismatch: a registry decides which tags a document may use, so a package changing underneath a project changes what its documents mean. Exact rather than a range — semver's 'additive is minor' is the rule this project has evidence against."
+              }
+            }
+          }
+        ]
+      }
+    },
+    "theme": {
+      "type": "string",
+      "description": "A builtin name, a path to a theme document, or a plugin that ships one. Omitted means `tailwind`: stock utilities any Tailwind install resolves with no setup. `shadcn` emits design tokens (bg-primary, text-foreground) that resolve only where shadcn's CSS variables are defined.",
+      "examples": ["tailwind", "shadcn", "./brand.theme.json", "@guml/shadcn"]
+    },
+    "backend": {
+      "type": "string",
+      "description": "Default target for `guml build`. Seven code generators; the four html-* names are one backend with different styling options.",
+      "enum": [
+        "react",
+        "svelte",
+        "html",
+        "html-cdn",
+        "html-bare",
+        "html-fragment",
+        "wc",
+        "json",
+        "a2ui",
+        "mcp-ui"
+      ]
+    },
+    "level": {
+      "type": "string",
+      "description": "`core` compiles markup only — no state, data, actions or js. A host embedding documents it did not write states this once here rather than remembering --core at every call site.",
+      "enum": ["core", "app"]
+    }
+  }
+}

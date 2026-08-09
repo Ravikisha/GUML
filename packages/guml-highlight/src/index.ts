@@ -28,7 +28,7 @@ import { CONTENT_TAGS, DIRECTIVES, MODIFIERS, TEXT_TAGS } from "./vocabulary.gen
  * Mapping to colour happens in `CLASS_STYLE` so the parity check can compare names.
  */
 export type Tok = { text: string; cls: string };
-export type Lang = "guml" | "tsx" | "bash" | "json" | "text";
+export type Lang = "guml" | "tsx" | "python" | "bash" | "json" | "text";
 
 /** Compiler class names. Keep in step with `Class::name` in `crates/guml-fmt`. */
 const C = {
@@ -266,6 +266,34 @@ const TSX_RULES: Array<[RegExp, string]> = [
   [/^[^\s<>{}()[\].,;:="'`]+/, C.plain],
 ];
 
+/**
+ * Python. Added when the docs grew a Python page — a language the site shows must be a language it can
+ * colour, and the alternative was rendering every snippet as undifferentiated text.
+ *
+ * Ordering carries the meaning, as in every rule list here. Strings precede identifiers, so a keyword
+ * inside a string stays a string; triple-quoted precedes single, or a docstring's opening `"""` would
+ * lex as an empty string followed by loose tokens; and the decorator rule precedes punctuation, so
+ * `@app.get` is one token rather than an `@` and a name. `self` and `cls` sit with the keywords
+ * because that is how they read, even though Python treats them as ordinary parameters.
+ */
+const PYTHON_RULES: Array<[RegExp, string]> = [
+  [/^#[^\n]*/, C.comment],
+  [/^"""[\s\S]*?"""|^'''[\s\S]*?'''/, C.str],
+  [/^[rbfu]{0,2}"(?:[^"\\]|\\.)*"|^[rbfu]{0,2}'(?:[^'\\]|\\.)*'/, C.str],
+  [
+    /^\b(?:import|from|as|def|class|return|yield|if|elif|else|for|while|in|not|and|or|is|with|await|async|try|except|finally|raise|lambda|pass|break|continue|global|nonlocal|assert|del|self|cls|match|case)\b/,
+    C.mod,
+  ],
+  [/^\b(?:True|False|None)\b/, C.num],
+  [/^\b\d[\d_.]*(?:[eE][+-]?\d+)?\b/, C.num],
+  [/^@[A-Za-z_][\w.]*/, C.attr],
+  [/^\b[A-Z]\w*\b/, C.tag],
+  [/^\b[a-z_]\w*(?=\s*\()/, C.attr],
+  [/^[{}()[\].,;:=<>/+\-*!?&|%~^]+/, C.punct],
+  [/^\s+/, C.plain],
+  [/^[^\s<>{}()[\].,;:="'#@]+/, C.plain],
+];
+
 function ruleLine(line: string, rules: Array<[RegExp, string]>): Tok[] {
   const out: Tok[] = [];
   let rest = line;
@@ -317,6 +345,8 @@ export function highlight(code: string, lang: Lang): Tok[][] {
       return gumlDocument(lines);
     case "tsx":
       return lines.map((l) => ruleLine(l, TSX_RULES));
+    case "python":
+      return lines.map((l) => ruleLine(l, PYTHON_RULES));
     case "bash":
       return lines.map((l) => ruleLine(l, BASH_RULES));
     case "json":

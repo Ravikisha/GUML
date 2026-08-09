@@ -260,6 +260,14 @@ impl Gen<'_> {
             attrs.push(if submit { "type=\"submit\"" } else { "type=\"button\"" }.to_string());
         }
 
+        // A field the author left unnamed is named from the state it binds — the same shared rule the
+        // React and HTML backends use. This backend was the third one to need it and the one that
+        // proved the test was worth writing: it was silently emitting no name while the other two had
+        // been fixed.
+        if let Some(name) = crate::derived_aria_label(el) {
+            attrs.push(format!("aria-label={name:?}"));
+        }
+
         let joined = attrs.join(" ");
         let mut out = String::new();
 

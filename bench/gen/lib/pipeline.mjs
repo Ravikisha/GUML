@@ -56,7 +56,6 @@ export function diagnose(source) {
 /* ------------------------------------------------------------------ layer 0 */
 
 const FENCE = /```(?:guml)?\s*\n([\s\S]*?)(?:```|$)/;
-const SEPARATOR = /^\s*(-{3,}|\*{3,}|_{3,})\s*$/;
 
 /**
  * Strip what is packaging rather than document: a code fence, markdown rules, and any
@@ -68,38 +67,48 @@ const SEPARATOR = /^\s*(-{3,}|\*{3,}|_{3,})\s*$/;
  * content line is the subject of an error, drop it. Only from the end, and bounded, so a
  * mistake in the middle of a document is never silently deleted.
  */
-export function sanitize(source, { maxDropped = 12 } = {}) {
-  const fenced = FENCE.exec(source);
-  let text = (fenced ? fenced[1] : source).trim();
-  const notes = { fenced: Boolean(fenced), separators: 0, droppedLines: 0 };
+/**
+ * The free layers, as **one call to the shipped compiler**.
+ *
+ * # Why this stopped being a JavaScript reimplementation
+ *
+ * This used to sanitise here: unwrap a fence, drop separator lines, then repeatedly delete the last
+ * line while any error sat on it, up to twelve times. The compiler has had `guml repair` — sanitise,
+ * format, fix — for a while, and the two rules had diverged in the way that matters.
+ *
+ * The JS trailing-drop asked only *"is there an error on the last line"*. The Rust one additionally
+ * asks whether the line is **prose rather than broken GUML** (`is_commentary`): a repairable error, a
+ * known tag, a one-edit-away tag or a directive all mean "document", not "commentary".
+ *
+ * On `bmi` that difference deleted seven lines of a working BMI calculator — `metric {…}` and the
+ * ternary below it — because their expressions use `**`, which the expression language does not cover.
+ * The document then "compiled", and the harness scored it as repaired. **It had been repaired by
+ * throwing away the feature the user asked for**, and the reported repair rate was inflated by exactly
+ * that.
+ *
+ * So the benchmark now measures the product: whatever `guml repair` does is what a user of the CLI,
+ * the npm package or the Python package gets, and a number this harness reports is a number they can
+ * reproduce. Two implementations of one rule is the bug class this repository has been bitten by
+ * repeatedly; a benchmark is the worst place for it, because there the divergence flatters the result.
+ */
+export function sanitize(source) {
+  const before = diagnose(source);
+  const text = guml(["repair", scratchFile(source)]);
+  const after = diagnose(text);
 
-  const kept = text.split("\n").filter((line) => {
-    if (SEPARATOR.test(line)) {
-      notes.separators += 1;
-      return false;
-    }
-    return true;
-  });
-  text = kept.join("\n").trim();
-
-  for (let i = 0; i < maxDropped; i++) {
-    const lines = text.split("\n");
-    // Index of the last line with content.
-    let last = lines.length - 1;
-    while (last >= 0 && lines[last].trim() === "") last -= 1;
-    if (last <= 0) break;
-
-    const { errors } = diagnose(text);
-    if (errors.length === 0) break;
-    // `line` is 1-based.
-    if (!errors.some((d) => d.span.line === last + 1)) break;
-
-    lines.splice(last, 1);
-    text = lines.join("\n").trim();
-    notes.droppedLines += 1;
-  }
-
-  return { text: `${text}\n`, notes };
+  return {
+    text,
+    notes: {
+      fenced: source.trimStart().startsWith("```"),
+      // Reported as "lines the compiler declined to keep", which is what it is. The compiler's own
+      // `Stripped` summary is richer; this shape is what the scorer already prints.
+      droppedLines: Math.max(
+        0,
+        source.trim().split("\n").length - text.trim().split("\n").length,
+      ),
+      fixed: Math.max(0, before.errors.length - after.errors.length),
+    },
+  };
 }
 
 /* ---------------------------------------------------------------- layers 1-2 */

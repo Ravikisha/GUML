@@ -1,0 +1,63 @@
+# cargo-deny: the Rust half of dependency review.
+#
+# `pnpm audit` gates the JavaScript dependencies and nothing gated the Rust ones, which is the larger
+# surface — the compiler is what gets embedded in other people's servers.
+#
+# Four questions, and only the first is about vulnerabilities:
+#
+#   advisories — is anything here known-broken?
+#   licenses   — may we redistribute it? This project is MIT and publishes to three registries.
+#   bans       — are we carrying two versions of one crate, or something we said we would not?
+#   sources    — did it come from anywhere but crates.io?
+#
+# Run: cargo deny check
+
+[graph]
+# Every target the release workflow builds for. Checking only the host would miss a dependency that
+# appears solely on Windows or on wasm — and both are shipped artifacts.
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+    "wasm32-unknown-unknown",
+]
+all-features = true
+
+[advisories]
+# `deny` rather than `warn`: a warning in CI is a line of output nobody reads. If an advisory has no
+# fix available, add it to `ignore` *with the reason* rather than lowering this.
+yanked = "deny"
+ignore = []
+
+[licenses]
+# Permissive only. GUML is MIT and is published to crates.io, npm and PyPI, so a copyleft dependency
+# would either be a licence violation or a change to the project's own licence — neither is something
+# to discover from a bug report.
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Zlib",
+    "CC0-1.0",
+    "MPL-2.0",
+]
+confidence-threshold = 0.9
+
+[bans]
+# Two versions of one crate is usually a lockfile that needs a nudge rather than a real conflict, so
+# this is a warning. It is here to be *visible*: duplicates are how a wasm bundle quietly doubles.
+multiple-versions = "warn"
+wildcards = "deny"
+# A `*` version on a first-party path dependency is fine — the path is the constraint.
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

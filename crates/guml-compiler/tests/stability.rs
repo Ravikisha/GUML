@@ -68,7 +68,7 @@ const TAGS: &[(&str, TagKind, Level)] = &[
     //
     // As a text tag `badge` took its remainder as prose, so `badge danger Breaking` rendered the string
     // "danger Breaking" — while this tag's own registry doc said "use `danger`/`primary`/`quiet` for
-    // tone" and `themes/slate.json` carried three tone rules keyed on those exact modifiers. All three
+    // tone" and `themes/tailwind.json` carried three tone rules keyed on those exact modifiers. All three
     // were unreachable. Nothing failed, because no fixture used them.
     //
     // Permissible *only* because 0.2 is unreleased: the workspace is 0.1.0 and `badge` is `since: 0.2`,

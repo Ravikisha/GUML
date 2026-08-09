@@ -1,6 +1,6 @@
 {
   "name": "@guml/highlight",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "type": "module",
   "description": "Syntax highlighting for GUML. Pure TypeScript, no WebAssembly, runs during server rendering.",
   "license": "MIT",

@@ -135,10 +135,10 @@ expression: "emitted(\"invoices.guml\", \"svelte\")"
   });
 </script>
 
-<p class="text-2xl font-semibold tracking-tight text-foreground">Invoices — {invoices.filter((it) => !it.paid).length} awaiting payment</p>
-<div class="flex items-center gap-2 justify-between">
-  <p class="mt-6 text-center text-5xl font-bold tabular-nums text-foreground">{invoices.map((it) => it.amount).reduce((a, b) => a + Number(b), 0)}</p>
-  <button class="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all h-9 px-4 py-2 text-primary underline-offset-4 hover:underline focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none disabled:pointer-events-none disabled:opacity-50" onclick={() => { invoicesList(); }} type="button">Refresh</button>
+<p class="text-2xl font-semibold text-slate-900 dark:text-slate-100">Invoices — {invoices.filter((it) => !it.paid).length} awaiting payment</p>
+<div class="flex items-center gap-3 justify-between">
+  <p class="mt-6 text-center text-5xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{invoices.map((it) => it.amount).reduce((a, b) => a + Number(b), 0)}</p>
+  <button class="rounded-md px-4 py-2 text-sm font-medium transition-colors text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100 disabled:opacity-40" onclick={() => { invoicesList(); }} type="button">Refresh</button>
 </div>
 <div class="mt-4 flex gap-2">
   {#each ["all", "open", "paid"] as option (option)}
@@ -153,13 +153,13 @@ expression: "emitted(\"invoices.guml\", \"svelte\")"
 {#if invoicesError}
   <p role="alert" class="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{invoicesError}</p>
 {:else if invoicesLoading}
-  <table class="mt-6 w-full caption-bottom border-collapse text-sm">
+  <table class="mt-6 w-full border-collapse rounded-md border border-slate-200 dark:border-slate-800 text-sm">
   <thead>
     <tr>
-      <th scope="col" class="h-10 border-b border-border px-2 text-left align-middle font-medium whitespace-nowrap text-muted-foreground">Client</th>
-      <th scope="col" class="h-10 border-b border-border px-2 text-left align-middle font-medium whitespace-nowrap text-muted-foreground">Amount</th>
-      <th scope="col" class="h-10 border-b border-border px-2 text-left align-middle font-medium whitespace-nowrap text-muted-foreground">Due</th>
-      <th scope="col" class="h-10 border-b border-border px-2 text-left align-middle font-medium whitespace-nowrap text-muted-foreground">Paid</th>
+      <th scope="col" class="border-b border-slate-200 dark:border-slate-800 px-3 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Client</th>
+      <th scope="col" class="border-b border-slate-200 dark:border-slate-800 px-3 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Amount</th>
+      <th scope="col" class="border-b border-slate-200 dark:border-slate-800 px-3 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Due</th>
+      <th scope="col" class="border-b border-slate-200 dark:border-slate-800 px-3 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Paid</th>
     </tr>
   </thead>
     <tbody>
@@ -169,36 +169,36 @@ expression: "emitted(\"invoices.guml\", \"svelte\")"
   </tbody>
   </table>
 {:else if visibleInvoices.length === 0}
-  <p class="mt-10 text-center text-sm text-muted-foreground">No invoices match this view.</p>
+  <p class="mt-10 text-center text-sm text-slate-500 dark:text-slate-400">No invoices match this view.</p>
 {:else}
-  <table class="mt-6 w-full caption-bottom border-collapse text-sm">
+  <table class="mt-6 w-full border-collapse rounded-md border border-slate-200 dark:border-slate-800 text-sm">
   <thead>
     <tr>
-      <th scope="col" class="h-10 border-b border-border px-2 text-left align-middle font-medium whitespace-nowrap text-muted-foreground">Client</th>
-      <th scope="col" class="h-10 border-b border-border px-2 text-left align-middle font-medium whitespace-nowrap text-muted-foreground">Amount</th>
-      <th scope="col" class="h-10 border-b border-border px-2 text-left align-middle font-medium whitespace-nowrap text-muted-foreground">Due</th>
-      <th scope="col" class="h-10 border-b border-border px-2 text-left align-middle font-medium whitespace-nowrap text-muted-foreground">Paid</th>
+      <th scope="col" class="border-b border-slate-200 dark:border-slate-800 px-3 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Client</th>
+      <th scope="col" class="border-b border-slate-200 dark:border-slate-800 px-3 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Amount</th>
+      <th scope="col" class="border-b border-slate-200 dark:border-slate-800 px-3 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Due</th>
+      <th scope="col" class="border-b border-slate-200 dark:border-slate-800 px-3 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Paid</th>
     </tr>
   </thead>
     <tbody>
       {#each visibleInvoices as item (item.id)}
         <tr>
-          <td class="border-b border-border p-2 align-middle whitespace-nowrap text-foreground">
-            <span class="flex-1 text-sm text-foreground">{item.client}</span>
+          <td class="border-b border-slate-200 dark:border-slate-800 px-3 py-2 align-middle text-slate-900 dark:text-slate-100">
+            <span class="flex-1 text-sm text-slate-900 dark:text-slate-100">{item.client}</span>
           </td>
-          <td class="border-b border-border p-2 align-middle whitespace-nowrap text-foreground">
-            <span class="flex-1 text-sm text-foreground">{item.amount}</span>
+          <td class="border-b border-slate-200 dark:border-slate-800 px-3 py-2 align-middle text-slate-900 dark:text-slate-100">
+            <span class="flex-1 text-sm text-slate-900 dark:text-slate-100">{item.amount}</span>
           </td>
-          <td class="border-b border-border p-2 align-middle whitespace-nowrap text-foreground">
-            <span class="flex-1 text-sm text-foreground">{item.due}</span>
+          <td class="border-b border-slate-200 dark:border-slate-800 px-3 py-2 align-middle text-slate-900 dark:text-slate-100">
+            <span class="flex-1 text-sm text-slate-900 dark:text-slate-100">{item.due}</span>
           </td>
-          <td class="border-b border-border p-2 align-middle whitespace-nowrap text-foreground">
-            <input class="size-4 shrink-0 rounded-[4px] border border-input shadow-xs transition-shadow focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none disabled:pointer-events-none disabled:opacity-50" aria-label={`Mark ${item.client} paid`} bind:checked={item.paid} onchange={() => { invoicesSettle(item, { paid: !item.paid }); }} type="checkbox" />
+          <td class="border-b border-slate-200 dark:border-slate-800 px-3 py-2 align-middle text-slate-900 dark:text-slate-100">
+            <input class="h-4 w-4 rounded border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100 disabled:opacity-40" aria-label={`Mark ${item.client} paid`} bind:checked={item.paid} onchange={() => { invoicesSettle(item, { paid: !item.paid }); }} type="checkbox" />
           </td>
         </tr>
       {/each}
     </tbody>
   </table>
 {/if}
-<p class="leading-7 text-foreground">The state field here is `paid`, not `done`. `{invoices.filter((it) => !it.paid).length}` filters on it because the</p>
-<p class="leading-7 text-foreground">compiler reads the flag from the row type rather than from a name it hoped for.</p>
+<p class="mt-1 text-sm text-slate-500 dark:text-slate-400">The state field here is `paid`, not `done`. `{invoices.filter((it) => !it.paid).length}` filters on it because the</p>
+<p class="mt-1 text-sm text-slate-500 dark:text-slate-400">compiler reads the flag from the row type rather than from a name it hoped for.</p>

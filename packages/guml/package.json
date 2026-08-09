@@ -1,6 +1,6 @@
 {
   "name": "@guml/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Compile GUML \u2014 a token-efficient UI representation \u2014 in the browser, and render it in React.",
   "license": "MIT",
   "keywords": [
@@ -19,7 +19,8 @@
     "wasm",
     "README.md",
     "LICENSE",
-    "NOTICE"
+    "NOTICE",
+    "cdn.html"
   ],
   "exports": {
     ".": {
@@ -30,16 +31,18 @@
       "types": "./dist/react.d.ts",
       "import": "./dist/react.js"
     },
-    "./wasm": "./wasm/guml.js"
+    "./wasm": "./wasm/guml.js",
+    "./global": "./dist/guml.global.js"
   },
   "scripts": {
-    "build": "pnpm build:wasm && pnpm build:ts",
+    "build": "pnpm build:wasm && pnpm build:ts && pnpm build:global",
     "build:ts": "pnpm clean && tsc -p tsconfig.build.json",
     "build:wasm": "cd ../../crates/guml-wasm && wasm-pack build --target web --out-dir ../../packages/guml/wasm --out-name guml && node -e \"require('node:fs').rmSync('../../packages/guml/wasm/.gitignore',{force:true})\"",
     "prepublishOnly": "pnpm build && pnpm test",
     "typecheck": "tsc --noEmit",
     "test": "node --test src/*.test.ts",
-    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\""
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build:global": "esbuild src/global.ts --bundle --format=iife --global-name=__guml --platform=browser --target=es2022 --minify --outfile=dist/guml.global.js"
   },
   "peerDependencies": {
     "react": ">=18"
@@ -52,6 +55,7 @@
   "devDependencies": {
     "@types/node": "^20.19.43",
     "@types/react": "^19",
+    "esbuild": "^0.28.2",
     "typescript": "^5"
   },
   "main": "./dist/index.js",
@@ -71,5 +75,7 @@
   },
   "engines": {
     "node": ">=20"
-  }
+  },
+  "unpkg": "./dist/guml.global.js",
+  "jsdelivr": "./dist/guml.global.js"
 }

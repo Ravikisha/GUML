@@ -134,11 +134,12 @@ impl Backend for HtmlBackend {
 
         // Fragment mode: the content, and nothing that belongs to a document.
         //
-        // The stylesheet is the part that needs care. A fragment has no `<head>`, and repeating a
-        // 20 KB theme inline in every fragment would be absurd — but *silently* dropping it would be
-        // invariant 3 in its purest form: a page that renders unstyled and reports nothing. So it is
-        // emitted as a second file the host includes once, and `Style::None` is the way to say you
-        // already have it.
+        // The stylesheet is the part that needs care. A fragment has no `<head>` to put one in, and a
+        // site with fifty fragments wants a single copy in its layout rather than fifty beside the
+        // content — so a fragment never carries styling, and `Style::Inline` here is a contradiction
+        // rather than a request that can be honoured. It is *reported* rather than ignored: rendering
+        // unstyled markup while the caller believes they asked for styling is invariant 3 exactly.
+        // `guml.stylesheet()` (and `theme::active().css`) is where the host gets the CSS.
         if self.fragment {
             let content = if body.trim().is_empty() {
                 "<!-- the document has no renderable elements -->\n".to_string()
@@ -152,26 +153,18 @@ impl Backend for HtmlBackend {
             });
 
             if style == Style::Inline {
-                match crate::theme::active().css.as_deref() {
-                    Some(css) => out.files.push(OutFile {
-                        path: format!("{name}.css"),
-                        contents: css.to_string(),
-                        source_map: None,
-                    }),
-                    None => unsupported_in(
-                        &mut out.diagnostics,
-                        "html",
-                        program
-                            .page
-                            .as_ref()
-                            .map(|p| p.span)
-                            .unwrap_or(guml_diagnostics::Span::point(0, 1, 1)),
-                        format!(
-                            "theme `{}` ships no stylesheet, so this fragment has no styling; give the theme a `css` field, or ask for the `none` style if the host already provides it",
-                            crate::theme::active().name
-                        ),
-                    ),
-                }
+                unsupported_in(
+                    &mut out.diagnostics,
+                    "html",
+                    program
+                        .page
+                        .as_ref()
+                        .map(|p| p.span)
+                        .unwrap_or(guml_diagnostics::Span::point(0, 1, 1)),
+                    "a fragment has no `<head>`, so the theme stylesheet is not emitted; include it \
+                     once in the surrounding page instead — a site with fifty fragments wants one \
+                     copy, not fifty",
+                );
             }
             return out;
         }
@@ -875,7 +868,12 @@ fn format_number(n: f64) -> String {
 }
 
 fn aria_of(el: &Element) -> Option<String> {
-    attr_of(el, "aria").or_else(|| attr_of(el, "placeholder"))
+    attr_of(el, "aria")
+        .or_else(|| attr_of(el, "placeholder"))
+        // A field with neither is named from the state it binds. The callers previously fell back to
+        // the *tag name*, so an unnamed select announced itself as "select" — present, and telling a
+        // screen reader nothing.  is the shared rule the React backend uses too.
+        .or_else(|| crate::derived_aria_label(el))
 }
 
 fn anchor_of(el: &Element) -> Option<String> {

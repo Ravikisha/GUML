@@ -14,8 +14,8 @@
       "errors": 0,
       "codes": [],
       "fenced": false,
-      "separators": 0,
-      "droppedLines": 1
+      "droppedLines": 2,
+      "fixed": 1
     },
     {
       "layer": "format",

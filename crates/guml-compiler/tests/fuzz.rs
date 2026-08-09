@@ -377,3 +377,135 @@ fn a_million_generated_documents_do_not_panic() {
          {clean} compiled clean and were lowered by every backend; {with_errors} reported errors."
     );
 }
+
+/// Hostile **bytes**, not recombined valid lines.
+///
+/// # Why this exists alongside the generator above
+///
+/// `a_million_generated_documents_do_not_panic` builds documents by recombining a fixed corpus of
+/// well-formed GUML lines. That is a good structural fuzzer and it cannot express the input that
+/// mattered: every line in its corpus is ASCII, so in a million documents it never once produced a
+/// multibyte character.
+///
+/// The lexer walks a `&[u8]` and slices the `&str`. Those agree only while every index it computes
+/// lands on a character boundary — and one did not. An unterminated `{` group runs to the end of the
+/// line, and the code trimming the (absent) closing brace subtracted one *byte*:
+///
+/// ```text
+/// card {😀     ->  panicked: byte index 9 is not a char boundary; it is inside '😀'
+/// ```
+///
+/// With `panic = "abort"` that is not an exception anyone can catch. It killed the CLI, and it would
+/// kill a Flask worker, a Node process and the wasm module in a browser tab. GUML exists to compile
+/// **model-generated** interfaces, and a model writing `{🎉` mid-edit is an ordinary Tuesday.
+///
+/// So this draws from an alphabet chosen to break the byte/char correspondence: multibyte characters
+/// of every UTF-8 length, combining marks, a zero-width joiner sequence, and the delimiters whose
+/// index arithmetic is most likely to be off by one.
+///
+/// # What a static audit of the remaining sites found
+///
+/// Roughly forty places slice a `&str` at an index the lexer computed. They were read individually
+/// after this test was written, and the class turns out to be clean — for a reason worth writing down,
+/// because it says which *new* code would be dangerous:
+///
+/// * `text[open + 1..]` where `open` came from `find('{')` is **safe**: the delimiter is one byte, so
+///   the result is always a boundary. Almost every site has this shape.
+/// * `src.get(a..b)` is **safe by construction** — `None` on a bad boundary rather than a panic.
+/// * Indexing a `Vec` has no boundary to violate at all.
+///
+/// The one that broke was none of those: it **subtracted** from a length (`i.saturating_sub(1)` where
+/// `i` was `bytes.len()`), which is the only direction that can land inside a character. So the rule
+/// for anything added later is narrow and checkable: adding to an ASCII position is fine, subtracting
+/// from a length is not.
+///
+/// Backed by an occasional deeper sweep than this gate runs — 491,700 calls across twelve entry
+/// points with a multibyte-weighted alphabet, no panics. This test is the 4,000-iteration version that
+/// stays fast enough to keep.
+#[test]
+fn multibyte_input_does_not_panic() {
+    const SEED: u64 = 0x6d_75_6c_74_69;
+    // Deliberately modest. The signal is in the *alphabet*, not the count: the failing input was 8
+    // bytes long, and 60k iterations took 224s — a gate nobody will wait for is a gate that gets
+    // commented out. This covers the same ground in a couple of seconds.
+    const ITERATIONS: usize = 4_000;
+
+    // One-, two-, three- and four-byte characters, plus a grapheme cluster whose parts are separable.
+    // Interleaved with the delimiters, because the bug needs a multibyte character *adjacent* to one.
+    const PIECES: &[&str] = &[
+        "{",
+        "}",
+        "\"",
+        "|",
+        ">",
+        "=",
+        ":",
+        ",",
+        "#",
+        "/",
+        " ",
+        "\n",
+        "  ",
+        "\t",
+        "é",
+        "ü",
+        "中",
+        "日本",
+        "😀",
+        "🎉",
+        "👩‍💻",
+        "e\u{0301}",
+        "\u{200d}",
+        "\u{feff}",
+        "card",
+        "p",
+        "state",
+        "n",
+        "js",
+        "raw",
+        "page",
+        "type",
+        "data",
+        "1",
+        "0",
+    ];
+
+    let mut rng = Rng(SEED);
+    for _ in 0..ITERATIONS {
+        let mut src = String::new();
+        for _ in 0..rng.below(24) {
+            src.push_str(rng.pick(PIECES));
+        }
+
+        // Every entry point a host can reach, because they slice independently.
+        let (program, _) = guml_compiler::check(&src);
+        let _ = format(&src, Options::default());
+        let _ = format(&src, Options::canonical());
+        let _ = guml_fmt::highlight::to_json(&src);
+        let _ = guml_compiler::repair::repair(&src, 2);
+        for backend in guml_compiler::backend_names() {
+            if let Some(b) = guml_codegen::backend(backend) {
+                let _ = b.emit(&program);
+            }
+        }
+    }
+
+    println!("seed {SEED:#x}: {ITERATIONS} multibyte documents, no panic");
+}
+
+/// The exact input that was found, kept as a named regression rather than left to a random seed.
+#[test]
+fn an_unterminated_brace_before_a_multibyte_character_does_not_panic() {
+    for src in [
+        "card {\u{1F600}",
+        "p {name\u{1F600}",
+        "card {é",
+        "card {中",
+        "{\u{1F600}",
+        "card {\u{1F600}}",  // the terminated form, which always worked
+        "p hello \u{1F600}", // and prose, which always worked
+    ] {
+        let (_, _) = guml_compiler::check(src);
+        let _ = format(src, Options::default());
+    }
+}

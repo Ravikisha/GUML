@@ -10,6 +10,54 @@ wasm, loaded lazily on first use — nothing is fetched until you compile someth
 pnpm add @guml/core
 ```
 
+## From a CDN
+
+No install, no bundler. Two ways, and which one you want depends on whether your page uses modules.
+
+**A module** — the modern path, and the one to prefer:
+
+```html
+<script type="module">
+  import { compile, check } from "https://cdn.jsdelivr.net/npm/@guml/core/+esm";
+
+  const { files } = await compile('page "Hi"
+
+card
+  h Hello
+', "html");
+  document.body.innerHTML = files[0].contents;
+</script>
+```
+
+**A classic script tag** — for a CMS template, a docs page, an existing site with no build step:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@guml/core"></script>
+<script>
+  guml.compile(source, "html").then(({ files }) => {
+    document.body.innerHTML = files[0].contents;
+  });
+</script>
+```
+
+`unpkg.com/@guml/core` serves the same thing.
+
+**The wasm loads itself.** Both builds resolve it relative to their own URL — `import.meta.url` for the
+module, `document.currentScript.src` for the script tag — so the 787 KB binary is fetched from the same
+CDN with nothing to configure. The script-tag build starts that fetch immediately on load rather than on
+first call, so the download overlaps with the rest of the page.
+
+**Pin a version in production.** A bare `@guml/core` URL follows the latest release, which is convenient
+for a demo and a supply-chain surface for anything else:
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@guml/core@0.2.0"></script>
+```
+
+`packages/guml/cdn.html` is a working page you can open — it is also the browser half of the CDN gate,
+since Node has no `document.currentScript` to exercise that path.
+
+
 > **Browser and bundlers only.** The wasm is built for the web target, so it loads itself with
 > `fetch()`. That works in Next.js, Vite, and anything else that serves assets over HTTP; it does
 > *not* work in plain Node, where the failure surfaces as an undici `fetch failed` on a `file://`

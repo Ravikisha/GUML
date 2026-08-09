@@ -11,8 +11,25 @@ export function SiteFooter() {
             An intermediate representation and compiler for LLM-generated interfaces. MIT.
           </p>
           <p className="mt-6 font-mono text-[0.7rem] leading-relaxed text-fog-dim">
-            Pre-Phase-0. The compiler front end works and is tested; the research question it
-            exists to answer is still open.
+            The compiler works and is tested. Whether a constrained IR measurably improves what a
+            model produces is a separate and open question, kept in{" "}
+            <Link href="/research" className="underline decoration-fog-dim/50 hover:text-fog">
+              research
+            </Link>
+            .
+          </p>
+          <p className="mt-4 flex gap-4 text-xs text-fog-dim">
+            <Link href="/privacy" className="transition-colors hover:text-fog">
+              Privacy
+            </Link>
+            <a
+              href="https://github.com/guml-lang/guml"
+              className="transition-colors hover:text-fog"
+              target="_blank"
+              rel="noreferrer"
+            >
+              GitHub
+            </a>
           </p>
         </div>
 

@@ -344,7 +344,7 @@ fn diagnostics(src: &str) -> Vec<(String, String)> {
 fn a_badge_takes_a_modifier_for_its_tone() {
     // `badge` was `TagKind::Text`, so its remainder was prose taken verbatim and `badge danger Breaking`
     // rendered the literal string "danger Breaking" — with no diagnostic, while the tag's own registry
-    // doc said to use those modifiers for tone and `themes/slate.json` carried three tone rules keyed on
+    // doc said to use those modifiers for tone and `themes/tailwind.json` carried three tone rules keyed on
     // them. Two thirds of the compiler advertised a feature the third could not deliver.
     //
     // Asserted through the emitted class rather than through the kind, because the kind is not the claim:
@@ -364,10 +364,17 @@ fn a_badge_takes_a_modifier_for_its_tone() {
     let plain = span("page P\nbadge Feature\n");
     assert!(danger.contains(">Breaking<"), "the label is the content, not a modifier: {danger}");
     assert!(!danger.contains("danger Breaking"), "the modifier leaked into the text: {danger}");
-    // The *token*, not a colour literal: `bg-red-600` was slate's spelling and pinned the palette into a
-    // test about whether a modifier reaches the theme at all.
-    assert!(danger.contains("bg-destructive"), "the tone rule did not fire: {danger}");
-    assert!(!plain.contains("bg-destructive"), "an untoned badge took the danger tone: {plain}");
+    // Named neither palette. This asserted `bg-red-600`, then `bg-destructive`, and broke on each
+    // change of default theme — a test about whether a modifier *reaches* the theme cannot also be a
+    // test of which colour that theme picked.
+    //
+    // The claim is that `danger` produces a different badge from an untoned one. That holds under any
+    // theme, and still fails for the right reason if the tone rule stops firing.
+    assert_ne!(
+        danger.split_once('>').map(|(head, _)| head),
+        plain.split_once('>').map(|(head, _)| head),
+        "the tone rule did not fire: {danger}"
+    );
 
     // And a two-word label still has to be quoted, which is `GUML0099` doing its job rather than a word
     // vanishing — the whole reason the positional arity check exists.
@@ -582,6 +589,120 @@ mod a_repeater_over_a_derived_array {
         assert!(
             warnings.iter().any(|w| w.contains("derived array") && w.contains("raw wc")),
             "wc should refuse and name the escape: {warnings:?}"
+        );
+    }
+}
+
+/// The two errors that stopped model-generated GUML from compiling more than any others.
+///
+/// `bench/gen` ran six applications through an 8B and a 70B model. One of six compiled, while
+/// **32 of 37 functional requirements were met** — the models understood the applications and failed
+/// on surface rules. The two rules below were the surface, and in both cases the compiler already held
+/// the information it was refusing to use.
+mod what_a_model_actually_writes {
+    use super::*;
+
+    /// The obvious spelling: options written where they are used.
+    const AS_A_MODEL_WRITES_IT: &str = "page P
+state c: a
+
+select c
+  option a
+  option b
+";
+
+    #[test]
+    fn options_may_be_written_as_children_rather_than_as_a_domain() {
+        // `GUML0080` checked only the bound state's domain and never looked at the `option` children,
+        // while `guml_codegen::select_options` had reconciled both for a while — so codegen accepted
+        // a spelling validation rejected. Two halves of one compiler disagreeing about one document.
+        let found = errors(AS_A_MODEL_WRITES_IT);
+        assert!(
+            !found.iter().any(|(id, _, _)| id == "GUML0080"),
+            "options written as children are still refused: {found:?}"
+        );
+    }
+
+    #[test]
+    fn a_field_is_named_from_the_state_it_binds() {
+        // `GUML0051` refused a field with no `aria`, while the state name sat in the same line.
+        let found = errors(AS_A_MODEL_WRITES_IT);
+        assert!(
+            !found.iter().any(|(id, _, _)| id == "GUML0051"),
+            "a derivable name is still an error: {found:?}"
+        );
+    }
+
+    #[test]
+    fn the_document_a_model_writes_now_compiles() {
+        assert!(errors(AS_A_MODEL_WRITES_IT).is_empty(), "{:?}", errors(AS_A_MODEL_WRITES_IT));
+    }
+
+    /// The derived name must actually be **emitted**, in every backend that can emit one.
+    ///
+    /// This is the half that makes the warning honest. Warning "named from the state it binds" beside
+    /// output carrying no name would be the silent mis-lowering invariant 3 forbids — and the HTML
+    /// backend was already emitting `aria-label="select"`, the *tag name*, which is present and tells
+    /// a screen reader nothing.
+    #[test]
+    fn every_backend_emits_the_derived_name() {
+        for backend in ["react", "html", "svelte"] {
+            let (out, _) = compile(AS_A_MODEL_WRITES_IT, backend);
+            assert!(
+                out.contains(r#"aria-label="c""#),
+                "`{backend}` does not emit the derived accessible name:\n{out}"
+            );
+            assert!(
+                !out.contains(r#"aria-label="select""#),
+                "`{backend}` named the field after its tag, which announces nothing"
+            );
+        }
+    }
+
+    /// Derived, not invented: an explicit name always wins.
+    #[test]
+    fn an_explicit_name_is_never_overridden() {
+        let src = "page P
+state c: a
+
+select c aria=\"Colour\"
+  option a
+  option b
+";
+        assert!(errors(src).is_empty(), "{:?}", errors(src));
+        let (out, _) = compile(src, "react");
+        assert!(out.contains(r#"aria-label="Colour""#), "{out}");
+        assert!(!out.contains(r#"aria-label="c""#), "the derived name overrode an explicit one");
+    }
+
+    /// A warning, not silence. A state name is a variable name — usually a real word, occasionally
+    /// `x1` — and the compiler cannot tell which, so the author is told a better one may exist.
+    #[test]
+    fn deriving_a_name_is_reported_as_a_warning() {
+        let (_, diags) = guml_compiler::check(AS_A_MODEL_WRITES_IT);
+        let warned = diags
+            .items
+            .iter()
+            .any(|d| d.id == "GUML0051" && d.severity == guml_diagnostics::Severity::Warning);
+        assert!(
+            warned,
+            "{:?}",
+            diags.items.iter().map(|d| (&d.id, &d.message)).collect::<Vec<_>>()
+        );
+    }
+
+    /// And a `select` with genuinely nothing to choose from is still an error.
+    #[test]
+    fn a_select_with_no_options_at_all_is_still_refused() {
+        let src = "page P
+state c: a
+
+select c aria=\"Colour\"
+";
+        assert!(
+            errors(src).iter().any(|(id, _, _)| id == "GUML0080"),
+            "a control the reader cannot operate must still be reported: {:?}",
+            errors(src)
         );
     }
 }

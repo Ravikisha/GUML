@@ -4,6 +4,7 @@
 //! diagnostic set with spans and suggestions so a harness can patch without another model
 //! call (report §6.7).
 
+mod mcp;
 mod project;
 
 use anyhow::{Context, Result};
@@ -158,6 +159,17 @@ enum Cmd {
         #[arg(long, value_enum, default_value_t = Format::Json)]
         format: Format,
     },
+    /// Serve the compiler over the Model Context Protocol, on stdio.
+    ///
+    /// GUML has no training data, so using it has meant ~3,000 tokens of spec in every system prompt
+    /// for a language the model has never seen. This removes that: the model asks for the dozen tags
+    /// it needs (~180 tokens), checks what it wrote against the compiler that will build it, and gets
+    /// the mechanically-fixable errors fixed without spending a turn on them.
+    ///
+    /// Add to a client's config:
+    ///
+    ///   { "mcpServers": { "guml": { "command": "guml", "args": ["mcp"] } } }
+    Mcp,
     /// Print the component registry, optionally as an LLM prompt block.
     Registry {
         /// Emit only these tags (the retrieval-augmented prompt path).
@@ -276,6 +288,7 @@ fn main() -> Result<()> {
         Cmd::Explain { code } => cmd_explain(code.as_deref()),
         Cmd::Where { file, emitted_line, backend } => cmd_where(&file, emitted_line, &backend),
         Cmd::Highlight { file, format } => cmd_highlight(&file, format),
+        Cmd::Mcp => mcp::serve(),
         Cmd::Registry { tags, for_prompt, validate, docs, registry } => cmd_registry(
             tags,
             for_prompt.as_deref(),
@@ -317,7 +330,7 @@ fn vocabulary_for(
     let core = core || project.is_core();
     let mut reg =
         if core { guml_registry::Registry::core() } else { guml_registry::Registry::builtin() };
-    for (path, pinned) in project.registry_refs() {
+    for (path, pinned) in project.registry_refs()? {
         let json = read(&path)?;
         // The pin is checked *before* the vocabulary is extended, so a mismatched package never contributes
         // a tag. Refusing rather than warning: a document compiled against the wrong vocabulary is not a
@@ -875,11 +888,39 @@ fn cmd_build(
 
     // `--theme` wins over `guml.json`, for the same reason `--registry` does: a one-off override is a
     // real need, and CI should be able to pin explicitly instead of inheriting.
-    let theme_path = theme.map(Path::to_path_buf).or_else(|| project.theme_path());
-    if let Some(path) = theme_path {
-        let json = read(&path)?;
-        let loaded = guml_codegen::theme::Theme::from_json(&json)
-            .map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))?;
+    //
+    // Either may be a builtin *name* rather than a path — `--theme shadcn` — because a design system a
+    // user selects by name should not require them to type a path into someone else's `node_modules`.
+    let source = match theme {
+        Some(t) => {
+            let name = t.to_string_lossy();
+            match guml_codegen::theme::Theme::by_name(&name) {
+                Some(_) => Some(project::ThemeSource::Builtin(name.into_owned())),
+                // Not a builtin and not a file either: say so *here*, naming the builtins, rather than
+                // letting it fall through to a bare `reading nope` from the filesystem. A typo'd theme
+                // name is the likeliest way to reach this, and the fix is one of the names below.
+                None if !t.exists() => anyhow::bail!(
+                    "theme `{name}` is not a builtin and no such file exists\n\
+                     builtin themes: {}\n\
+                     or pass a path to a theme document",
+                    guml_codegen::theme::Theme::builtin_names().join(", ")
+                ),
+                None => Some(project::ThemeSource::File(t.to_path_buf())),
+            }
+        }
+        None => project.theme_source()?,
+    };
+
+    if let Some(source) = source {
+        let loaded = match &source {
+            project::ThemeSource::Builtin(name) => guml_codegen::theme::Theme::by_name(name)
+                .expect("checked when the source was resolved"),
+            project::ThemeSource::File(path) => {
+                let json = read(path)?;
+                guml_codegen::theme::Theme::from_json(&json)
+                    .map_err(|e| anyhow::anyhow!("{}: {e}", path.display()))?
+            }
+        };
         // Write-once per process, and this is the only caller, so a failure here would be a bug
         // rather than a user error.
         guml_codegen::theme::set(loaded).map_err(|t| {
@@ -1325,11 +1366,14 @@ fn pathdiff(file: &Path, base: &Path) -> PathBuf {
 }
 
 fn report(diags: &guml_diagnostics::Diagnostics, src: &str, path: &Path, format: Format) {
-    if diags.is_empty() {
-        return;
-    }
     match format {
+        // Nothing to say, so say nothing. A terminal does not want an empty line.
+        Format::Human if diags.is_empty() => {}
         Format::Human => eprint!("{}", diags.render(src, &path.display().to_string())),
+        // **`[]`, not silence.** A clean document used to print nothing here, which is not valid JSON
+        // — so every consumer of `--format json` had to special-case empty output before parsing, and
+        // the one case they most need to handle correctly (the document is fine) was the one the
+        // format did not describe. The repair loop reads this.
         Format::Json => println!("{}", diags.to_json()),
     }
 }

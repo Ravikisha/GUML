@@ -115,46 +115,64 @@ impl std::fmt::Display for ThemeError {
 impl std::error::Error for ThemeError {}
 
 impl Theme {
-    /// The theme the compiler ships: **shadcn/ui**.
+    /// **Stock Tailwind, and that is the whole reason it is the default.**
     ///
-    /// # Why this one
+    /// The default used to be `shadcn`, which emits `bg-primary`, `text-foreground`, `border-border` —
+    /// names that mean nothing to Tailwind on their own. They resolve only if the host has also
+    /// installed shadcn's CSS variables and the `@theme inline` block that maps them. A user who ran
+    /// `pnpm add tailwindcss`, compiled a document and opened it therefore got an **unstyled page**,
+    /// with no error, because every class was real and none was defined.
     ///
-    /// A default theme is a claim about what "unstyled GUML" looks like, and the honest default is the one a
-    /// host is most likely to already be running. shadcn/ui is a copy-paste component collection rather than
-    /// a dependency, so its *tokens* — `--background`/`--foreground` pairs, `--primary`, `--muted`,
-    /// `--border`, `--ring`, `--radius` — are the closest thing the ecosystem has to a shared interface. A
-    /// host that runs shadcn deletes the `:root` block from `shadcn.css` and its own palette applies with no
-    /// further work.
+    /// This theme uses literal utilities — `bg-white dark:bg-slate-900`, `border-slate-200` — which any
+    /// Tailwind install resolves with no configuration at all. Nothing to install, nothing to import,
+    /// no variables to define.
     ///
-    /// Data rather than code, so it is exactly as replaceable as any other theme. `themes/slate.json` is
-    /// still shipped and still passes every test; `--theme` selects it.
-    ///
-    /// # What a class table can and cannot carry
-    ///
-    /// The *appearance* is shadcn's, taken from its own `registry/new-york-v4/ui/*.tsx`. The *behaviour* is
-    /// not: shadcn's dialog traps focus and its select is a Radix listbox, and those are components rather
-    /// than classes. GUML emits a real `<select>` and a `<template>` in the no-JavaScript build, which is a
-    /// different and more honest thing than a `<div role="listbox">` with no keyboard handling. A host that
-    /// wants the Radix behaviour points a registry package at its own components with `element`/`import` —
-    /// see `packages/guml-widgets`.
+    /// `shadcn` is still shipped and is one word away (`"theme": "shadcn"` in `guml.json`, or
+    /// `--theme shadcn`). The point is that it is a *choice* rather than an assumption about what the
+    /// host already has.
     pub fn builtin() -> Self {
-        let mut theme: Theme = serde_json::from_str(include_str!("../themes/shadcn.json"))
+        Self::tailwind()
+    }
+
+    /// Stock Tailwind utilities on a literal palette. The default; see [`Theme::builtin`].
+    pub fn tailwind() -> Self {
+        let mut theme: Theme = serde_json::from_str(include_str!("../themes/tailwind.json"))
             .expect("the builtin theme is checked by a test");
         // Kept beside the rules rather than inside the JSON, so the stylesheet stays editable as CSS.
+        theme.css = Some(include_str!("../themes/tailwind.css").to_string());
+        theme
+    }
+
+    /// shadcn/ui: the same vocabulary expressed in shadcn's design tokens.
+    ///
+    /// Requires the host to define those tokens — `@guml/shadcn` ships them in `styles.css`, and any
+    /// project already running shadcn has them. Opt in with `"theme": "shadcn"`.
+    ///
+    /// Kept, and kept tested, because it is the other half of the argument themes exist to make: it
+    /// uses tokens (`bg-primary`) where the default uses literals (`bg-slate-900`), so the two together
+    /// demonstrate that the *language* is unchanged by either choice — one document, both outputs.
+    pub fn shadcn() -> Self {
+        let mut theme: Theme = serde_json::from_str(include_str!("../themes/shadcn.json"))
+            .expect("the shadcn theme is checked by a test");
         theme.css = Some(include_str!("../themes/shadcn.css").to_string());
         theme
     }
 
-    /// The previous default: Tailwind utilities on a literal slate palette.
+    /// Every theme compiled into the binary, so `--theme shadcn` needs no path.
     ///
-    /// Kept, and kept tested, because it is the other half of the argument themes exist to make. It uses
-    /// colour literals (`bg-slate-900`) where the default uses tokens (`bg-primary`), so the two together
-    /// demonstrate that the *language* is unchanged by either choice — the same document compiles to both.
-    pub fn slate() -> Self {
-        let mut theme: Theme = serde_json::from_str(include_str!("../themes/slate.json"))
-            .expect("the slate theme is checked by a test");
-        theme.css = Some(include_str!("../themes/slate.css").to_string());
-        theme
+    /// A name rather than a file is what makes "install the shadcn plugin" one word instead of a
+    /// filesystem path into someone else's `node_modules`.
+    pub fn by_name(name: &str) -> Option<Self> {
+        match name {
+            "tailwind" => Some(Self::tailwind()),
+            "shadcn" => Some(Self::shadcn()),
+            _ => None,
+        }
+    }
+
+    /// The names [`Theme::by_name`] accepts, for error messages and `--help`.
+    pub fn builtin_names() -> &'static [&'static str] {
+        &["tailwind", "shadcn"]
     }
 
     pub fn from_json(json: &str) -> Result<Self, ThemeError> {
@@ -367,12 +385,40 @@ mod tests {
     }
 
     #[test]
-    fn the_builtin_theme_parses_and_satisfies_its_own_contract() {
-        // `Theme::builtin` unwraps, so this test is what makes that unwrap honest.
+    fn every_shipped_theme_parses_and_satisfies_its_own_contract() {
+        // `Theme::tailwind` and `Theme::shadcn` unwrap, so this test is what makes those unwraps
+        // honest. Both are checked, not just the default: `--theme shadcn` is one word away, and a
+        // theme that fails its own contract would only be discovered by whoever chose it.
+        for name in Theme::builtin_names() {
+            let theme = Theme::by_name(name).unwrap_or_else(|| panic!("`{name}` is advertised"));
+            theme.validate().expect("a shipped theme must satisfy the contract it enforces");
+            assert_eq!(
+                &theme.name, name,
+                "the file's `name` disagrees with the one it is loaded by"
+            );
+            assert!(theme.rules.len() > 20, "expected a rule per tag, got {}", theme.rules.len());
+        }
+    }
+
+    #[test]
+    fn the_default_is_stock_tailwind() {
+        // The property, not the palette: the default must resolve under a bare `pnpm add tailwindcss`.
+        // shadcn's tokens (`bg-primary`, `text-foreground`) are real class names that Tailwind does not
+        // define, so a default emitting them renders unstyled — no error, every class spelled correctly,
+        // nothing applied. That was the behaviour before this changed.
         let theme = Theme::builtin();
-        theme.validate().expect("the shipped theme must satisfy the contract it enforces");
-        assert_eq!(theme.name, "shadcn");
-        assert!(theme.rules.len() > 20, "expected a rule per tag, got {}", theme.rules.len());
+        assert_eq!(theme.name, "tailwind");
+
+        let emitted: String =
+            theme.rules.iter().map(|r| format!("{} ", r.classes())).collect::<String>();
+        for token in ["bg-primary", "text-foreground", "bg-card", "border-border", "bg-background"]
+        {
+            assert!(
+                !emitted.contains(token),
+                "the default theme emits `{token}`, which stock Tailwind does not define — \
+                 a host without shadcn's CSS variables would get an unstyled page"
+            );
+        }
     }
 
     #[test]
@@ -380,13 +426,13 @@ mod tests {
         // `btn primary danger` must not concatenate two background colours.
         let theme = Theme::builtin();
         let classes = theme.classes("btn", &["primary", "danger"]);
-        assert!(classes.contains("bg-primary"), "{classes}");
-        assert!(!classes.contains("bg-destructive"), "two intents were applied: {classes}");
-        // And the same holds for the theme that is no longer the default, which is the point of keeping it:
-        // grouping is a property of the *mechanism*, not of one palette.
-        let slate = Theme::slate().classes("btn", &["primary", "danger"]);
-        assert!(slate.contains("bg-slate-900"), "{slate}");
-        assert!(!slate.contains("bg-red-600"), "two intents were applied: {slate}");
+        assert!(classes.contains("bg-slate-900"), "{classes}");
+        assert!(!classes.contains("bg-red-600"), "two intents were applied: {classes}");
+        // And the same holds for the theme that is *not* the default, which is the point of keeping it:
+        // grouping is a property of the mechanism, not of one palette.
+        let shadcn = Theme::shadcn().classes("btn", &["primary", "danger"]);
+        assert!(shadcn.contains("bg-primary"), "{shadcn}");
+        assert!(!shadcn.contains("bg-destructive"), "two intents were applied: {shadcn}");
     }
 
     #[test]

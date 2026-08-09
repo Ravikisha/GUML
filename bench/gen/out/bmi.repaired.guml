@@ -9,8 +9,12 @@ card sm center
   form
     input height kind=number aria="Height in cm" placeholder="170" required
     input weight kind=number aria="Weight in kg" placeholder="60" required
-    btn Calculate primary >weight / (height / 100) ** 2
+    btn Calculate primary >height=height;weight=weight
     btn Reset quiet >height=0;weight=0
 
 metric {weight / (height / 100) ** 2}
 text |
+  {weight / (height / 100) ** 2 < 18.5 ? "Underweight"
+  : weight / (height / 100) ** 2 < 25 ? "Normal"
+  : weight / (height / 100) ** 2 < 30 ? "Overweight"
+  : "Obese"}

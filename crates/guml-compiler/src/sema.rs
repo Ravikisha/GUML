@@ -277,7 +277,7 @@ fn value_source(v: &Value) -> String {
 /// and a rule that silently edits it is data loss dressed as compression.
 ///
 /// So the text stays as written and the compiler says what it noticed. The case is not hypothetical:
-/// `badge`'s own registry doc said "use `danger`/`primary`/`quiet` for tone", `themes/slate.json` carried
+/// `badge`'s own registry doc said "use `danger`/`primary`/`quiet` for tone", `themes/tailwind.json` carried
 /// three tone rules keyed on those modifiers, and `badge danger Breaking` compiled with zero diagnostics
 /// and rendered the literal string "danger Breaking". Two parts of the compiler advertised a feature the
 /// third could not deliver, and the only reason it went unnoticed is that no fixture used it.
@@ -436,6 +436,39 @@ fn check_label(el: &Element, reg: &Registry, diags: &mut Diagnostics, named_by_r
             ),
         );
         return;
+    }
+
+    // A field bound to a state can be named from that binding.
+    //
+    // `select colour` is a select whose purpose is the word `colour`, and a backend emitting
+    // `aria-label="colour"` produces something a screen reader can announce — which is the entire
+    // point of the check. Refusing it outright meant the compiler held a usable name and declined to
+    // use it, and that was the **second most common reason model-generated GUML failed to compile**
+    // (`bench/gen`, unchanged between an 8B and a 70B model).
+    //
+    // A **warning**, not silence, and the grading is the point. A state name is a variable name: it
+    // is usually a real word and occasionally `c` or `x1`, and the compiler cannot tell which. So the
+    // document compiles, the backend emits a name rather than nothing, and the author is told a
+    // better one exists — the same treatment `placeholder` gets above, for the same reason.
+    //
+    // Only for a *field*: a field's first positional is the state it binds, so there is a name to
+    // derive. A `btn` with no text has nothing.
+    if is_field {
+        if let Some(bound) = el.label() {
+            diags.push(
+                Diagnostic::warning(
+                    Code::InputWithoutLabel,
+                    format!("`{}` is named from the state it binds (`{bound}`)", el.tag),
+                    el.span,
+                )
+                .with_help(
+                    "a state name is a variable name and may read poorly to a screen reader; \
+                     add `aria=\"…\"` if it does",
+                )
+                .with_suggestion(format!("{} {bound} aria=\"{bound}\"", el.tag)),
+            );
+            return;
+        }
     }
 
     let (code, what) = if is_field {
@@ -701,11 +734,31 @@ mod tests {
     }
 
     #[test]
-    fn a_field_with_nothing_at_all_is_an_error() {
-        // The first positional of a field is the state it binds, not a label.
+    fn a_field_is_named_from_the_state_it_binds() {
+        // This used to be an **error**, on the reasoning that a field's first positional is the state
+        // it binds rather than a label. True, and it drew the wrong conclusion: `input draft` binds a
+        // state called `draft`, and `aria-label="draft"` is a name a screen reader can announce —
+        // which is the entire point of demanding one. The compiler was holding a usable name and
+        // refusing the document instead of using it.
+        //
+        // It was also the second most common reason model-generated GUML failed to compile
+        // (`bench/gen`, unchanged between an 8B and a 70B model).
+        //
+        // A warning rather than silence: a state name is a variable name, usually a real word and
+        // occasionally `x1`, and nothing here can tell which. The backends emit the derived name — see
+        // `guml_codegen::derived_aria_label` — which is what makes the warning honest rather than a
+        // claim about output that does not carry it.
         let d = check("page P\nstate draft=\"\"\n\ninput draft\n");
-        assert!(d.has_errors());
+        assert!(!d.has_errors(), "a derivable name should not fail the build: {:?}", d.items);
         assert!(d.items.iter().any(|d| d.code == Code::InputWithoutLabel));
+    }
+
+    #[test]
+    fn a_field_with_no_binding_to_derive_from_is_still_an_error() {
+        // The rule is *derive*, not *invent*. With no positional there is nothing to name it after,
+        // and a control a screen reader cannot announce is still a real fault.
+        let d = check("page P\n\ninput\n");
+        assert!(d.has_errors(), "a field with nothing at all must still be refused: {:?}", d.items);
     }
 
     #[test]

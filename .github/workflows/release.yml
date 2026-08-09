@@ -117,6 +117,12 @@ jobs:
       - name: cargo publish --dry-run
         run: cargo publish --workspace --dry-run
 
+      # A wheel that builds nowhere is found at tag time otherwise, which is the worst moment.
+      - name: Python wheel builds
+        run: |
+          pip install maturin
+          cd crates/guml-python && maturin build --release
+
       - name: npm publish --dry-run
         run: |
           pnpm --filter @guml/core build
@@ -191,7 +197,102 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   # ---------------------------------------------------------------------------------------------
-  # 4. Binaries, so installing does not require a Rust toolchain.
+  # 4. PyPI. One wheel per platform rather than per interpreter, because `abi3-py39` builds against
+  #    the stable C API — 3.9 through every later 3.x from a single artifact.
+  #
+  #    Trusted publishing (OIDC) rather than an API token: a token would be a fourth long-lived
+  #    credential to store and rotate, and this proves the wheel came from this workflow on this
+  #    commit instead.
+  # ---------------------------------------------------------------------------------------------
+  wheels:
+    name: wheel ${{ matrix.target }}
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,    target: x86_64,  manylinux: auto }
+          - { os: ubuntu-24.04-arm, target: aarch64, manylinux: auto }
+          - { os: ubuntu-latest,    target: x86_64,  manylinux: musllinux_1_2 }
+          - { os: macos-latest,     target: aarch64, manylinux: auto }
+          - { os: macos-13,         target: x86_64,  manylinux: auto }
+          - { os: windows-latest,   target: x64,     manylinux: auto }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          manylinux: ${{ matrix.manylinux }}
+          args: --release --out dist --manifest-path crates/guml-python/Cargo.toml
+          sccache: "true"
+
+      # A wheel that imports is the minimum bar, and it is not implied by one that builds: a missing
+      # `python-source`, a wrong `module-name` or a stripped symbol all produce a valid wheel that
+      # fails on `import guml`. Only on the native runner — a cross-compiled aarch64 wheel cannot run
+      # here, and pretending otherwise would make this check a no-op on the platforms most likely to
+      # be wrong.
+      - name: The wheel imports and compiles something
+        if: matrix.target == 'x86_64' || matrix.target == 'x64'
+        shell: bash
+        run: |
+          pip install --find-links dist --no-index guml
+          python - <<'PY'
+          import guml
+          html = guml.render('page "Smoke"\n\ncard\n  h It works\n')
+          assert html.startswith("<!doctype html>"), html[:40]
+          assert "It works" in html
+          assert "<script" not in html
+          print("ok", guml.__version__)
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.os }}-${{ matrix.target }}-${{ matrix.manylinux }}
+          path: dist/*.whl
+          if-no-files-found: error
+
+  sdist:
+    name: sdist
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist --manifest-path crates/guml-python/Cargo.toml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  pypi:
+    name: Publish to PyPI
+    needs: [verify, wheels, sdist]
+    if: github.event_name == 'push' || !inputs.dry_run
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      # Trusted publishing. No token anywhere.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: "{wheel-*,sdist}"
+          merge-multiple: true
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+
+  # ---------------------------------------------------------------------------------------------
+  # 5. Binaries, so installing does not require a Rust toolchain.
   # ---------------------------------------------------------------------------------------------
   binaries:
     name: ${{ matrix.target }}
@@ -243,7 +344,7 @@ jobs:
   # ---------------------------------------------------------------------------------------------
   release:
     name: GitHub release
-    needs: [verify, crates, npm, binaries]
+    needs: [verify, crates, npm, pypi, binaries]
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:

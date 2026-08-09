@@ -195,45 +195,45 @@ export default function Portfolio() {
 
   return (
     <>
-      <nav className="flex items-center justify-between border-b border-border pb-4">
+      <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
         <h3 className="font-medium">Ravi Kishan</h3>
-        <a className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none" href="#work" id="work">Work</a>
-        <a className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none" href="#about" id="about">About</a>
-        <a className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none" href="#archive" id="archive">Archive</a>
-        <a className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none" href="#contact" id="contact">Contact</a>
-        <button className="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all h-9 px-4 py-2 border border-input bg-background shadow-xs hover:bg-accent hover:text-accent-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none disabled:pointer-events-none disabled:opacity-50" type="button">Download CV</button>
+        <a className="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100" href="#work" id="work">Work</a>
+        <a className="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100" href="#about" id="about">About</a>
+        <a className="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100" href="#archive" id="archive">Archive</a>
+        <a className="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100" href="#contact" id="contact">Contact</a>
+        <button className="rounded-md px-4 py-2 text-sm font-medium transition-colors border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100 disabled:opacity-40" type="button">Download CV</button>
       </nav>
-      <header className="mt-12 flex flex-col items-center gap-4 text-center">
-        <h1 className="scroll-m-20 text-4xl font-extrabold tracking-tight text-foreground">I build compilers, and the interfaces that sit on top of them</h1>
-        <p className="leading-7 text-foreground">Systems engineer working on developer tooling — language design, code generation, and the parts of a product people actually touch.</p>
-        <button className="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all h-9 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none disabled:pointer-events-none disabled:opacity-50" type="submit">Get in touch</button>
-        <a className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none" href="#work" id="work">Read the work</a>
+      <header className="mx-auto max-w-3xl px-6 py-24 text-center">
+        <h1 className="text-4xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-5xl">I build compilers, and the interfaces that sit on top of them</h1>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Systems engineer working on developer tooling — language design, code generation, and the parts of a product people actually touch.</p>
+        <button className="rounded-md px-4 py-2 text-sm font-medium transition-colors bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-200 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100 disabled:opacity-40" type="submit">Get in touch</button>
+        <a className="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100" href="#work" id="work">Read the work</a>
       </header>
-      <section className="mt-10 scroll-mt-16 grid gap-6 md:grid-cols-3" id="work">
+      <section className="mx-auto max-w-6xl px-6 py-16 grid gap-6 md:grid-cols-3" id="work">
         <h3 className="font-medium">Selected work</h3>
-        <div className="rounded-xl border border-border bg-card text-card-foreground shadow-sm p-6">An intermediate representation and compiler for LLM-generated interfaces. Rust, WebAssembly, 162 tests. Emits React that typechecks under strict mode.</div>
-        <div className="rounded-xl border border-border bg-card text-card-foreground shadow-sm p-6">HR platform serving payroll and attendance at scale. Owned the reporting pipeline and cut month-end close from hours to minutes.</div>
-        <div className="rounded-xl border border-border bg-card text-card-foreground shadow-sm p-6">Double-entry accounting core with an append-only journal. Postgres, Rust, and property tests instead of hope.</div>
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">An intermediate representation and compiler for LLM-generated interfaces. Rust, WebAssembly, 162 tests. Emits React that typechecks under strict mode.</div>
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">HR platform serving payroll and attendance at scale. Owned the reporting pipeline and cut month-end close from hours to minutes.</div>
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">Double-entry accounting core with an append-only journal. Postgres, Rust, and property tests instead of hope.</div>
       </section>
-      <section className="mt-10 scroll-mt-16" id="about">
+      <section className="mx-auto max-w-6xl px-6 py-16" id="about">
         <h3 className="font-medium">About</h3>
-        <h2 className="mt-8 scroll-m-20 border-b border-border pb-2 text-2xl font-semibold tracking-tight text-foreground">Twelve years of shipping things that other engineers depend on</h2>
-        <p className="leading-7 text-foreground">I like the layer where correctness is checkable — parsers, compilers, schedulers, anything where a test can tell you the truth. Most of my work is in Rust and TypeScript, and most of it exists to make somebody else's job smaller.</p>
-        <p className="leading-7 text-foreground">Before tooling I spent six years on product teams, which is why I care whether the thing renders. A compiler that emits inaccessible markup has not finished its job.</p>
-        <div className="flex items-center gap-2 justify-between">
-          <p className="mt-6 text-center text-5xl font-bold tabular-nums text-foreground">{projects.length}</p>
-          <p className="mt-6 text-center text-5xl font-bold tabular-nums text-foreground">{projects.filter((it) => it.live).length}</p>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Twelve years of shipping things that other engineers depend on</h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">I like the layer where correctness is checkable — parsers, compilers, schedulers, anything where a test can tell you the truth. Most of my work is in Rust and TypeScript, and most of it exists to make somebody else's job smaller.</p>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Before tooling I spent six years on product teams, which is why I care whether the thing renders. A compiler that emits inaccessible markup has not finished its job.</p>
+        <div className="flex items-center gap-3 justify-between">
+          <p className="mt-6 text-center text-5xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{projects.length}</p>
+          <p className="mt-6 text-center text-5xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{projects.filter((it) => it.live).length}</p>
         </div>
       </section>
-      <section className="mt-10 scroll-mt-16 grid gap-6 md:grid-cols-3" id="stack">
+      <section className="mx-auto max-w-6xl px-6 py-16 grid gap-6 md:grid-cols-3" id="stack">
         <h3 className="font-medium">How I work</h3>
-        <div className="rounded-xl border border-border bg-card text-card-foreground shadow-sm p-6">Every number in a README is traceable to a command you can run. If it is an estimate, it says so.</div>
-        <div className="rounded-xl border border-border bg-card text-card-foreground shadow-sm p-6">Diagnostics get spans, stable codes, and a suggested fix. The best error message is one a machine can apply.</div>
-        <div className="rounded-xl border border-border bg-card text-card-foreground shadow-sm p-6">Two bugs in the last scaffold were caught by tests written before the code was believed.</div>
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">Every number in a README is traceable to a command you can run. If it is an estimate, it says so.</div>
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">Diagnostics get spans, stable codes, and a suggested fix. The best error message is one a machine can apply.</div>
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">Two bugs in the last scaffold were caught by tests written before the code was believed.</div>
       </section>
-      <section className="mt-10 scroll-mt-16" id="archive">
+      <section className="mx-auto max-w-6xl px-6 py-16" id="archive">
         <h3 className="font-medium">Everything else</h3>
-        <p className="leading-7 text-foreground">Filter by area. The list, its loading skeleton, its empty state and its error banner are generated — none of it is written here.</p>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Filter by area. The list, its loading skeleton, its empty state and its error banner are generated — none of it is written here.</p>
         <div className="mt-4 flex gap-2">
           {AREA_OPTIONS.map((option) => (
             <button
@@ -257,13 +257,13 @@ export default function Portfolio() {
           </p>
         )}
         {projectsLoading ? (
-          <table className="mt-6 w-full caption-bottom border-collapse text-sm">
+          <table className="mt-6 w-full border-collapse rounded-md border border-slate-200 dark:border-slate-800 text-sm">
           <thead>
             <tr>
-              <th scope="col" className="h-10 border-b border-border px-2 text-left align-middle font-medium whitespace-nowrap text-muted-foreground">Project</th>
-              <th scope="col" className="h-10 border-b border-border px-2 text-left align-middle font-medium whitespace-nowrap text-muted-foreground">Stack</th>
-              <th scope="col" className="h-10 border-b border-border px-2 text-left align-middle font-medium whitespace-nowrap text-muted-foreground">Year</th>
-              <th scope="col" className="h-10 border-b border-border px-2 text-left align-middle font-medium whitespace-nowrap text-muted-foreground">Live</th>
+              <th scope="col" className="border-b border-slate-200 dark:border-slate-800 px-3 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Project</th>
+              <th scope="col" className="border-b border-slate-200 dark:border-slate-800 px-3 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Stack</th>
+              <th scope="col" className="border-b border-slate-200 dark:border-slate-800 px-3 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Year</th>
+              <th scope="col" className="border-b border-slate-200 dark:border-slate-800 px-3 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Live</th>
             </tr>
           </thead>
             <tbody>
@@ -275,31 +275,31 @@ export default function Portfolio() {
             </tbody>
           </table>
         ) : visibleProjects.length === 0 ? (
-          <p className="mt-10 text-center text-sm text-muted-foreground">Nothing in this area yet.</p>
+          <p className="mt-10 text-center text-sm text-slate-500 dark:text-slate-400">Nothing in this area yet.</p>
         ) : (
-          <table className="mt-6 w-full caption-bottom border-collapse text-sm">
+          <table className="mt-6 w-full border-collapse rounded-md border border-slate-200 dark:border-slate-800 text-sm">
           <thead>
             <tr>
-              <th scope="col" className="h-10 border-b border-border px-2 text-left align-middle font-medium whitespace-nowrap text-muted-foreground">Project</th>
-              <th scope="col" className="h-10 border-b border-border px-2 text-left align-middle font-medium whitespace-nowrap text-muted-foreground">Stack</th>
-              <th scope="col" className="h-10 border-b border-border px-2 text-left align-middle font-medium whitespace-nowrap text-muted-foreground">Year</th>
-              <th scope="col" className="h-10 border-b border-border px-2 text-left align-middle font-medium whitespace-nowrap text-muted-foreground">Live</th>
+              <th scope="col" className="border-b border-slate-200 dark:border-slate-800 px-3 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Project</th>
+              <th scope="col" className="border-b border-slate-200 dark:border-slate-800 px-3 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Stack</th>
+              <th scope="col" className="border-b border-slate-200 dark:border-slate-800 px-3 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Year</th>
+              <th scope="col" className="border-b border-slate-200 dark:border-slate-800 px-3 py-2 text-left text-xs font-medium text-slate-500 dark:text-slate-400">Live</th>
             </tr>
           </thead>
             <tbody>
               {visibleProjects.map((item, i) => (
                 <tr key={item.id}>
-                  <td className="border-b border-border p-2 align-middle whitespace-nowrap text-foreground">
-                  <span className="flex-1 text-sm text-foreground">{item.name}</span>
+                  <td className="border-b border-slate-200 dark:border-slate-800 px-3 py-2 align-middle text-slate-900 dark:text-slate-100">
+                  <span className="flex-1 text-sm text-slate-900 dark:text-slate-100">{item.name}</span>
                   </td>
-                  <td className="border-b border-border p-2 align-middle whitespace-nowrap text-foreground">
-                  <span className="flex-1 text-sm text-foreground">{item.stack}</span>
+                  <td className="border-b border-slate-200 dark:border-slate-800 px-3 py-2 align-middle text-slate-900 dark:text-slate-100">
+                  <span className="flex-1 text-sm text-slate-900 dark:text-slate-100">{item.stack}</span>
                   </td>
-                  <td className="border-b border-border p-2 align-middle whitespace-nowrap text-foreground">
-                  <span className="flex-1 text-sm text-foreground">{item.year}</span>
+                  <td className="border-b border-slate-200 dark:border-slate-800 px-3 py-2 align-middle text-slate-900 dark:text-slate-100">
+                  <span className="flex-1 text-sm text-slate-900 dark:text-slate-100">{item.year}</span>
                   </td>
-                  <td className="border-b border-border p-2 align-middle whitespace-nowrap text-foreground">
-                  <input className="size-4 shrink-0 rounded-[4px] border border-input shadow-xs transition-shadow focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none disabled:pointer-events-none disabled:opacity-50" type="checkbox" aria-label="Live" checked={item.live} />
+                  <td className="border-b border-slate-200 dark:border-slate-800 px-3 py-2 align-middle text-slate-900 dark:text-slate-100">
+                  <input className="h-4 w-4 rounded border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100 disabled:opacity-40" type="checkbox" aria-label="Live" checked={item.live} />
                   </td>
                 </tr>
               ))}
@@ -307,16 +307,16 @@ export default function Portfolio() {
           </table>
         )}
       </section>
-      <section className="mt-10 scroll-mt-16" id="contact">
+      <section className="mx-auto max-w-6xl px-6 py-16" id="contact">
         <h3 className="font-medium">Contact</h3>
-        <h2 className="mt-8 scroll-m-20 border-b border-border pb-2 text-2xl font-semibold tracking-tight text-foreground">Tell me what you are building</h2>
-        <p className="leading-7 text-foreground">The fastest way to reach me is this form. I reply to everything that is not a recruiter template.</p>
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Tell me what you are building</h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">The fastest way to reach me is this form. I reply to everything that is not a recruiter template.</p>
         <form className="mt-6 flex gap-2" onSubmit={(e) => { e.preventDefault(); messagesSend({ name: name, email: email, body: body }); setName(""); setEmail(""); setBody(""); }}>
-          <input className="flex h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-colors placeholder:text-muted-foreground md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none disabled:pointer-events-none disabled:opacity-50" type="text" aria-label="Your name" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
-          <input className="flex h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-colors placeholder:text-muted-foreground md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none disabled:pointer-events-none disabled:opacity-50" type="email" aria-label="Email address" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <input className="flex h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-colors placeholder:text-muted-foreground md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none disabled:pointer-events-none disabled:opacity-50" type="text" aria-label="What you are building" placeholder="A sentence or two" value={body} onChange={(e) => setBody(e.target.value)} />
-          <input className="peer inline-flex h-[1.15rem] w-8 shrink-0 items-center rounded-full border border-transparent bg-input shadow-xs transition-all focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none disabled:pointer-events-none disabled:opacity-50" type="checkbox" role="switch" aria-label="Send me occasional notes about compilers" />
-          <button className="inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all h-9 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none disabled:pointer-events-none disabled:opacity-50" type="submit" disabled={!email.trim()}>{messagesSaving ? "Sending…" : "Send message"}</button>
+          <input className="flex-1 rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm outline-none bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100 disabled:opacity-40" type="text" aria-label="Your name" placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
+          <input className="flex-1 rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm outline-none bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100 disabled:opacity-40" type="email" aria-label="Email address" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <input className="flex-1 rounded-md border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm outline-none bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100 disabled:opacity-40" type="text" aria-label="What you are building" placeholder="A sentence or two" value={body} onChange={(e) => setBody(e.target.value)} />
+          <input className="h-4 w-4 rounded border-slate-300 dark:border-slate-700 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100 disabled:opacity-40" type="checkbox" role="switch" aria-label="Send me occasional notes about compilers" />
+          <button className="rounded-md px-4 py-2 text-sm font-medium transition-colors bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-200 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100 disabled:opacity-40" type="submit" disabled={!email.trim()}>{messagesSaving ? "Sending…" : "Send message"}</button>
         </form>
       </section>
       <div className="mt-8 divide-y divide-slate-200 border-y border-slate-200">
@@ -333,11 +333,11 @@ export default function Portfolio() {
           </details>
         ))}
       </div>
-      <footer className="mt-16 border-t border-border pt-6 text-sm text-muted-foreground">
+      <footer className="border-t border-slate-200 dark:border-slate-800 px-6 py-8 text-sm text-slate-500 dark:text-slate-400">
         <h3 className="font-medium">© 2026 Ravi Kishan</h3>
-        <a className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none" href="/contact">Email</a>
-        <a className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none" href="/github">GitHub</a>
-        <a className="text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none" href="/linkedin">LinkedIn</a>
+        <a className="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100" href="/contact">Email</a>
+        <a className="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100" href="/github">GitHub</a>
+        <a className="text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 focus:ring-2 focus:ring-slate-900 dark:focus:ring-slate-100" href="/linkedin">LinkedIn</a>
       </footer>
     </>
   );

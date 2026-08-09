@@ -13,13 +13,14 @@ members = [
     "crates/guml-lsp",
     "crates/guml-wasm",
     "crates/guml-fmt-wasm",
+    "crates/guml-python",
 ]
 # `fuzz/` needs a nightly toolchain and libFuzzer. Excluding it keeps that requirement out of every
 # `cargo test` — see fuzz/Cargo.toml for why the seeded in-repo fuzzer is the one CI runs.
 exclude = ["fuzz"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 # **MSRV, and it is a promise.** Raising it is a breaking change for anyone pinned to an older
 # toolchain, so it moves in a minor release with a changelog entry, never quietly.
@@ -42,15 +43,15 @@ categories = ["compilers", "development-tools", "web-programming"]
 # dependencies are path-only: the path is meaningful in this workspace and meaningless to anyone who
 # downloads the crate, so the version is what the published artifact actually depends on. Keep these in
 # lockstep with `workspace.package.version` — `cargo publish --dry-run` is what catches a stale one.
-guml-diagnostics = { path = "crates/guml-diagnostics", version = "0.1.0" }
-guml-syntax = { path = "crates/guml-syntax", version = "0.1.0" }
-guml-ast = { path = "crates/guml-ast", version = "0.1.0" }
-guml-parser = { path = "crates/guml-parser", version = "0.1.0" }
-guml-registry = { path = "crates/guml-registry", version = "0.1.0" }
-guml-codegen = { path = "crates/guml-codegen", version = "0.1.0" }
-guml-fmt = { path = "crates/guml-fmt", version = "0.1.0" }
-guml-compiler = { path = "crates/guml-compiler", version = "0.1.0" }
-guml-wasm = { path = "crates/guml-wasm", version = "0.1.0" }
+guml-diagnostics = { path = "crates/guml-diagnostics", version = "0.2.0" }
+guml-syntax = { path = "crates/guml-syntax", version = "0.2.0" }
+guml-ast = { path = "crates/guml-ast", version = "0.2.0" }
+guml-parser = { path = "crates/guml-parser", version = "0.2.0" }
+guml-registry = { path = "crates/guml-registry", version = "0.2.0" }
+guml-codegen = { path = "crates/guml-codegen", version = "0.2.0" }
+guml-fmt = { path = "crates/guml-fmt", version = "0.2.0" }
+guml-compiler = { path = "crates/guml-compiler", version = "0.2.0" }
+guml-wasm = { path = "crates/guml-wasm", version = "0.2.0" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -62,7 +63,21 @@ anyhow = "1"
 opt-level = 3
 lto = "thin"
 codegen-units = 1
-panic = "abort"
+# **Unwind, not abort**, and the difference is not academic.
+#
+# This compiler is embedded: in a Python extension, in a wasm module in a browser tab, in a language
+# server that runs on every keystroke. With `panic = "abort"` a panic anywhere in it kills the *host* —
+# PyO3 cannot convert an aborting panic into a Python exception, so a Flask worker dies rather than
+# returning a 500, and there is no traceback beyond a line on stderr.
+#
+# That is not hypothetical. `card {😀` — an unterminated brace before any multibyte character — panicked
+# the lexer, and with abort it took down the CLI, the wheel and anything embedding either. The slicing
+# bug is fixed and a byte-level fuzzer now guards the class, but the next one will be found the same
+# way, and a library should hand its host a catchable failure rather than a corpse.
+#
+# The cost is a slightly larger binary and unwind tables. For `guml-cli` alone abort would be fine; a
+# profile applies to the whole build, and the embedders are what matter.
+panic = "unwind"
 
 # Compile times matter: the LLM repair loop calls the compiler in a hot path.
 [profile.dev]

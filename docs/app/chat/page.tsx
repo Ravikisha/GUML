@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 export default function Page() {
   return (
-    <main className="pt-24">
+    <div className="pt-24">
       <header className="mx-auto max-w-(--container-page) px-4 pb-6 md:px-6">
         <div className="flex flex-wrap items-baseline justify-between gap-4">
           <div>
@@ -32,6 +32,6 @@ export default function Page() {
         </div>
       </header>
       <Chat />
-    </main>
+    </div>
   );
 }

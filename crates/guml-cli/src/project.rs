@@ -92,13 +92,42 @@ impl RegistryRef {
     }
 }
 
+/// How a `theme` entry was written, resolved in [`Project::theme_source`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ThemeSource {
+    /// A theme compiled into the binary: `"tailwind"`, `"shadcn"`.
+    Builtin(String),
+    /// A `.json` theme document, or a plugin directory containing `guml.theme.json`.
+    File(PathBuf),
+}
+
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Project {
+    /// Plugins: packages that contribute vocabulary, styling, or both.
+    ///
+    /// The friendly form of `registries` + `theme`, and the one to reach for. Each entry is a package
+    /// name resolved through `node_modules` (`"@guml/shadcn"`) or a directory (`"./design-system"`),
+    /// and the compiler loads whichever of these it finds inside:
+    ///
+    /// * `guml.registry.json` — tags, and the components they lower to
+    /// * `guml.theme.json` — the class table
+    ///
+    /// A design system is normally both, and stating it once is the point: naming the vocabulary and
+    /// the styling separately is two chances to install one and forget the other, which produces a
+    /// document full of tags that render unstyled.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub plugins: Vec<String>,
     /// Registry packages to load, in order. Later packages may not shadow earlier ones or the builtins.
+    ///
+    /// Explicit paths to registry *files*. `plugins` covers the common case; this stays for a registry
+    /// that is not laid out as a package, and for pinning.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub registries: Vec<RegistryRef>,
-    /// Theme document replacing the shipped design-system table.
+    /// The design-system table: a builtin name (`"tailwind"`, `"shadcn"`), a path to a theme document,
+    /// or a plugin that ships one.
+    ///
+    /// Omitted means `tailwind` — stock utilities that any Tailwind install resolves with no setup.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub theme: Option<PathBuf>,
     /// Default backend for `guml build`.
@@ -169,16 +198,129 @@ impl Project {
         if path.is_absolute() { path.to_path_buf() } else { self.root.join(path) }
     }
 
-    /// Each configured registry as `(resolved path, pinned version)`.
-    pub fn registry_refs(&self) -> Vec<(PathBuf, Option<String>)> {
-        self.registries
-            .iter()
-            .map(|r| (self.resolve(r.path()), r.version().map(str::to_string)))
-            .collect()
+    /// Locate a plugin: a `node_modules` package name, or a directory.
+    ///
+    /// `node_modules` is searched upward from the config, the way every JavaScript tool resolves — a
+    /// pnpm workspace hoists to the repository root, so looking only beside `guml.json` would fail in
+    /// exactly the layout this project itself uses.
+    pub fn plugin_dir(&self, name: &str) -> Result<PathBuf> {
+        let direct = self.resolve(Path::new(name));
+        if direct.is_dir() {
+            return Ok(direct);
+        }
+
+        let mut dir = Some(self.root.as_path());
+        while let Some(d) = dir {
+            let candidate = d.join("node_modules").join(name);
+            if candidate.is_dir() {
+                return Ok(candidate);
+            }
+            dir = d.parent();
+        }
+
+        anyhow::bail!(
+            "plugin `{name}` not found\n\
+             looked for a directory at {} and for `node_modules/{name}` from there upward\n\
+             install it (`pnpm add {name}`), or point at a directory if it is local",
+            direct.display()
+        )
     }
 
-    pub fn theme_path(&self) -> Option<PathBuf> {
-        self.theme.as_ref().map(|p| self.resolve(p))
+    /// Every registry file to load: each plugin's `guml.registry.json`, then explicit `registries`.
+    ///
+    /// Plugins first so an explicit entry can be listed after one and win the ordering, matching how
+    /// `--registry` wins over the config.
+    pub fn registry_refs(&self) -> Result<Vec<(PathBuf, Option<String>)>> {
+        let mut out = Vec::new();
+
+        for name in &self.plugins {
+            let dir = self.plugin_dir(name)?;
+            let registry = dir.join("guml.registry.json");
+            if registry.is_file() {
+                out.push((registry, None));
+            } else if !dir.join("guml.theme.json").is_file() {
+                // Neither half present. Silence here would leave the author believing a vocabulary was
+                // loaded, and the failure would surface as "unknown tag" pointing at their document
+                // rather than at their config.
+                anyhow::bail!(
+                    "plugin `{name}` at {} contains neither `guml.registry.json` nor `guml.theme.json`\n\
+                     a plugin must contribute vocabulary, styling, or both",
+                    dir.display()
+                );
+            }
+        }
+
+        out.extend(
+            self.registries
+                .iter()
+                .map(|r| (self.resolve(r.path()), r.version().map(str::to_string))),
+        );
+        Ok(out)
+    }
+
+    /// Where the theme comes from: a builtin name, a file, or a plugin that ships one.
+    ///
+    /// Resolution order, and the ambiguity is worth stating because `"shadcn"` is both a builtin theme
+    /// and a package name:
+    ///
+    /// 1. A **builtin name** wins. `"shadcn"` means the shipped table, which is what someone typing it
+    ///    means, and it needs nothing installed.
+    /// 2. Otherwise a **path** — a `.json` file, or a directory holding `guml.theme.json`.
+    /// 3. Otherwise a **plugin name**, resolved through `node_modules`.
+    ///
+    /// With no `theme` at all, a plugin's own `guml.theme.json` applies if exactly one ships a theme.
+    /// Two plugins with themes is ambiguous and is reported rather than resolved by list order: the
+    /// answer would depend on something the author never intended to express.
+    pub fn theme_source(&self) -> Result<Option<ThemeSource>> {
+        if let Some(theme) = &self.theme {
+            let name = theme.to_string_lossy();
+            if guml_codegen::theme::Theme::by_name(&name).is_some() {
+                return Ok(Some(ThemeSource::Builtin(name.into_owned())));
+            }
+
+            let path = self.resolve(theme);
+            if path.is_file() {
+                return Ok(Some(ThemeSource::File(path)));
+            }
+            let in_dir = path.join("guml.theme.json");
+            if in_dir.is_file() {
+                return Ok(Some(ThemeSource::File(in_dir)));
+            }
+            if let Ok(dir) = self.plugin_dir(&name) {
+                let from_plugin = dir.join("guml.theme.json");
+                if from_plugin.is_file() {
+                    return Ok(Some(ThemeSource::File(from_plugin)));
+                }
+            }
+
+            anyhow::bail!(
+                "theme `{name}` not found\n\
+                 it is not a builtin ({}), not a file at {}, and no plugin by that name ships \
+                 `guml.theme.json`",
+                guml_codegen::theme::Theme::builtin_names().join(", "),
+                path.display()
+            );
+        }
+
+        let from_plugins: Vec<PathBuf> = self
+            .plugins
+            .iter()
+            .filter_map(|name| self.plugin_dir(name).ok())
+            .map(|d| d.join("guml.theme.json"))
+            .filter(|p| p.is_file())
+            .collect();
+
+        match from_plugins.len() {
+            0 => Ok(None),
+            1 => Ok(Some(ThemeSource::File(from_plugins.into_iter().next().unwrap()))),
+            _ => anyhow::bail!(
+                "{} plugins ship a theme and none is selected: {}\n\
+                 add a `\"theme\"` naming the one you want — resolving this by list order would make \
+                 the design of every page depend on something you did not intend to say",
+                from_plugins.len(),
+                from_plugins.iter().map(|p| p.display().to_string()).collect::<Vec<_>>().join(", ")
+            ),
+        }
     }
 
     pub fn is_core(&self) -> bool {
@@ -221,8 +363,190 @@ mod tests {
         // directories, so a document is valid in the editor and invalid in CI.
         let mut p = parse(r#"{"registries":[{"path":"./ds.json","version":"0.1.0"}]}"#);
         p.root = PathBuf::from("/project");
-        let refs = p.registry_refs();
+        let refs = p.registry_refs().expect("resolvable");
         assert_eq!(refs[0].0, PathBuf::from("/project").join("./ds.json"));
         assert_eq!(refs[0].1.as_deref(), Some("0.1.0"));
+    }
+}
+
+#[cfg(test)]
+mod plugin_tests {
+    use super::*;
+
+    fn project_at(dir: &Path, json: &str) -> Project {
+        let mut p: Project = serde_json::from_str(json).expect("a project config");
+        p.root = dir.to_path_buf();
+        p
+    }
+
+    /// A plugin directory holding whichever halves the test needs.
+    fn plugin(dir: &Path, name: &str, registry: bool, theme: bool) -> PathBuf {
+        let d = dir.join(name);
+        std::fs::create_dir_all(&d).expect("mkdir");
+        if registry {
+            std::fs::write(d.join("guml.registry.json"), r#"{"name":"x","components":[]}"#)
+                .unwrap();
+        }
+        if theme {
+            std::fs::write(d.join("guml.theme.json"), r#"{"name":"x","contract":{},"rules":[]}"#)
+                .unwrap();
+        }
+        d
+    }
+
+    fn tmp(label: &str) -> PathBuf {
+        let d = std::env::temp_dir().join(format!("guml-plugin-{label}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).expect("tmp");
+        d
+    }
+
+    #[test]
+    fn a_plugin_contributes_both_halves_from_one_entry() {
+        // The whole point of `plugins` over `registries` + `theme`: naming a design system's vocabulary
+        // and its styling separately is two chances to install one and forget the other, and the
+        // failure mode of forgetting the theme is a page full of correct tags rendering unstyled.
+        let dir = tmp("both");
+        plugin(&dir, "design", true, true);
+        let p = project_at(&dir, r#"{"plugins":["./design"]}"#);
+
+        assert_eq!(p.registry_refs().unwrap().len(), 1);
+        assert!(matches!(p.theme_source().unwrap(), Some(ThemeSource::File(_))));
+    }
+
+    #[test]
+    fn a_plugin_may_ship_only_a_theme() {
+        let dir = tmp("themeonly");
+        plugin(&dir, "brand", false, true);
+        let p = project_at(&dir, r#"{"plugins":["./brand"]}"#);
+
+        assert!(p.registry_refs().unwrap().is_empty(), "no vocabulary to contribute");
+        assert!(matches!(p.theme_source().unwrap(), Some(ThemeSource::File(_))));
+    }
+
+    #[test]
+    fn a_plugin_contributing_nothing_is_reported() {
+        // Silence would leave the author believing a vocabulary was loaded, and the failure would then
+        // surface as `unknown tag` pointing at their document rather than at their config.
+        let dir = tmp("empty");
+        plugin(&dir, "hollow", false, false);
+        let p = project_at(&dir, r#"{"plugins":["./hollow"]}"#);
+
+        let err = p.registry_refs().unwrap_err().to_string();
+        assert!(err.contains("neither"), "{err}");
+    }
+
+    #[test]
+    fn a_missing_plugin_says_where_it_looked() {
+        let dir = tmp("missing");
+        let p = project_at(&dir, r#"{"plugins":["@nope/nothing"]}"#);
+        let err = p.registry_refs().unwrap_err().to_string();
+        assert!(err.contains("node_modules"), "{err}");
+        assert!(err.contains("pnpm add"), "the message should say how to fix it: {err}");
+    }
+
+    #[test]
+    fn a_builtin_theme_name_beats_a_package_of_the_same_name() {
+        // `shadcn` is both a shipped theme and a package. Someone typing `"theme": "shadcn"` means the
+        // theme, and must not need the package installed to get it.
+        let dir = tmp("builtin");
+        let p = project_at(&dir, r#"{"theme":"shadcn"}"#);
+        assert_eq!(p.theme_source().unwrap(), Some(ThemeSource::Builtin("shadcn".into())));
+    }
+
+    #[test]
+    fn an_unknown_theme_names_the_builtins() {
+        let dir = tmp("badtheme");
+        let p = project_at(&dir, r#"{"theme":"nope"}"#);
+        let err = p.theme_source().unwrap_err().to_string();
+        assert!(err.contains("tailwind"), "{err}");
+        assert!(err.contains("shadcn"), "{err}");
+    }
+
+    #[test]
+    fn two_plugins_shipping_themes_is_reported_rather_than_resolved_by_order() {
+        // Picking by list position would make the design of every page depend on something the author
+        // never intended to express, and would change silently when the list was reordered.
+        let dir = tmp("twothemes");
+        plugin(&dir, "a", true, true);
+        plugin(&dir, "b", true, true);
+        let p = project_at(&dir, r#"{"plugins":["./a","./b"]}"#);
+
+        let err = p.theme_source().unwrap_err().to_string();
+        assert!(err.contains("2 plugins"), "{err}");
+
+        // Naming one resolves it.
+        let chosen = project_at(&dir, r#"{"plugins":["./a","./b"],"theme":"./b"}"#);
+        assert!(matches!(chosen.theme_source().unwrap(), Some(ThemeSource::File(_))));
+    }
+
+    #[test]
+    fn no_config_at_all_means_the_default_theme() {
+        // The out-of-the-box case, and the reason the default is stock Tailwind: nothing configured,
+        // nothing installed, and the output still styles under a bare `pnpm add tailwindcss`.
+        let dir = tmp("none");
+        let p = project_at(&dir, "{}");
+        assert_eq!(p.theme_source().unwrap(), None);
+        assert!(p.registry_refs().unwrap().is_empty());
+    }
+}
+
+#[cfg(test)]
+mod schema_tests {
+    /// The published JSON Schema must describe the compiler that exists.
+    ///
+    /// `guml.json` carries `$schema`, so an editor autocompletes from this file. A schema listing a
+    /// backend the compiler cannot resolve — or missing one it can — is worse than no schema: it
+    /// offers a completion that fails at build time, or underlines a valid config in red. Both send
+    /// the author looking in the wrong place.
+    #[test]
+    fn the_published_schema_lists_exactly_the_backends_that_resolve() {
+        let raw = std::fs::read_to_string("../../docs/public/schema/guml.json")
+            .expect("the published schema");
+        let schema: serde_json::Value = serde_json::from_str(&raw).expect("valid JSON");
+
+        let listed: Vec<&str> = schema["properties"]["backend"]["enum"]
+            .as_array()
+            .expect("backend enum")
+            .iter()
+            .map(|v| v.as_str().expect("string"))
+            .collect();
+
+        let mut from_schema = listed.clone();
+        from_schema.sort_unstable();
+        let mut from_compiler = guml_codegen::backend_names().to_vec();
+        from_compiler.sort_unstable();
+
+        assert_eq!(
+            from_schema, from_compiler,
+            "the schema and the compiler disagree about backends"
+        );
+
+        for name in &listed {
+            assert!(
+                guml_codegen::backend(name).is_some(),
+                "schema offers `{name}`, which is unknown"
+            );
+        }
+    }
+
+    /// And the themes it offers as examples must be selectable by those names.
+    #[test]
+    fn the_schema_examples_for_theme_are_real() {
+        let raw = std::fs::read_to_string("../../docs/public/schema/guml.json")
+            .expect("the published schema");
+        let schema: serde_json::Value = serde_json::from_str(&raw).expect("valid JSON");
+
+        for example in schema["properties"]["theme"]["examples"].as_array().expect("examples") {
+            let name = example.as_str().expect("string");
+            // Paths and package names are resolved at load time; only bare names are claims about
+            // what is compiled in.
+            if !name.contains('/') && !name.contains('.') {
+                assert!(
+                    guml_codegen::theme::Theme::by_name(name).is_some(),
+                    "the schema offers theme `{name}`, which is not builtin"
+                );
+            }
+        }
     }
 }

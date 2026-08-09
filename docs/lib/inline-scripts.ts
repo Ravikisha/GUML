@@ -44,10 +44,41 @@ export const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_ID ?? "G-TVB6WV9HVT"
 /** Where `gtag.js` is loaded from. Needed in `script-src`. */
 export const GA_SCRIPT_ORIGIN = "https://www.googletagmanager.com";
 
-/** The `gtag.js` bootstrap, exactly as Google specifies it. */
+/** Where the reader's analytics choice is stored. Same-origin, first-party, never sent anywhere. */
+export const CONSENT_KEY = "guml-consent";
+
+/**
+ * The `gtag.js` bootstrap, with Consent Mode v2 **denied before anything else runs**.
+ *
+ * The ordering is the whole point and it is easy to get wrong. `gtag('consent', 'default', …)` has to
+ * execute before `gtag('config', …)`, and both have to be in the page before `gtag.js` finishes
+ * loading — otherwise the tag fires once with identifiers already set, and a consent banner shown
+ * afterwards is asking permission for something that has already happened.
+ *
+ * Denied-by-default rather than granted: `analytics_storage: "denied"` means GA4 sets no cookie and no
+ * identifier. It still sends a cookieless ping, which is what Consent Mode is for — Google can model
+ * aggregate traffic without storing anything on the reader's device, and nothing that could identify
+ * them leaves the page. A reader who accepts flips it with `gtag('consent', 'update', …)`, which is
+ * what `ConsentBanner` calls.
+ *
+ * `ad_storage`/`ad_user_data`/`ad_personalization` are denied unconditionally and never updated. This
+ * site runs no ads and has no reason to ever grant them, so they are stated rather than left to a
+ * default that could change under us.
+ */
 export const analyticsScript =
   `window.dataLayer = window.dataLayer || [];` +
   `function gtag(){dataLayer.push(arguments);}` +
+  `gtag('consent', 'default', {` +
+  `'ad_storage':'denied',` +
+  `'ad_user_data':'denied',` +
+  `'ad_personalization':'denied',` +
+  `'analytics_storage':'denied',` +
+  `'wait_for_update': 500` +
+  `});` +
+  // A prior "accept" is restored before the tag configures, so a returning reader is not measured as
+  // a denied session for the first half-second of every visit.
+  `try{if(localStorage.getItem('${CONSENT_KEY}')==='granted'){` +
+  `gtag('consent','update',{'analytics_storage':'granted'});}}catch(e){}` +
   `gtag('js', new Date());` +
   `gtag('config', '${GA_MEASUREMENT_ID}');`;
 

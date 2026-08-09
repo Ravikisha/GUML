@@ -4,26 +4,34 @@
   "trace": [
     {
       "layer": "raw",
-      "errors": 0,
-      "codes": []
+      "errors": 2,
+      "codes": [
+        "GUML0023"
+      ]
     },
     {
       "layer": "sanitize",
-      "errors": 0,
-      "codes": [],
+      "errors": 2,
+      "codes": [
+        "GUML0023"
+      ],
       "fenced": false,
-      "separators": 0,
-      "droppedLines": 0
+      "droppedLines": 0,
+      "fixed": 0
     },
     {
       "layer": "format",
-      "errors": 0,
-      "codes": []
+      "errors": 2,
+      "codes": [
+        "GUML0023"
+      ]
     },
     {
       "layer": "fix",
-      "errors": 0,
-      "codes": []
+      "errors": 2,
+      "codes": [
+        "GUML0023"
+      ]
     }
   ]
 }

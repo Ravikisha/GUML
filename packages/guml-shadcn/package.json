@@ -1,6 +1,6 @@
 {
   "name": "@guml/shadcn",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -40,11 +40,13 @@
     "./ui/*": {
       "types": "./src/components/ui/*.tsx",
       "import": "./src/components/ui/*.tsx"
-    }
+    },
+    "./theme": "./guml.theme.json"
   },
   "files": [
     "src",
     "guml.registry.json",
+    "guml.theme.json",
     "components.json",
     "README.md",
     "LICENSE",

@@ -6,3 +6,16 @@ packages:
   # `tsc -p .` never ran on it — the one piece of first-party TypeScript in this repository with no
   # typecheck at all, and the piece users install.
   - editors/vscode
+
+# All seven advisories `pnpm audit` reports are transitive: postcss, nanoid and sharp arrive through
+# `next`, and brace-expansion through `vscode-languageclient`. None is a direct dependency, so pinning
+# the patched versions here is the only way to resolve them without waiting on an upstream release.
+#
+# Revisit when Next ships a version carrying these itself — an override that has become redundant is
+# a version floor nobody remembers agreeing to.
+overrides:
+  postcss: ">=8.5.23"
+  nanoid: ">=3.3.17"
+  sharp: ">=0.35.0"
+  # Two major lines are affected; this path resolves through minimatch, which needs the v5 fix.
+  brace-expansion: ">=5.0.9"

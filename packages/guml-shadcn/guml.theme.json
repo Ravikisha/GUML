@@ -1,0 +1,441 @@
+{
+  "$comment": [
+    "shadcn/ui as a GUML theme. The default one.",
+    "",
+    "Class strings and tokens taken from shadcn/ui's own `registry/new-york-v4/ui/*.tsx` \u2014 the button's",
+    "variant set, the input's border and ring treatment, the badge's tone set, the table's cell metrics.",
+    "The token names are shadcn's exactly: `--background`/`--foreground` pairs, `--primary`,",
+    "`--secondary`, `--muted`, `--accent`, `--destructive`, `--border`, `--input`, `--ring`, `--card`,",
+    "`--popover`, `--sidebar`, `--radius`. So a host that already runs shadcn drops this in and its own",
+    "palette applies with no further work: the variables are the interface.",
+    "",
+    "WHAT IS DELIBERATELY NOT CARRIED, because a class table cannot:",
+    "",
+    "  * Radix behaviour. shadcn's dialog traps focus, its select is a listbox with keyboard navigation,",
+    "    its tooltip positions itself. Those are components, not classes. GUML's `modal`, `select` and",
+    "    `drawer` get shadcn's *appearance* and the compiler's own semantics \u2014 a real `<select>`, a",
+    "    `<template>` in the no-JavaScript build. A host that wants Radix behaviour points a registry",
+    "    package at its own components with `element`/`import`; that is what `packages/guml-widgets`",
+    "    demonstrates.",
+    "  * `data-[state=...]` and `aria-invalid:` variants. They key off attributes Radix sets, and this",
+    "    compiler does not emit them, so a rule for them would be dead.",
+    "  * `[&_svg]` descendant selectors. GUML has no icon primitive yet, so there is nothing to select.",
+    "",
+    "Every class here has a rule in `shadcn.css`, enforced by",
+    "`every_class_the_builtin_theme_emits_has_a_rule_in_its_stylesheet`. That is not decoration: the",
+    "static-HTML backend has no build step, so it inlines this stylesheet, and a class with no rule is a",
+    "silently unstyled no-JavaScript page."
+  ],
+  "name": "shadcn",
+  "contract": {
+    "focus_visible": "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] outline-none",
+    "min_contrast": 4.8,
+    "disabled": "disabled:pointer-events-none disabled:opacity-50"
+  },
+  "rules": [
+    {
+      "tag": "card",
+      "base": "rounded-xl border border-border bg-card text-card-foreground shadow-sm p-6"
+    },
+    {
+      "tag": "card",
+      "when": [
+        "sm"
+      ],
+      "add": "mx-auto mt-10 w-full max-w-sm"
+    },
+    {
+      "tag": "card",
+      "when": [
+        "center"
+      ],
+      "add": "text-center"
+    },
+    {
+      "tag": "row",
+      "base": "flex items-center gap-2"
+    },
+    {
+      "tag": "row",
+      "when": [
+        "center"
+      ],
+      "add": "justify-center",
+      "group": "align"
+    },
+    {
+      "tag": "row",
+      "when": [
+        "between"
+      ],
+      "add": "justify-between",
+      "group": "align"
+    },
+    {
+      "tag": "row",
+      "when": [
+        "end"
+      ],
+      "add": "justify-end",
+      "group": "align"
+    },
+    {
+      "tag": "row",
+      "when": [
+        "wrap"
+      ],
+      "add": "flex-wrap"
+    },
+    {
+      "tag": "col",
+      "base": "flex flex-col gap-2"
+    },
+    {
+      "tag": "col",
+      "when": [
+        "center"
+      ],
+      "add": "items-center",
+      "group": "align"
+    },
+    {
+      "tag": "section",
+      "base": "mt-10 scroll-mt-16"
+    },
+    {
+      "tag": "nav",
+      "base": "flex items-center justify-between border-b border-border pb-4"
+    },
+    {
+      "tag": "hero",
+      "base": "mt-12 flex flex-col items-center gap-4 text-center"
+    },
+    {
+      "tag": "footer",
+      "base": "mt-16 border-t border-border pt-6 text-sm text-muted-foreground"
+    },
+    {
+      "tag": "form",
+      "base": "mt-6 flex gap-2"
+    },
+    {
+      "tag": "grid",
+      "base": "grid gap-6"
+    },
+    {
+      "tag": "sidebar",
+      "base": "rounded-lg border border-border bg-sidebar text-sidebar-foreground p-4"
+    },
+    {
+      "tag": "toolbar",
+      "base": "flex items-center gap-2 border-b border-border pb-3"
+    },
+    {
+      "tag": "h1",
+      "base": "scroll-m-20 text-4xl font-extrabold tracking-tight text-foreground"
+    },
+    {
+      "tag": "h2",
+      "base": "mt-8 scroll-m-20 border-b border-border pb-2 text-2xl font-semibold tracking-tight text-foreground"
+    },
+    {
+      "tag": "h",
+      "base": "mt-8 scroll-m-20 border-b border-border pb-2 text-2xl font-semibold tracking-tight text-foreground"
+    },
+    {
+      "tag": "p",
+      "base": "leading-7 text-foreground"
+    },
+    {
+      "tag": "head",
+      "base": "text-2xl font-semibold tracking-tight text-foreground"
+    },
+    {
+      "tag": "text",
+      "base": "flex-1 text-sm text-foreground"
+    },
+    {
+      "tag": "metric",
+      "base": "mt-6 text-center text-5xl font-bold tabular-nums text-foreground"
+    },
+    {
+      "tag": "note",
+      "base": "mt-1 text-xs text-muted-foreground"
+    },
+    {
+      "tag": "empty",
+      "base": "mt-10 text-center text-sm text-muted-foreground"
+    },
+    {
+      "tag": "option",
+      "base": "text-sm text-foreground"
+    },
+    {
+      "tag": "step",
+      "base": "text-sm text-muted-foreground"
+    },
+    {
+      "tag": "btn",
+      "base": "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all h-9 px-4 py-2"
+    },
+    {
+      "tag": "btn",
+      "when": [
+        "primary"
+      ],
+      "add": "bg-primary text-primary-foreground hover:bg-primary/90",
+      "group": "intent"
+    },
+    {
+      "tag": "btn",
+      "when": [
+        "secondary"
+      ],
+      "add": "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+      "group": "intent"
+    },
+    {
+      "tag": "btn",
+      "when": [
+        "danger"
+      ],
+      "add": "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+      "group": "intent"
+    },
+    {
+      "tag": "btn",
+      "when": [
+        "outline"
+      ],
+      "add": "border border-input bg-background shadow-xs hover:bg-accent hover:text-accent-foreground",
+      "group": "intent"
+    },
+    {
+      "tag": "btn",
+      "when": [
+        "ghost"
+      ],
+      "add": "hover:bg-accent hover:text-accent-foreground",
+      "group": "intent"
+    },
+    {
+      "tag": "btn",
+      "when": [
+        "quiet"
+      ],
+      "add": "text-primary underline-offset-4 hover:underline",
+      "group": "intent"
+    },
+    {
+      "tag": "btn",
+      "add": "border border-input bg-background shadow-xs hover:bg-accent hover:text-accent-foreground",
+      "group": "intent"
+    },
+    {
+      "tag": "btn",
+      "when": [
+        "xs"
+      ],
+      "add": "h-6 gap-1 px-2 text-xs",
+      "group": "size"
+    },
+    {
+      "tag": "btn",
+      "when": [
+        "sm"
+      ],
+      "add": "h-8 gap-1.5 px-3",
+      "group": "size"
+    },
+    {
+      "tag": "btn",
+      "when": [
+        "lg"
+      ],
+      "add": "h-10 px-6",
+      "group": "size"
+    },
+    {
+      "tag": "link",
+      "base": "text-sm font-medium text-primary underline-offset-4 hover:underline"
+    },
+    {
+      "tag": "input",
+      "base": "flex h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-colors placeholder:text-muted-foreground md:text-sm"
+    },
+    {
+      "tag": "select",
+      "base": "flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs"
+    },
+    {
+      "tag": "check",
+      "base": "size-4 shrink-0 rounded-[4px] border border-input shadow-xs transition-shadow"
+    },
+    {
+      "tag": "toggle",
+      "base": "peer inline-flex h-[1.15rem] w-8 shrink-0 items-center rounded-full border border-transparent bg-input shadow-xs transition-all"
+    },
+    {
+      "tag": "progress",
+      "base": "relative h-2 w-full overflow-hidden rounded-full bg-primary/20"
+    },
+    {
+      "tag": "alert",
+      "base": "relative mt-6 grid w-full items-start gap-2 rounded-lg border border-border px-4 py-3 text-sm bg-card text-card-foreground"
+    },
+    {
+      "tag": "alert",
+      "when": [
+        "danger"
+      ],
+      "add": "text-destructive bg-card border-destructive/50",
+      "group": "tone"
+    },
+    {
+      "tag": "badge",
+      "base": "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-md border px-2 py-0.5 text-xs font-medium whitespace-nowrap"
+    },
+    {
+      "tag": "badge",
+      "when": [
+        "primary"
+      ],
+      "add": "border-transparent bg-primary text-primary-foreground",
+      "group": "tone"
+    },
+    {
+      "tag": "badge",
+      "when": [
+        "secondary"
+      ],
+      "add": "border-transparent bg-secondary text-secondary-foreground",
+      "group": "tone"
+    },
+    {
+      "tag": "badge",
+      "when": [
+        "danger"
+      ],
+      "add": "border-transparent bg-destructive text-destructive-foreground",
+      "group": "tone"
+    },
+    {
+      "tag": "badge",
+      "when": [
+        "quiet"
+      ],
+      "add": "border-border text-foreground",
+      "group": "tone"
+    },
+    {
+      "tag": "badge",
+      "add": "border-border text-foreground",
+      "group": "tone"
+    },
+    {
+      "tag": "toast",
+      "base": "fixed bottom-6 right-6 z-50 rounded-lg border border-border bg-popover text-popover-foreground px-4 py-3 text-sm shadow-lg"
+    },
+    {
+      "tag": "skeleton",
+      "base": "animate-pulse rounded-md bg-accent h-12 w-full"
+    },
+    {
+      "tag": "avatar",
+      "base": "relative flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-medium text-muted-foreground"
+    },
+    {
+      "tag": "divider",
+      "base": "my-4 h-px w-full shrink-0 border-0 bg-border"
+    },
+    {
+      "tag": "img",
+      "base": "block max-w-full rounded-md"
+    },
+    {
+      "tag": "breadcrumb",
+      "base": "flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground"
+    },
+    {
+      "tag": "pagination",
+      "base": "mx-auto flex w-full items-center justify-center gap-1"
+    },
+    {
+      "tag": "stepper",
+      "base": "flex items-center gap-4 text-sm"
+    },
+    {
+      "tag": "menu",
+      "base": "flex w-full min-w-0 flex-col gap-1 text-sm"
+    },
+    {
+      "tag": "modal",
+      "base": "fixed top-1/2 left-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border border-border bg-background p-6 shadow-lg"
+    },
+    {
+      "tag": "drawer",
+      "base": "fixed inset-y-0 right-0 z-50 flex h-full w-3/4 flex-col gap-4 border-l border-border bg-background p-6 shadow-lg sm:max-w-sm"
+    },
+    {
+      "tag": "table",
+      "base": "mt-6 w-full caption-bottom border-collapse text-sm"
+    },
+    {
+      "tag": "th",
+      "base": "h-10 border-b border-border px-2 text-left align-middle font-medium whitespace-nowrap text-muted-foreground"
+    },
+    {
+      "tag": "td",
+      "base": "border-b border-border p-2 align-middle whitespace-nowrap text-foreground"
+    },
+    {
+      "tag": "list",
+      "base": "mt-6 divide-y divide-border rounded-md border border-border"
+    },
+    {
+      "tag": "stat",
+      "base": "rounded-xl border border-border bg-card text-card-foreground p-6 m-0"
+    },
+    {
+      "tag": "stat-label",
+      "base": "text-sm text-muted-foreground"
+    },
+    {
+      "tag": "stat-value",
+      "base": "ml-0 mt-1 text-3xl font-semibold tabular-nums text-foreground"
+    },
+    {
+      "tag": "stat-delta",
+      "base": "mt-1 text-xs text-muted-foreground"
+    },
+    {
+      "tag": "*",
+      "when": [
+        "full"
+      ],
+      "add": "w-full"
+    },
+    {
+      "tag": "*",
+      "when": [
+        "tight"
+      ],
+      "add": "gap-1"
+    },
+    {
+      "tag": "*",
+      "when": [
+        "loose"
+      ],
+      "add": "gap-6"
+    },
+    {
+      "tag": "*",
+      "when": [
+        "start"
+      ],
+      "add": "text-left"
+    }
+  ],
+  "css": "/* shadcn/ui as plain CSS, for the static-HTML backend.\n *\n * # Why this file exists at all\n *\n * The React and Svelte backends emit class names and the host's own Tailwind pipeline resolves them. The\n * static-HTML backend has **no build step** \u2014 that is the point of it \u2014 so it cannot run a utility-class\n * compiler, and a themed no-JavaScript document would be completely unstyled without this. Every class the\n * theme emits has a rule here, enforced by `every_class_the_builtin_theme_emits_has_a_rule_in_its_stylesheet`.\n * A missing rule is a silent, purely visual failure, which is exactly the kind a test has to catch.\n *\n * # The tokens are shadcn's, verbatim\n *\n * `--background`/`--foreground` pairs, `--primary`, `--secondary`, `--muted`, `--accent`, `--destructive`,\n * `--border`, `--input`, `--ring`, `--card`, `--popover`, `--sidebar`, `--radius`, in `oklch` \u2014 the neutral\n * default from shadcn's theming docs. A host that already runs shadcn can delete the `:root` block below and\n * its own palette applies unchanged, because the variables *are* the interface. That is the whole reason to\n * theme in tokens rather than in colour literals.\n *\n * # What this is not\n *\n * Not Tailwind. It implements the ~160 utilities this theme actually uses and nothing else, so it stays\n * readable and auditable. Add a utility to `shadcn.json` and the test above tells you to add it here too.\n */\n\n:root {\n  --background: oklch(1 0 0);\n  --foreground: oklch(0.145 0 0);\n  --card: oklch(1 0 0);\n  --card-foreground: oklch(0.145 0 0);\n  --popover: oklch(1 0 0);\n  --popover-foreground: oklch(0.145 0 0);\n  --primary: oklch(0.205 0 0);\n  --primary-foreground: oklch(0.985 0 0);\n  --secondary: oklch(0.97 0 0);\n  --secondary-foreground: oklch(0.205 0 0);\n  --muted: oklch(0.97 0 0);\n  --muted-foreground: oklch(0.556 0 0);\n  --accent: oklch(0.97 0 0);\n  --accent-foreground: oklch(0.205 0 0);\n  --destructive: oklch(0.577 0.245 27.325);\n  --destructive-foreground: oklch(0.985 0 0);\n  --border: oklch(0.922 0 0);\n  --input: oklch(0.922 0 0);\n  --ring: oklch(0.708 0 0);\n  --sidebar: oklch(0.985 0 0);\n  --sidebar-foreground: oklch(0.145 0 0);\n  --radius: 0.625rem;\n}\n\n/* Both signals, because the viewer's system preference and an explicit toggle are different things and a\n * page should honour whichever it is given. */\n@media (prefers-color-scheme: dark) {\n  :root:not([data-theme=\"light\"]) {\n    --background: oklch(0.145 0 0);\n    --foreground: oklch(0.985 0 0);\n    --card: oklch(0.205 0 0);\n    --card-foreground: oklch(0.985 0 0);\n    --popover: oklch(0.269 0 0);\n    --popover-foreground: oklch(0.985 0 0);\n    --primary: oklch(0.922 0 0);\n    --primary-foreground: oklch(0.205 0 0);\n    --secondary: oklch(0.269 0 0);\n    --secondary-foreground: oklch(0.985 0 0);\n    --muted: oklch(0.269 0 0);\n    --muted-foreground: oklch(0.708 0 0);\n    --accent: oklch(0.371 0 0);\n    --accent-foreground: oklch(0.985 0 0);\n    --destructive: oklch(0.704 0.191 22.216);\n    --destructive-foreground: oklch(0.985 0 0);\n    --border: oklch(1 0 0 / 10%);\n    --input: oklch(1 0 0 / 15%);\n    --ring: oklch(0.556 0 0);\n    --sidebar: oklch(0.205 0 0);\n    --sidebar-foreground: oklch(0.985 0 0);\n  }\n}\n\n:root[data-theme=\"dark\"] {\n  --background: oklch(0.145 0 0);\n  --foreground: oklch(0.985 0 0);\n  --card: oklch(0.205 0 0);\n  --card-foreground: oklch(0.985 0 0);\n  --popover: oklch(0.269 0 0);\n  --popover-foreground: oklch(0.985 0 0);\n  --primary: oklch(0.922 0 0);\n  --primary-foreground: oklch(0.205 0 0);\n  --secondary: oklch(0.269 0 0);\n  --secondary-foreground: oklch(0.985 0 0);\n  --muted: oklch(0.269 0 0);\n  --muted-foreground: oklch(0.708 0 0);\n  --accent: oklch(0.371 0 0);\n  --accent-foreground: oklch(0.985 0 0);\n  --destructive: oklch(0.704 0.191 22.216);\n  --destructive-foreground: oklch(0.985 0 0);\n  --border: oklch(1 0 0 / 10%);\n  --input: oklch(1 0 0 / 15%);\n  --ring: oklch(0.556 0 0);\n  --sidebar: oklch(0.205 0 0);\n  --sidebar-foreground: oklch(0.985 0 0);\n}\n\n/* ------------------------------------------------------------------ reset\n *\n * Small and load-bearing. Without `box-sizing: border-box` every padded utility in this file computes the\n * wrong width, and without `body { margin: 0 }` the page has a browser default gutter no utility removes.\n * `html_backend.rs` asserts a reset is present, because a no-build-step page has nowhere else to get one.\n *\n * The base surface is set from the tokens here rather than on `<body>`'s class list, so a document with no\n * background utility of its own still gets the theme's \u2014 and gets the dark variant for free. */\n\n*,\n*::before,\n*::after {\n  box-sizing: border-box;\n}\n\nbody {\n  margin: 0;\n  background-color: var(--background);\n  color: var(--foreground);\n  /* shadcn's own stack: system UI first, so a page looks native before any webfont loads. */\n  font-family:\n    ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif;\n  line-height: 1.5;\n  -webkit-font-smoothing: antialiased;\n}\n\n/* ------------------------------------------------------------------ colour */\n\n.bg-background { background-color: var(--background); }\n.bg-card { background-color: var(--card); }\n.bg-popover { background-color: var(--popover); }\n.bg-primary { background-color: var(--primary); }\n.bg-secondary { background-color: var(--secondary); }\n.bg-muted { background-color: var(--muted); }\n.bg-accent { background-color: var(--accent); }\n.bg-destructive { background-color: var(--destructive); }\n.bg-border { background-color: var(--border); }\n.bg-input { background-color: var(--input); }\n.bg-sidebar { background-color: var(--sidebar); }\n.bg-transparent { background-color: transparent; }\n/* `color-mix` rather than a second variable: shadcn writes `bg-primary/20` and the opacity belongs to the\n * utility, not to the token. */\n.bg-primary\\/20 { background-color: color-mix(in oklab, var(--primary) 20%, transparent); }\n\n.text-foreground { color: var(--foreground); }\n.text-card-foreground { color: var(--card-foreground); }\n.text-popover-foreground { color: var(--popover-foreground); }\n.text-primary { color: var(--primary); }\n.text-primary-foreground { color: var(--primary-foreground); }\n.text-secondary-foreground { color: var(--secondary-foreground); }\n.text-muted-foreground { color: var(--muted-foreground); }\n.text-destructive { color: var(--destructive); }\n.text-destructive-foreground { color: var(--destructive-foreground); }\n.text-sidebar-foreground { color: var(--sidebar-foreground); }\n\n.border { border-width: 1px; border-style: solid; border-color: var(--border); }\n.border-0 { border-width: 0; }\n.border-b { border-bottom-width: 1px; border-bottom-style: solid; border-color: var(--border); }\n.border-t { border-top-width: 1px; border-top-style: solid; border-color: var(--border); }\n.border-l { border-left-width: 1px; border-left-style: solid; border-color: var(--border); }\n.border-border { border-color: var(--border); }\n.border-input { border-color: var(--input); }\n.border-transparent { border-color: transparent; }\n.border-destructive\\/50 { border-color: color-mix(in oklab, var(--destructive) 50%, transparent); }\n.border-collapse { border-collapse: collapse; }\n\n.divide-y > * + * { border-top-width: 1px; border-top-style: solid; }\n.divide-border > * + * { border-color: var(--border); }\n\n/* ------------------------------------------------------------------ focus, hover, disabled */\n\n/* shadcn v4's focus treatment: a 3px ring at half opacity plus a border colour change. `:focus-visible`\n * rather than `:focus`, which is what keeps a ring off a mouse click and on a keyboard tab. */\n.focus-visible\\:border-ring:focus-visible { border-color: var(--ring); }\n.focus-visible\\:ring-\\[3px\\]:focus-visible { box-shadow: 0 0 0 3px var(--guml-ring, transparent); }\n.focus-visible\\:ring-ring\\/50:focus-visible { --guml-ring: color-mix(in oklab, var(--ring) 50%, transparent); }\n.outline-none { outline: 2px solid transparent; outline-offset: 2px; }\n\n.hover\\:bg-primary\\/90:hover { background-color: color-mix(in oklab, var(--primary) 90%, transparent); }\n.hover\\:bg-secondary\\/80:hover { background-color: color-mix(in oklab, var(--secondary) 80%, transparent); }\n.hover\\:bg-destructive\\/90:hover { background-color: color-mix(in oklab, var(--destructive) 90%, transparent); }\n.hover\\:bg-accent:hover { background-color: var(--accent); }\n.hover\\:text-accent-foreground:hover { color: var(--accent-foreground); }\n.hover\\:underline:hover { text-decoration-line: underline; }\n\n/* Disabled is opacity *and* pointer-events, so it is not conveyed by colour alone \u2014 which is the contract\n * `Theme::validate` reads. */\n.disabled\\:opacity-50:disabled { opacity: 0.5; }\n.disabled\\:pointer-events-none:disabled { pointer-events: none; }\n\n/* ------------------------------------------------------------------ layout */\n\n.flex { display: flex; }\n.inline-flex { display: inline-flex; }\n.grid { display: grid; }\n.block { display: block; }\n.flex-col { flex-direction: column; }\n.flex-wrap { flex-wrap: wrap; }\n.flex-1 { flex: 1 1 0%; }\n.shrink-0 { flex-shrink: 0; }\n.items-center { align-items: center; }\n.items-start { align-items: flex-start; }\n.justify-center { justify-content: center; }\n.justify-between { justify-content: space-between; }\n.justify-end { justify-content: flex-end; }\n.relative { position: relative; }\n.fixed { position: fixed; }\n.inset-y-0 { top: 0; bottom: 0; }\n.top-1\\/2 { top: 50%; }\n.left-1\\/2 { left: 50%; }\n.right-0 { right: 0; }\n.right-6 { right: 1.5rem; }\n.bottom-6 { bottom: 1.5rem; }\n.z-50 { z-index: 50; }\n.-translate-x-1\\/2 { transform: translateX(-50%); }\n/* Both translate utilities on one element have to compose, so the pair is declared together as well. */\n.-translate-y-1\\/2 { transform: translateY(-50%); }\n.-translate-x-1\\/2.-translate-y-1\\/2 { transform: translate(-50%, -50%); }\n.overflow-hidden { overflow: hidden; }\n.caption-bottom { caption-side: bottom; }\n.align-middle { vertical-align: middle; }\n.whitespace-nowrap { white-space: nowrap; }\n.tabular-nums { font-variant-numeric: tabular-nums; }\n.peer { }\n.m-0 { margin: 0; }\n.mx-auto { margin-left: auto; margin-right: auto; }\n.ml-0 { margin-left: 0; }\n.my-4 { margin-top: 1rem; margin-bottom: 1rem; }\n.mt-1 { margin-top: 0.25rem; }\n.mt-6 { margin-top: 1.5rem; }\n.mt-8 { margin-top: 2rem; }\n.mt-10 { margin-top: 2.5rem; }\n.mt-12 { margin-top: 3rem; }\n.mt-16 { margin-top: 4rem; }\n.pb-2 { padding-bottom: 0.5rem; }\n.pb-3 { padding-bottom: 0.75rem; }\n.pb-4 { padding-bottom: 1rem; }\n.pt-6 { padding-top: 1.5rem; }\n.p-2 { padding: 0.5rem; }\n.p-4 { padding: 1rem; }\n.p-6 { padding: 1.5rem; }\n.px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }\n.px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }\n.px-4 { padding-left: 1rem; padding-right: 1rem; }\n.px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }\n.py-0\\.5 { padding-top: 0.125rem; padding-bottom: 0.125rem; }\n.py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }\n.py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }\n.py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }\n.gap-1 { gap: 0.25rem; }\n.gap-1\\.5 { gap: 0.375rem; }\n.gap-2 { gap: 0.5rem; }\n.gap-4 { gap: 1rem; }\n.gap-6 { gap: 1.5rem; }\n.scroll-m-20 { scroll-margin: 5rem; }\n.scroll-mt-16 { scroll-margin-top: 4rem; }\n\n/* ------------------------------------------------------------------ size */\n\n.h-2 { height: 0.5rem; }\n.h-6 { height: 1.5rem; }\n.h-8 { height: 2rem; }\n.h-9 { height: 2.25rem; }\n.h-10 { height: 2.5rem; }\n.h-12 { height: 3rem; }\n.h-px { height: 1px; }\n.h-full { height: 100%; }\n.h-\\[1\\.15rem\\] { height: 1.15rem; }\n.w-8 { width: 2rem; }\n.w-full { width: 100%; }\n.w-fit { width: fit-content; }\n.w-3\\/4 { width: 75%; }\n.min-w-0 { min-width: 0; }\n.max-w-full { max-width: 100%; }\n.max-w-sm { max-width: 24rem; }\n.max-w-lg { max-width: 32rem; }\n.size-4 { width: 1rem; height: 1rem; }\n.size-8 { width: 2rem; height: 2rem; }\n\n/* ------------------------------------------------------------------ radius, shadow, motion */\n\n/* Every radius derives from `--radius`, which is how a shadcn host retunes corner rounding in one place. */\n.rounded-md { border-radius: calc(var(--radius) - 2px); }\n.rounded-lg { border-radius: var(--radius); }\n.rounded-xl { border-radius: calc(var(--radius) + 4px); }\n.rounded-full { border-radius: 9999px; }\n.rounded-\\[4px\\] { border-radius: 4px; }\n\n.shadow-xs { box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05); }\n.shadow-sm { box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); }\n.shadow-lg { box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1); }\n\n.transition-all { transition-property: all; transition-duration: 150ms; }\n.transition-colors { transition-property: color, background-color, border-color; transition-duration: 150ms; }\n.transition-shadow { transition-property: box-shadow; transition-duration: 150ms; }\n\n/* `prefers-reduced-motion` is honoured, because a pulsing skeleton is exactly what that preference is for\n * and a compiler that owns presentation owns this too. */\n@keyframes guml-pulse {\n  50% { opacity: 0.5; }\n}\n.animate-pulse { animation: guml-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }\n@media (prefers-reduced-motion: reduce) {\n  .animate-pulse { animation: none; }\n  .transition-all,\n  .transition-colors,\n  .transition-shadow { transition-duration: 0s; }\n}\n\n/* ------------------------------------------------------------------ type */\n\n.text-xs { font-size: 0.75rem; line-height: 1rem; }\n.text-sm { font-size: 0.875rem; line-height: 1.25rem; }\n.text-base { font-size: 1rem; line-height: 1.5rem; }\n.text-2xl { font-size: 1.5rem; line-height: 2rem; }\n.text-3xl { font-size: 1.875rem; line-height: 2.25rem; }\n.text-4xl { font-size: 2.25rem; line-height: 2.5rem; }\n.text-5xl { font-size: 3rem; line-height: 1; }\n.font-medium { font-weight: 500; }\n.font-semibold { font-weight: 600; }\n.font-bold { font-weight: 700; }\n.font-extrabold { font-weight: 800; }\n.leading-7 { line-height: 1.75rem; }\n.tracking-tight { letter-spacing: -0.025em; }\n.text-center { text-align: center; }\n.text-left { text-align: left; }\n.underline-offset-4 { text-underline-offset: 4px; }\n.placeholder\\:text-muted-foreground::placeholder { color: var(--muted-foreground); }\n\n/* ------------------------------------------------------------------ responsive */\n\n@media (min-width: 768px) {\n  .md\\:text-sm { font-size: 0.875rem; line-height: 1.25rem; }\n}\n@media (min-width: 640px) {\n  .sm\\:max-w-sm { max-width: 24rem; }\n}\n\n/* Emitted by `cols=N` on a grid. Enumerated rather than generated, for the same reason the rest of this file\n * is: there is no build step here to generate anything. */\n@media (min-width: 768px) {\n  .md\\:grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }\n  .md\\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }\n  .md\\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }\n  .md\\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }\n  .md\\:grid-cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }\n  .md\\:grid-cols-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }\n}\n"
+}

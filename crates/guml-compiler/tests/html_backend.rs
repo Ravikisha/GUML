@@ -326,11 +326,15 @@ card
     assert!(out.starts_with('<'), "expected no leading indentation, got {:?}", &out[..20]);
 }
 
-/// A fragment cannot hold a `<head>`, so an inline stylesheet has nowhere to go. Silently dropping it
-/// is invariant 3 in its purest form — a page that renders unstyled and reports nothing — and
-/// repeating 20 KB of theme in every fragment is not an option either. It comes out as a second file.
+/// A fragment cannot hold a `<head>`, so an inline stylesheet has nowhere to go — and it must say so
+/// rather than quietly returning unstyled markup.
+///
+/// The first version of this emitted the CSS as a *second file*, and its test passed while being
+/// fiction: no backend name produced `{ style: Inline, fragment: true }`, so nothing a user could
+/// reach ever took that path. It was also the wrong answer — a site with fifty fragments wants one
+/// copy of the stylesheet in its layout, not fifty beside the fragments.
 #[test]
-fn a_fragment_with_the_inline_style_emits_its_stylesheet_separately() {
+fn a_fragment_reports_that_it_cannot_carry_an_inline_stylesheet() {
     let (program, _) = check(
         "page P
 card Hi
@@ -342,16 +346,13 @@ card Hi
     };
     let out = frag.emit(&program);
 
-    assert_eq!(
-        out.files.len(),
-        2,
-        "expected the fragment and its stylesheet: {:?}",
-        out.files.iter().map(|f| &f.path).collect::<Vec<_>>()
+    assert_eq!(out.files.len(), 1, "a fragment is one file");
+    assert!(!out.files[0].contents.contains("<style>"), "and carries no stylesheet");
+    assert!(
+        out.diagnostics.items.iter().any(|d| d.message.contains("no `<head>`")),
+        "it must report the dropped stylesheet, not drop it in silence: {:?}",
+        out.diagnostics.items.iter().map(|d| &d.message).collect::<Vec<_>>()
     );
-    assert!(out.files[0].path.ends_with(".html"));
-    assert!(out.files[1].path.ends_with(".css"));
-    assert!(!out.files[0].contents.contains("<style>"), "the fragment must stay content-only");
-    assert!(out.files[1].contents.contains("--background"), "expected the theme tokens");
 }
 
 /// Every name the resolver offers must resolve, or the CLI advertises a backend it cannot run.

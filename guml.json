@@ -1,0 +1,5 @@
+{
+  "$schema": "https://guml.vercel.app/schema/guml.json",
+  "backend": "react",
+  "level": "app"
+}

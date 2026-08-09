@@ -1558,3 +1558,13 @@ mod retrieval_tests {
         assert!(block.lines().count() == tags.len(), "one line per tag:\n{block}");
     }
 }
+
+/// The GUML language specification: the rules, sized for a model's context.
+///
+/// Rules only — the *vocabulary* is this crate's registry, and a prompt assembles both. Keeping them
+/// apart is what holds the spec under its 3,000-token budget: a tag table in the spec would duplicate
+/// a block the prompt already generates from the registry, costing tokens and able to drift from it.
+///
+/// Embedded at build time so it travels inside every published artifact. `guml mcp` serves it as the
+/// `guml_spec` tool, and `guml.SPEC` in the Python package is this constant.
+pub const SPEC: &str = include_str!(concat!(env!("OUT_DIR"), "/spec.md"));

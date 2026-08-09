@@ -15,7 +15,7 @@ head Expenses — Total: {expenses.amount.sum}
 form >expenses.add{label:draftLabel, amount:draftAmount, category:draftCategory}; draftLabel=""; draftAmount=0
   input draftLabel placeholder="Label"
   input draftAmount kind=number placeholder="Amount" required
-  select draftCategory
+  select draftCategory aria="draftCategory"
     option food
     option travel
     option other

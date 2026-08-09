@@ -1,0 +1,77 @@
+[build-system]
+requires = ["maturin>=1.7,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "guml"
+requires-python = ">=3.9"
+description = "Compile GUML — an intermediate representation for LLM-generated user interfaces — to HTML, React, Svelte and more."
+readme = "README.md"
+# An SPDX expression, and deliberately **no `license-files`**.
+#
+# maturin declares `License-File: LICENSE` from a licence sitting beside the manifest, but roots a
+# workspace sdist at the *workspace*, so the declared path resolves to `guml-0.1.0/LICENSE` while the
+# file lands at `guml-0.1.0/crates/guml-python/LICENSE`. PyPI rejects the mismatch:
+#
+#   400 License-File LICENSE does not exist in distribution file at guml-0.1.0/LICENSE
+#
+# The wheel is unaffected (it is rooted at the package) — this bites only the sdist, and only in a
+# workspace layout. maturin 1.14.1 is current and still does this.
+#
+# So the licence is declared as an expression, which is unambiguous and machine-readable, and the text
+# itself ships as package data in `python/guml/` — present in both artifacts, and reachable at runtime
+# via `importlib.resources.files("guml") / "LICENSE"`.
+license = "MIT"
+authors = [{ name = "GUML contributors" }]
+keywords = ["ui", "compiler", "codegen", "llm", "html", "jinja", "flask", "fastapi"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Software Development :: Compilers",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+    "Topic :: Text Processing :: Markup :: HTML",
+    "Typing :: Typed",
+]
+# No runtime dependencies, deliberately. The compiler is in the wheel; Jinja2 is an optional extra
+# because the extension is useless without it and everything else here works without it.
+dependencies = []
+dynamic = ["version"]
+
+[project.optional-dependencies]
+jinja = ["Jinja2>=3.0"]
+
+[project.urls]
+Homepage = "https://guml.vercel.app"
+Documentation = "https://guml.vercel.app/docs/python"
+Repository = "https://github.com/guml-lang/guml"
+Changelog = "https://github.com/guml-lang/guml/blob/main/CHANGELOG.md"
+Issues = "https://github.com/guml-lang/guml/issues"
+
+[project.scripts]
+# `pip install guml` puts the compiler on your PATH with no Rust toolchain. The console script is a
+# thin Python shim over the same crates the native `guml` binary is built from.
+guml = "guml.__main__:main"
+
+[tool.maturin]
+module-name = "guml._guml"
+python-source = "python"
+manifest-path = "Cargo.toml"
+# `extension-module` tells the linker Python's symbols arrive at load time. Correct for a `.so`, and
+# fatal for a test binary — so it is enabled here rather than as a Cargo default, and
+# `cargo test --workspace` keeps linking.
+features = ["pyo3/extension-module"]
+strip = true
+# The language spec lives at the workspace root and `build.rs` embeds it as `guml.SPEC`. maturin
+# vendors the workspace into the sdist but not files above the crate, so without this an
+# `sdist` install fails at the build script — which is exactly what happened the first time this was
+# packaged. Verified by extracting the tarball and building it, not by reading the file list.
+# The spec now lives in `guml-registry`, which maturin vendors into the sdist along with every other
+# workspace crate — so there is nothing to include here any more.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

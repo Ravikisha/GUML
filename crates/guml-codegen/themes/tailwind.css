@@ -1,4 +1,4 @@
-/* Stylesheet for the `slate` theme.
+/* Stylesheet for the `tailwind` theme — the default.
  *
  * The static HTML backend has no build step by design, so it cannot run Tailwind. This file
  * implements exactly the utilities the `slate` theme emits — nothing more. It is not a Tailwind
@@ -242,3 +242,23 @@ body {
 :root[data-theme="dark"] .dark\:hover\:text-slate-100:hover { color: #f1f5f9; }
 :root[data-theme="dark"] .dark\:divide-slate-800 > * + * { border-color: #1e293b; }
 :root[data-theme="dark"] .dark\:focus\:ring-slate-100:focus { --guml-ring: #f1f5f9; }
+
+/* Utilities added with the button sizes, badge tones and layout modifiers the registry advertises.
+   Without a rule here the no-JavaScript build renders them unstyled: this backend has no build step,
+   so a class with no declaration is a silent, purely visual failure. */
+.border-transparent { border-color: transparent; }
+.justify-end { justify-content: flex-end; }
+.text-base { font-size: 1rem; line-height: 1.5rem; }
+.gap-1\.5 { gap: 0.375rem; }
+.h-6 { height: 1.5rem; }
+.h-10 { height: 2.5rem; }
+.hover\:bg-slate-100:hover { background-color: #f1f5f9; }
+.hover\:bg-slate-200:hover { background-color: #e2e8f0; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .dark\:bg-slate-800 { background-color: #1e293b; }
+  :root:not([data-theme="light"]):not([data-theme="dark"]) .dark\:hover\:bg-slate-700:hover { background-color: #334155; }
+}
+
+:root[data-theme="dark"] .dark\:bg-slate-800 { background-color: #1e293b; }
+:root[data-theme="dark"] .dark\:hover\:bg-slate-700:hover { background-color: #334155; }

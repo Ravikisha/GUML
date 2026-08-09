@@ -330,8 +330,17 @@ fn lex_line(
                     .with_help("add a closing `}`"),
                 );
             }
-            let inner_end = i.saturating_sub(1).max(start + 1);
-            let inner = text[start + 1..inner_end.min(text.len())].to_string();
+            // `i` sits one past the closing `}` when the group terminated, so the final byte is that
+            // brace and must not become part of the contents. An **unterminated** group has no brace
+            // to trim: it ran to the end of the line, `i == bytes.len()`, and subtracting one there
+            // chops the last *byte* rather than the last character. Whenever that character is
+            // multibyte the index lands inside it and slicing a `&str` panics — `card {😀` was enough,
+            // and with `panic = "abort"` that took the whole process down.
+            //
+            // Both endpoints are guaranteed char boundaries now: `start` is the `{`, `i - 1` is the
+            // `}`, and `bytes.len()` is the end of the string.
+            let inner_end = if depth == 0 { i.saturating_sub(1) } else { i };
+            let inner = text[start + 1..inner_end.max(start + 1).min(text.len())].to_string();
             toks.push(Token { tok: Tok::Brace(inner.trim().to_string()), span: span_at(start, i) });
             continue;
         }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { reportError } from "@/lib/report-error";
 import { ButtonLink } from "@/components/ui";
 
 /**
@@ -23,8 +24,7 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Reaches the platform's log drain. Replace with an error tracker when one is wired up.
-    console.error("unhandled error", error);
+    reportError(error, { boundary: "route", digest: error.digest });
   }, [error]);
 
   return (

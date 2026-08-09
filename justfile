@@ -30,7 +30,7 @@ ci-rust: fmt-check lint test fmt-guml-check
 # reproduce locally. That is how a green local run and a red CI run become normal.
 #
 # Needs Node and pnpm as well as cargo. `ci-rust` is the subset that needs neither.
-ci: ci-rust mutation validate-all capabilities-budget reference-budget typecheck-emitted render-emitted check-wc highlight-parity check-tags grammar-test package-test wasm-fresh split-packages-test widgets-test shadcn-test editor-test check-packages docs-build phase0-verify bench-verify
+ci: ci-rust mutation validate-all capabilities-budget reference-budget typecheck-emitted render-emitted check-wc highlight-parity check-tags grammar-test package-test wasm-fresh cdn-test split-packages-test widgets-test shadcn-test editor-test python-test deps-audit mcp-test readme-claims check-packages docs-build docs-a11y phase0-verify bench-verify
 
 # Every `.guml` in the repository parses and analyses cleanly.
 validate-all:
@@ -99,6 +99,21 @@ split-packages-test:
     cd packages/guml-fmt && pnpm typecheck && pnpm test
     cd packages/guml-highlight && pnpm typecheck
 
+# The Python package. Needs maturin (`pip install maturin`) and builds the extension in place.
+#
+# `test_agreement.py` is the reason this recipe exists in the form it does. There are now three bindings
+# over one compiler — the CLI, the wasm and PyO3 — and this repository's most-repeated bug is two copies
+# of one thing disagreeing about one document: the element table (landmarks vanished from the no-JS
+# build), the class table, and the expression lowerer, three separate times. A Python binding that
+# quietly diverges would be the fourth. So every fixture is compiled through both the CLI and Python and
+# compared **byte for byte**, across five backends, plus formatting, canonical form and diagnostic codes.
+#
+# `test_html.py` is the second class of check: the emitted HTML is actually parsed, so unbalanced tags,
+# duplicate ids, unnamed buttons and images without alt text fail — none of which a substring assertion
+# would notice.
+python-test:
+    cd crates/guml-python && pip install --quiet . && python -m pytest tests -q
+
 # The tree-sitter tag lists must match the registry. They were stale — 8 text tags against a registry
 # of 16 — so half the vocabulary's prose lines lexed as piles of identifiers.
 check-tags:
@@ -133,6 +148,19 @@ shadcn-test:
     cargo run -q -p guml-cli -- registry --validate packages/guml-shadcn
     cd packages/guml-shadcn && pnpm typecheck && pnpm typecheck:example
 
+# The Rust half of dependency review. `pnpm audit` gated the JavaScript dependencies and nothing gated
+# these — the larger surface, since the compiler is what gets embedded in other people's servers.
+#
+# Four questions, and only the first is about vulnerabilities: known-broken crates, licences we may
+# actually redistribute (this project is MIT and publishes to three registries, so a copyleft
+# dependency would be a violation or a relicensing), duplicate versions, and whether anything came from
+# outside crates.io.
+#
+# It earned its place on the first run: RUSTSEC-2026-0177, a missing `Sync` bound in pyo3 0.27 allowing
+# data races under free-threaded Python. Fixed by upgrading to 0.29.
+deps-audit:
+    cargo deny check
+
 # Every package the docs name must exist on npm, and every size they quote must be the size npm reports.
 #
 # Both failures are invisible to a build: a typo'd name produces a page that compiles, renders, and sends
@@ -143,6 +171,65 @@ shadcn-test:
 # Network-dependent, so it skips rather than fails when the registry is unreachable.
 check-packages:
     cd docs && pnpm check:packages
+
+# The package must load from a CDN, both ways someone will try it.
+#
+# Neither path is verifiable from the filesystem: `import.meta.url` and `document.currentScript.src`
+# both resolve against an *origin*, and `file://` is not one. So this serves the package over real HTTP
+# and checks what decides whether a CDN load works — no bare specifiers a browser cannot resolve, the
+# wasm reachable at the path the module actually asks for, and the right `application/wasm` type.
+#
+# The browser half of the `<script src>` path is exercised by `packages/guml/cdn.html`, which a person
+# opens; Node has no `document.currentScript` to run it against.
+cdn-test:
+    node scripts/check-cdn.mjs
+
+# `guml mcp` must be reachable by a real client.
+#
+# Spawns the binary and speaks newline-delimited JSON-RPC to it, exactly as Claude Desktop, Claude Code
+# and Cursor do. Nothing calls a Rust function directly: the failure worth catching is "the server works
+# and no client can talk to it", and only the wire shows that.
+#
+# The check that matters least in theory and most in practice is "stdout is protocol messages only" —
+# one stray `println!` anywhere in the compiler corrupts the stream, and the client reports a
+# disconnection with no clue why.
+mcp-test:
+    node scripts/check-mcp.mjs
+
+# The two numbers the project is entitled to quote, printed together.
+#
+# Compression measured against the compiler's *own emitted output*, so no second author is involved —
+# the old figure compared a .guml fixture with a .react.tsx fixture written by the same person, which
+# is the first thing a referee attacks. And the mechanical repair rate over real model output, which
+# is the better argument and the one nobody else can quote.
+measure:
+    node scripts/measure.mjs
+
+# The counts the README states must be the counts that exist.
+#
+# They go stale constantly and every instance was found by accident: 298 KB of wasm when it was 787
+# (three places), 29 tags when there were 49, 367 tests when there were 514, then 507 when there were
+# 531. None was a lie — each was true when written, which is exactly why re-reading the file does not
+# catch them. Only a comparison does, and a comparison is a script.
+#
+# Matters more here than elsewhere: the README is the front page of a project whose claim discipline is
+# one of its arguments.
+readme-claims:
+    node scripts/check-readme-claims.mjs
+
+# Accessibility rules over the *rendered* docs site.
+#
+# The compiler enforces a11y contracts on the HTML it emits — a theme with no focus treatment is
+# refused, `render-emitted` parses every fixture and checks the rules. The documentation site *for that
+# compiler* had never been checked at all, which is an awkward gap to ship.
+#
+# It found two pages with two `<main>` landmarks on its first run — a document may contain exactly one,
+# and it is the same fault the fragment backend is careful to avoid.
+#
+# Needs the site running: rules about rendered output have to read rendered output, and a component
+# that looks fine in TSX can still emit a nameless button.
+docs-a11y:
+    cd docs && pnpm build && (pnpm start & echo $! > /tmp/guml-docs.pid) && sleep 10 && pnpm check:a11y; kill $(cat /tmp/guml-docs.pid)
 
 # The docs site has to build. It is a deployed artifact with three API routes and a playground that runs
 # the compiler, and until this was in `ci` a build break only surfaced at deploy time — which is the one

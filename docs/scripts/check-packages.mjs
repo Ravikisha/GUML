@@ -27,11 +27,27 @@ const TOLERANCE = 0.05;
 
 const packages = await import("../lib/packages.ts").then((m) => m.PACKAGES);
 
-/** Registry metadata for a package, or null if the network is unavailable. */
-async function fetchMeta(name) {
-  const res = await fetch(`https://registry.npmjs.org/${name.replace("/", "%2f")}`);
+/**
+ * Registry metadata for a package.
+ *
+ * Two indexes now. npm reports an exact `unpackedSize`, so its sizes are compared numerically. PyPI
+ * reports only the *compressed* size of each distribution file, which is a different quantity from the
+ * installed size the docs quote — so a PyPI entry is checked for existence and version, and its size
+ * is not compared. Pretending the two numbers are comparable would produce a check that fails for a
+ * reason that is not a mistake, which is worse than not checking.
+ */
+async function fetchMeta(pkg) {
+  if (pkg.registry === "pypi") {
+    const res = await fetch(`https://pypi.org/pypi/${pkg.name}/json`);
+    if (res.status === 404) return { missing: true };
+    if (!res.ok) throw new Error(`PyPI returned ${res.status} for ${pkg.name}`);
+    const body = await res.json();
+    return { version: body.info?.version, sizeUnknown: true };
+  }
+
+  const res = await fetch(`https://registry.npmjs.org/${pkg.name.replace("/", "%2f")}`);
   if (res.status === 404) return { missing: true };
-  if (!res.ok) throw new Error(`registry returned ${res.status} for ${name}`);
+  if (!res.ok) throw new Error(`registry returned ${res.status} for ${pkg.name}`);
   const body = await res.json();
   const latest = body["dist-tags"]?.latest;
   const version = body.versions?.[latest];
@@ -45,9 +61,15 @@ let failures = 0;
 let checked = 0;
 
 for (const p of packages) {
+  if (p.published === false) {
+    // Declared but not shipped. `<Pkg>` renders it without a link, so there is no 404 to catch yet.
+    console.log(`  skip   ${p.name} — not published yet (docs do not link to it)`);
+    continue;
+  }
+
   let meta;
   try {
-    meta = await fetchMeta(p.name);
+    meta = await fetchMeta(p);
   } catch (e) {
     console.log(`  skip   ${p.name} — registry unreachable (${e.message})`);
     continue;
@@ -60,6 +82,14 @@ for (const p of packages) {
   }
 
   checked++;
+
+  if (meta.sizeUnknown) {
+    // PyPI publishes compressed distribution sizes, not installed ones. Existence and version are
+    // what is checkable here.
+    console.log(`  ok     ${p.name}@${meta.version} (${p.registry}, size not comparable)`);
+    continue;
+  }
+
   const actual = kb(meta.unpackedSize);
   const claimed = parseKb(p.size);
   const drift = Math.abs(actual - claimed) / actual;

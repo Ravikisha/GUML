@@ -1,6 +1,6 @@
 {
   "name": "@guml/fmt",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "The GUML formatter and syntax classifier as WebAssembly. 178 KB, and it runs in Node.",
   "license": "MIT",

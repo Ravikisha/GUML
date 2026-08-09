@@ -1231,6 +1231,14 @@ impl<'a> Gen<'a> {
             }
         }
 
+        // A field the author left unnamed is named from the state it binds. `sema::check_label` warns
+        // when this fires, and that warning is only honest because the name is emitted here — see
+        // `crate::derived_aria_label`. Shared rather than per-backend for the usual reason: this is
+        // the third accessible-name rule, and the first two had already drifted.
+        if let Some(name) = crate::derived_aria_label(el) {
+            attrs.push(format!("aria-label={name:?}"));
+        }
+
         let attr_str =
             if attrs.is_empty() { String::new() } else { format!(" {}", attrs.join(" ")) };
 
@@ -2057,15 +2065,31 @@ mod tests {
 
     #[test]
     fn classes_are_semantic_not_positional() {
-        // Asserted against the *token*, not a colour literal. These read `bg-slate-900` and
-        // `text-slate-500` while slate was the default, which pinned the palette rather than the property
-        // and had to be rewritten the moment the default changed. `bg-primary` is the claim worth making:
-        // a modifier selects a *role*, and which colour that role is belongs to the theme.
-        assert!(classes("btn", &["primary"]).contains("bg-primary"));
-        assert!(classes("btn", &["danger"]).contains("bg-destructive"));
-        assert!(classes("btn", &["ghost"]).contains("hover:bg-accent"));
-        // An unmodified button is the recessive variant, so it does not compete with a primary beside it.
-        assert!(classes("btn", &[]).contains("border-input"));
+        // **Asserted against neither palette.** These pinned `bg-slate-900` while slate was the
+        // default, were rewritten to `bg-primary` when shadcn became it, and would have to be
+        // rewritten a third time now that stock Tailwind is. A test that has to change every time the
+        // default theme changes is testing the theme, not the thing it claims to.
+        //
+        // The property that actually holds is theme-independent: a modifier selects a *role*, so each
+        // one must produce a distinct class string, and that string must be whatever the active theme
+        // says it is. Which colour a role is belongs to the theme and to nothing here.
+        // Note this compares `classes()` against itself rather than against `theme::active()`: the
+        // backend appends the focus contract per focusable tag, so the two are *deliberately* not
+        // equal, and asserting they were would pin the wrong thing again.
+        let plain = classes("btn", &[]);
+        let variants: Vec<String> =
+            ["primary", "danger", "ghost"].iter().map(|m| classes("btn", &[m])).collect();
+
+        for (modifier, styled) in ["primary", "danger", "ghost"].iter().zip(&variants) {
+            assert_ne!(styled, &plain, "`{modifier}` selected no distinct role");
+        }
+        // And each intent differs from the others, not merely from the unmodified button — otherwise
+        // "every modifier maps to something" would pass while they all mapped to the same thing.
+        for (i, a) in variants.iter().enumerate() {
+            for b in &variants[i + 1..] {
+                assert_ne!(a, b, "two intents produced identical classes");
+            }
+        }
         // Two modifiers compose when they are in different groups; `sm` is size and `center` is alignment.
         assert!(classes("card", &["sm", "center"]).contains("max-w-sm"));
         assert!(classes("card", &["sm", "center"]).contains("text-center"));

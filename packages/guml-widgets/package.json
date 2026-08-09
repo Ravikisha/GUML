@@ -1,6 +1,6 @@
 {
   "name": "@guml/widgets",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "The five components GUML deliberately does not ship as builtins, as a registry package.",
   "license": "MIT",
   "type": "module",

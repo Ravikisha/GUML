@@ -1,5 +1,46 @@
 # Generation test: what six applications actually produced
 
+> ## Re-scored after two compiler changes — read this first
+>
+> Everything below describes the compiler **as it was when these six applications were generated**.
+> The model output has not changed; the compiler has. Re-running the scorer over the *same files*:
+>
+> | | at generation | now |
+> |---|---|---|
+> | compiled with no repair at all | 1 of 6 | **3 of 6** |
+> | compiled after the free repair layers | 4 of 6 | **4 of 6** |
+> | surviving every layer | 2 | 2 (`bmi`, `dashboard`) |
+>
+> The middle row did not move, and the reason is worth more than the row: **the harness had been
+> inflating it.** Its sanitiser dropped the last line whenever an error sat on it, without asking
+> whether that line was prose or real GUML — so on `bmi` it deleted seven lines of a working
+> calculator, whose expressions use `**`, and scored the result as repaired. The shipped
+> `guml repair` refuses that: `is_commentary` treats a known tag, a near-miss tag or a directive as
+> document rather than commentary. The harness now calls the shipped repair, so a number here is one
+> a user of the CLI, the npm package or the Python package can reproduce.
+>
+> **Both survivors are now `GUML0023` — the expression language**, not the vocabulary. `**`,
+> ternaries and `.where(status=new).count` are what a model reaches for and the expression parser does
+> not cover. That is the next bottleneck, and it is a different one from the last.
+>
+> Two changes did that, and both were cases where the compiler already held the information it was
+> refusing to use:
+>
+> * **`GUML0080`** demanded a `domain` on the bound state and never looked at the `option` children —
+>   while `guml_codegen::select_options` had reconciled both spellings for a while. Codegen accepted a
+>   form validation rejected.
+> * **`GUML0051`** refused a field with no `aria` while the state it binds sat in the same line.
+>   `select colour` is now named from `colour`, as a warning, and every backend emits that name.
+>
+> **The conclusion below — "it is the vocabulary", "the gap survives a 9× increase in capability" —
+> was right, and is now out of date.** It was the vocabulary, and the vocabulary was fixed. Recorded
+> rather than rewritten, because a finding that turns out to be actionable is worth more as a record
+> of what was found and what it cost to fix than as a paragraph quietly updated.
+>
+> `expenses` and `signup` — the two applications that met every functional requirement and still would
+> not compile — now compile with no repair.
+
+
 Run twice: `meta/llama-3.1-8b-instruct` (the product default) and
 `meta/llama-3.3-70b-instruct`, both hosted on build.nvidia.com. Shipping prompt (spec + full
 registry + 3 examples, 11,064 chars ≈ 3,073 est. tokens), `temperature 0.2`, n=1 per app.

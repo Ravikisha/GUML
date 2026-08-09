@@ -4,44 +4,46 @@
   "trace": [
     {
       "layer": "raw",
-      "errors": 8,
+      "errors": 7,
       "codes": [
         "GUML0003",
         "GUML0004",
         "GUML0020",
-        "GUML0065"
+        "GUML0023"
       ]
     },
     {
       "layer": "sanitize",
-      "errors": 2,
+      "errors": 7,
       "codes": [
-        "GUML0065"
+        "GUML0003",
+        "GUML0004",
+        "GUML0020",
+        "GUML0023"
       ],
       "fenced": false,
-      "separators": 0,
-      "droppedLines": 4
+      "droppedLines": 0,
+      "fixed": 0
     },
     {
       "layer": "format",
-      "errors": 2,
+      "errors": 7,
       "codes": [
-        "GUML0065"
+        "GUML0003",
+        "GUML0004",
+        "GUML0020",
+        "GUML0023"
       ]
     },
     {
       "layer": "fix",
-      "errors": 2,
+      "errors": 7,
       "codes": [
-        "GUML0065"
+        "GUML0003",
+        "GUML0004",
+        "GUML0020",
+        "GUML0023"
       ]
-    },
-    {
-      "layer": "model",
-      "errors": 0,
-      "codes": [],
-      "accepted": true,
-      "trial": 2
     }
   ]
 }

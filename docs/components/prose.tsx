@@ -1,6 +1,6 @@
 import { Info, Lightbulb, TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
-import { npmUrl, pkg } from "@/lib/packages";
+import { packageUrl, pkg } from "@/lib/packages";
 import { cn } from "@/lib/utils";
 
 /* --------------------------------------------------------------------------
@@ -91,15 +91,21 @@ export function C({ children }: { children: ReactNode }) {
  * page has a typo", and is exactly the wrong impression on an install page.
  */
 export function Pkg({ name }: { name: string }) {
-  const { name: verified } = pkg(name);
+  const entry = pkg(name);
+
+  // Not on its index yet: describe it, do not link to a 404.
+  if (entry.published === false) {
+    return <C>{entry.name}</C>;
+  }
+
   return (
     <a
-      href={npmUrl(verified)}
+      href={packageUrl(entry)}
       target="_blank"
       rel="noreferrer"
       className="rounded-[4px] border border-line bg-chalk/[0.04] px-1.5 py-0.5 font-mono text-[0.85em] text-iris underline decoration-iris/30 underline-offset-2 transition-colors hover:decoration-iris"
     >
-      {verified}
+      {entry.name}
     </a>
   );
 }

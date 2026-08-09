@@ -18,7 +18,15 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // hypothesis is not two clicks from an install command. That makes it the one thing the derive-from-nav
   // trick above cannot see, and the failure is the silent kind this file exists to avoid: taking the
   // group out of the sidebar dropped three live pages out of the sitemap in the same commit.
-  const outsideTheDocsNav = ["/research", "/research/measurements", "/research/prior-art"];
+  const outsideTheDocsNav = [
+    "/research",
+    "/research/measurements",
+    "/research/prior-art",
+    // Reachable from the footer and the consent banner rather than the docs nav, which is exactly the
+    // shape of page this list exists for — the second time a real page was missing from the sitemap
+    // for the same reason.
+    "/privacy",
+  ];
 
   const routes = ["/", "/examples", ...FLAT_NAV.map((item) => item.href), ...outsideTheDocsNav];
 

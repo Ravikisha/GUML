@@ -28,7 +28,7 @@ export type Tok = {
     text: string;
     cls: string;
 };
-export type Lang = "guml" | "tsx" | "bash" | "json" | "text";
+export type Lang = "guml" | "tsx" | "python" | "bash" | "json" | "text";
 /** The only place a class name becomes a colour. */
 export declare const CLASS_STYLE: Record<string, string>;
 /** Tokenize source into lines of coloured spans. */

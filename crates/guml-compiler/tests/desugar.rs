@@ -63,10 +63,16 @@ fn counter_still_compiles() {
     assert!(!d.has_errors());
     assert!(src.contains("const [count, setCount] = useState(0);"));
     assert!(src.contains("onClick={() => { setCount(count + 1); }}"));
-    // The *token*, not a colour. This read `bg-slate-900` and so pinned the default palette into a test
-    // about desugaring — `btn … primary` selecting the primary role is the claim; which colour that role
-    // is belongs to the theme, and the default is shadcn now.
-    assert!(src.contains("bg-primary"));
+    // Neither a colour nor a token. This read `bg-slate-900`, then `bg-primary`, and broke on each
+    // change of default theme — a test about *desugaring* has no business knowing the palette.
+    //
+    // The claim is that `btn … primary` selects a distinct role, so it is asserted by comparison:
+    // compile the same document without the modifier and require the output to differ. True under any
+    // theme, and it fails for the reason it should if `primary` ever becomes a no-op.
+    let (plain, _) = emit(
+        "page Counter\nstate count=0\n\ncard sm center\n  h Clicks\n  metric {count}\n  btn Increment >count++\n",
+    );
+    assert_ne!(src, plain, "`primary` selected no distinct role");
 }
 
 // ---- the desugar pass: what the model no longer has to write ----

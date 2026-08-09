@@ -5,7 +5,17 @@ into a vocabulary a model can write.
 
 ```sh
 pnpm add @guml/shadcn
-guml build app.guml --registry node_modules/@guml/shadcn/guml.registry.json
+```
+
+```json
+// guml.json — one entry, and you get the tags *and* the design tokens
+{
+  "plugins": ["@guml/shadcn"]
+}
+```
+
+```sh
+guml build app.guml
 ```
 
 ```guml
@@ -29,10 +39,14 @@ Radix, Base UI, cmdk, embla, recharts, react-day-picker, sonner, vaul. Not a rei
 `pnpm dlx shadcn@latest add <name>` still updates one in place, which is shadcn's own model, and nothing in
 this package edits them.
 
-**The theme is already the default.** GUML's builtin theme *is* shadcn — `crates/guml-codegen/themes/shadcn.json`,
-with shadcn's own token names (`--background`/`--foreground` pairs, `--primary`, `--muted`, `--border`,
-`--ring`, `--radius`) in `oklch`. So a document that never installs this package already looks like shadcn.
-What the package adds is the components a class table cannot express.
+**The theme travels with it.** `guml.theme.json` carries shadcn's own token names
+(`--background`/`--foreground` pairs, `--primary`, `--muted`, `--border`, `--ring`, `--radius`) in `oklch`,
+so listing this package under `plugins` gets you the components **and** the styling they expect.
+
+That is the point of one entry rather than two. GUML's default theme is stock Tailwind — literal utilities
+that any Tailwind install resolves — precisely because `bg-primary` and `text-foreground` mean nothing
+without the variables this package defines. Installing the vocabulary and forgetting the tokens would give
+you correct tags rendering unstyled, with no error.
 
 **26 tags.** Only the components GUML has no builtin for. `card`, `btn`, `badge`, `input`, `select`, `table`,
 `tabs`, `modal`, `drawer`, `sidebar`, `skeleton`, `progress`, `toast`, `avatar`, `breadcrumb` and

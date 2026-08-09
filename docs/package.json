@@ -14,7 +14,8 @@
     "check:highlight": "node --experimental-strip-types --no-warnings scripts/check-highlight-parity.mjs",
     "check:previews": "node --experimental-strip-types --no-warnings scripts/check-doc-previews.mjs",
     "typecheck": "pnpm build:deps && tsc --noEmit",
-    "check:packages": "node --experimental-strip-types --no-warnings scripts/check-packages.mjs"
+    "check:packages": "node --experimental-strip-types --no-warnings scripts/check-packages.mjs",
+    "check:a11y": "node scripts/check-a11y.mjs"
   },
   "dependencies": {
     "@guml/core": "workspace:*",
@@ -37,6 +38,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.12",
+    "node-html-parser": "^9.0.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

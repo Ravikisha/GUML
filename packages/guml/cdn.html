@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GUML from a CDN</title>
+    <style>
+      body { font: 15px/1.6 system-ui, sans-serif; margin: 0; padding: 2rem; max-width: 60rem; }
+      h1 { font-size: 1.4rem; }
+      .row { display: grid; gap: 1rem; grid-template-columns: 1fr 1fr; align-items: start; }
+      textarea { width: 100%; height: 12rem; font: 13px/1.5 ui-monospace, monospace; padding: .6rem; }
+      iframe { width: 100%; height: 12rem; border: 1px solid #ccc; }
+      .status { font: 13px ui-monospace, monospace; padding: .5rem 0; }
+      .fail { color: #b00; }
+      .pass { color: #070; }
+    </style>
+  </head>
+  <body>
+    <h1>GUML from a CDN — the <code>&lt;script src&gt;</code> path</h1>
+    <p>
+      No bundler, no module syntax, no build step. This page is the browser half of
+      <code>scripts/check-cdn.mjs</code>: Node has no <code>document.currentScript</code>, so the way
+      the global build finds its wasm can only be exercised here.
+    </p>
+
+    <!--
+      A classic script, deliberately. `type="module"` would work too and is the better choice for a
+      modern app — but it is also the path that already worked, so testing it here would prove nothing.
+
+      Swap the src for a CDN URL to check a published version:
+        https://cdn.jsdelivr.net/npm/@guml/core
+        https://unpkg.com/@guml/core
+    -->
+    <script src="./dist/guml.global.js"></script>
+
+    <div class="status" id="status">loading…</div>
+
+    <div class="row">
+      <textarea id="src">
+page "Hello"
+
+card
+  h From a CDN
+  p No bundler, no build step.
+  btn Try it primary</textarea
+      >
+      <iframe id="out" title="compiled output"></iframe>
+    </div>
+
+    <script>
+      const status = document.getElementById("status");
+      const src = document.getElementById("src");
+      const out = document.getElementById("out");
+
+      const say = (text, ok) => {
+        status.textContent = text;
+        status.className = "status " + (ok ? "pass" : "fail");
+      };
+
+      async function render() {
+        try {
+          // `window.guml` is what the global build defines. Everything is async because the wasm
+          // loads on first use — already warming since the script tag executed.
+          const result = await window.guml.compile(src.value, "html");
+          out.srcdoc = result.files[0].contents;
+          const diagnostics = await window.guml.check(src.value);
+          say(
+            `compiled — ${result.files[0].contents.length} bytes, ${diagnostics.length} diagnostic(s), ` +
+              `compiler ${await window.guml.version()}`,
+            true,
+          );
+        } catch (e) {
+          say(`failed: ${e && e.message ? e.message : e}`, false);
+        }
+      }
+
+      if (!window.guml) {
+        say("window.guml is not defined — the global bundle did not load", false);
+      } else {
+        src.addEventListener("input", render);
+        render();
+      }
+    </script>
+  </body>
+</html>

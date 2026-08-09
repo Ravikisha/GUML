@@ -24,6 +24,7 @@ export default function Page() {
         { id: "dark", title: "Light and dark" },
         { id: "integration", title: "Making your build see the classes" },
         { id: "css", title: "Stylesheets and the HTML backend" },
+        { id: "default", title: "The default is stock Tailwind" },
         { id: "using", title: "Loading one" },
       ]}
     >
@@ -201,14 +202,52 @@ guml theme --classes > src/guml-classes.txt`}
         backend for an inline style without one is reported rather than silently emitting an unstyled page.
       </P>
 
+      <H2 id="default">The default is stock Tailwind</H2>
+      <P>
+        With no configuration at all, GUML emits <C>bg-white dark:bg-slate-900</C>,{" "}
+        <C>border-slate-200</C>, <C>text-slate-500</C> — literal utilities that <em>any</em> Tailwind
+        install resolves. Nothing to install, nothing to import, no variables to define.
+      </P>
+      <Note tone="warn" title="Why this is the default rather than shadcn">
+        <p>
+          The default used to be shadcn, which emits <C>bg-primary</C>, <C>text-foreground</C>,{" "}
+          <C>border-border</C>. Those are perfectly real class names that mean nothing to Tailwind on
+          their own — they resolve only where shadcn&rsquo;s CSS variables and its <C>@theme inline</C>{" "}
+          block are also defined.
+        </p>
+        <p className="mt-3">
+          So someone who ran <C>pnpm add tailwindcss</C>, compiled a document and opened it got an{" "}
+          <strong>unstyled page with no error</strong>: every class spelled correctly, none of them
+          defined. A default is a claim about what a host already has, and assuming a design system
+          nobody installed is the wrong claim to make.
+        </p>
+      </Note>
+      <P>
+        shadcn is still shipped and is one word away. It is a <em>choice</em> now rather than an
+        assumption.
+      </P>
+
       <H2 id="using">Loading one</H2>
       <CodeBlock
         lang="bash"
         filename="terminal"
-        code={`guml build page.guml --theme brand.json
-guml build page.guml --theme brand.json --backend html    # inlines brand.json's css
-guml build page.guml --backend html-cdn                   # Tailwind CDN, previews only`}
+        code={`guml build page.guml                        # tailwind — the default
+guml build page.guml --theme shadcn         # a builtin, by name
+guml build page.guml --theme brand.json     # your own
+guml build page.guml --backend html         # inlines the active theme's css`}
       />
+      <P>
+        Better than a flag on every call: state it once in <A href="/docs/compiler/config">guml.json</A>,
+        so the editor, the formatter, <C>check</C> and CI cannot disagree about how a document looks.
+      </P>
+      <CodeBlock lang="json" filename="guml.json" code={`{
+  "theme": "shadcn"
+}`} />
+      <P>
+        A <A href="/docs/compiler/config#plugins">plugin</A> may ship its own theme, in which case
+        installing it is enough — <C>@guml/shadcn</C> carries both the components and the tokens they
+        expect, so its vocabulary and its styling cannot arrive separately.
+      </P>
       <P>
         One theme per process, applied for the whole run — a document styled two ways would be worse than
         either. See <A href="/docs/language/modifiers">modifiers</A> for the vocabulary a theme keys on,

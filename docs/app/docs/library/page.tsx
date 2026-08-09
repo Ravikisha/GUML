@@ -23,6 +23,7 @@ export default function Page() {
       lede="The compiler compiled: the same Rust that powers the CLI, built to WebAssembly, with a React runtime that renders its output. No build step in your app, no server."
       toc={[
         { id: "install", title: "Install" },
+        { id: "cdn", title: "From a CDN" },
         { id: "smaller", title: "Smaller packages" },
         { id: "render", title: "Render GUML" },
         { id: "compile", title: "Compile without rendering" },
@@ -50,6 +51,50 @@ export default function Page() {
         <p className="mt-3">
           To compile GUML from Node or a shell, use the CLI — <C>cargo install guml-cli</C> — or{" "}
           <Pkg name="@guml/fmt" /> below, which does load in Node.
+        </p>
+      </Note>
+
+      <H2 id="cdn">From a CDN</H2>
+      <P>
+        No install and no bundler. Which form you want depends only on whether your page uses modules.
+      </P>
+      <CodeBlock
+        lang="tsx"
+        filename="a module — prefer this"
+        code={`<script type="module">
+  import { compile } from "https://cdn.jsdelivr.net/npm/@guml/core/+esm";
+
+  const source = \`page "Hi"
+
+card
+  h Hello
+\`;
+
+  const { files } = await compile(source, "html");
+  document.body.innerHTML = files[0].contents;
+</script>`}
+      />
+      <CodeBlock
+        lang="tsx"
+        filename="a classic script tag"
+        code={`<script src="https://cdn.jsdelivr.net/npm/@guml/core"></script>
+<script>
+  guml.compile(source, "html").then(({ files }) => {
+    document.body.innerHTML = files[0].contents;
+  });
+</script>`}
+      />
+      <P>
+        <C>unpkg.com/@guml/core</C> serves the same thing. The wasm loads itself in both cases —
+        resolved relative to the script&rsquo;s own URL, so the 787 KB binary comes from the same CDN
+        with nothing to configure. The script-tag build starts that fetch on load rather than on first
+        call, so it overlaps with the rest of the page.
+      </P>
+      <Note tone="warn" title="Pin a version in production">
+        <p>
+          A bare <C>@guml/core</C> URL follows the latest release. That is convenient for a demo and a
+          supply-chain surface for anything else — a version you did not choose can change what your
+          page compiles to. Use <C>@guml/core@0.2.0</C>.
         </p>
       </Note>
 

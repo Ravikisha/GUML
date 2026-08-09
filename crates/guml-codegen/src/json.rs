@@ -360,13 +360,14 @@ mod tests {
         let mut d = Diagnostics::new();
         let tree = ui_tree(&program(), &mut d);
         let btn = &tree.nodes[0].children[0];
-        // Same table, so a preview cannot drift from emitted code. The equality above *is* the test; the
-        // check below only confirms the shared table produced something rather than an empty string, which
-        // `assert_eq!` on two empty strings would pass. Deliberately a token and not a colour: this line
-        // read `bg-slate-900` and pinned the palette, so changing the default theme broke a test about
-        // agreement between two backends.
+        // Same table, so a preview cannot drift from emitted code. The equality *is* the test; the check
+        // below only rules out both being empty, which `assert_eq!` would happily accept.
+        //
+        // Deliberately naming no class at all. This line read `bg-slate-900`, then `bg-primary`, and
+        // broke on each default-theme change — a test about *agreement between two backends* has no
+        // business knowing which palette is active.
         assert_eq!(btn.class, react::classes("btn", &["primary"]));
-        assert!(btn.class.contains("bg-primary"), "{}", btn.class);
+        assert!(!btn.class.trim().is_empty(), "both backends produced nothing");
     }
 
     #[test]

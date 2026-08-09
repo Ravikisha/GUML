@@ -449,6 +449,32 @@ pub(crate) fn needs_runtime(tag: &str) -> bool {
 /// Deliberately not a desugar pass that rewrites the tree. `guml ast` and the conformance fingerprints
 /// are supposed to show what the author wrote; a pass that invented four `option` children would make
 /// every `select` case in the suite describe a document nobody wrote.
+/// The accessible name a **field** carries when the author wrote none.
+///
+/// `select colour` binds the state `colour`, and that word is a usable name: a backend emitting
+/// `aria-label="colour"` produces something a screen reader can announce, which is the entire point
+/// of requiring a name at all. Before this, the compiler held that word and declined to use it —
+/// `GUML0051` refused the document instead, and it was the second most common reason
+/// model-generated GUML failed to compile.
+///
+/// `sema::check_label` warns when this fires, because a state name is a variable name: usually a real
+/// word, occasionally `c` or `x1`, and the compiler cannot tell which. **The warning is only honest if
+/// the name is actually emitted**, which is why this lives here and not in one backend — a warning
+/// saying "named from the state it binds" beside output carrying no name would be exactly the silent
+/// mis-lowering invariant 3 forbids.
+///
+/// Returns `None` when the author supplied a name, when the element is not a field, or when there is
+/// no binding to derive from.
+pub fn derived_aria_label(el: &Element) -> Option<String> {
+    if !matches!(el.tag.as_str(), "input" | "select") {
+        return None;
+    }
+    if el.attr("aria").is_some() || el.attr("title").is_some() {
+        return None;
+    }
+    el.label().map(str::to_string)
+}
+
 pub fn select_options(program: &Program, el: &Element) -> Vec<String> {
     let written: Vec<String> = el
         .children

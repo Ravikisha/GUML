@@ -7,9 +7,23 @@ packages:
   # typecheck at all, and the piece users install.
   - editors/vscode
 
-# All seven advisories `pnpm audit` reports are transitive: postcss, nanoid and sharp arrive through
-# `next`, and brace-expansion through `vscode-languageclient`. None is a direct dependency, so pinning
-# the patched versions here is the only way to resolve them without waiting on an upstream release.
+# The advisories `pnpm audit --prod` reports are transitive — postcss, nanoid and sharp all arrive
+# through `next` — so pinning the patched versions here is the only way to resolve them without waiting
+# on an upstream release.
+#
+# **A pnpm override replaces a dependency's requested range outright; it does not intersect with it.**
+# That is why `brace-expansion` is not listed. It was, briefly: every major line has its own advisory, so
+# a floor covering all of them looked right. But because the override replaces the range, every consumer
+# collapsed onto the newest matching version — including `minimatch@3`, which asks for `^1.1.7` and got
+# `5.0.9`. The v1 line exports a function and later lines export an object, so eslint died with
+# `TypeError: expand is not a function` and the whole `docs` job with it. Per-major keys
+# (`brace-expansion@1:`) do not help either: they select on the version a package *resolves to*, not on
+# what its parent asked for, so the same thing happens.
+#
+# Nothing here needs it. The only path was `editors/vscode > vscode-languageclient > minimatch`, which is
+# a dev dependency of an editor extension; `pnpm audit --prod` is clean without the override. A security
+# floor that breaks the build is not a security improvement, and this one was fixing a risk the
+# production tree never carried.
 #
 # Revisit when Next ships a version carrying these itself — an override that has become redundant is
 # a version floor nobody remembers agreeing to.
@@ -17,5 +31,3 @@ overrides:
   postcss: ">=8.5.23"
   nanoid: ">=3.3.17"
   sharp: ">=0.35.0"
-  # Two major lines are affected; this path resolves through minimatch, which needs the v5 fix.
-  brace-expansion: ">=5.0.9"

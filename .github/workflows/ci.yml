@@ -56,6 +56,18 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
+      # Half this job is Node: it typechecks emitted TypeScript, renders it, runs the wc output, and
+      # typechecks two registry packages and the extension. The runner image ships Node and npm but
+      # **not pnpm**, so `pnpm install --frozen-lockfile` below was `command not found` — and the pin to
+      # 10 is not cosmetic, since `--frozen-lockfile` fails against a lockfile written by another major.
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
       - name: Formatted
         run: cargo run -q -p guml-cli -- fmt --check fixtures/*.guml bench/phase0/examples/*.guml bench/guml-bench/reference/*.guml
 
@@ -215,9 +227,34 @@ jobs:
       - name: Docs previews compile clean
         run: pnpm --filter docs check:previews
 
+      # A typo'd package name renders as a link to a registry 404, and a stale size keeps asserting a
+      # number that moved at the last publish. Neither is visible to a build.
+      - name: The packages the docs name exist, at the sizes they claim
+        run: pnpm --filter docs check:packages
+
+      # The compiler checks accessibility in the HTML it emits; until this ran, the site documenting
+      # that compiler had never been checked at all. Found two pages carrying a second `<main>`.
+      #
+      # Serves the build from the step above rather than building a second time — this lived in the
+      # `package` job, where it had to rebuild the whole site to get something to serve.
+      - name: Docs site accessibility
+        run: |
+          cd docs
+          pnpm start &
+          npx --yes wait-on http://localhost:3000/docs -t 60000
+          pnpm check:a11y
+        env:
+          A11Y_BASE: http://localhost:3000
+          # `pnpm start` is NODE_ENV=production, where the rate limiter refuses to run with no signing
+          # key rather than falling back to a constant. Not a deployment secret and not treated as one —
+          # it exists so the server starts.
+          DEMO_COOKIE_SECRET: ci-build-only-not-a-deployment-secret
+
   package:
-    # The npm package ships the compiler as wasm. Its build output and its tests are separate
-    # from the Rust workspace's.
+    # Everything published from this repository: three npm packages, the Python wheel, and the MCP
+    # server that ships inside the CLI. All of them are the Rust compiler in a different wrapper, which
+    # is why the job needs a Rust toolchain as much as the workspace job does — `wasm-pack`, `cargo
+    # deny` and maturin's `pip install .` all shell out to cargo.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -228,6 +265,11 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - run: pnpm install --frozen-lockfile
 
       - name: Typecheck
@@ -267,11 +309,6 @@ jobs:
           cargo install wasm-pack --locked
           node scripts/check-wasm-fresh.mjs
 
-      # The docs site is a deployed artifact with three API routes and a playground that runs the
-      # compiler. Until this ran here, a build break surfaced at deploy time — the one moment you
-      # cannot afford to find it.
-      # A typo'd package name renders as a link to a registry 404, and a stale size keeps asserting a
-      # number that moved at the last publish. Neither is visible to a build.
       # Three bindings over one compiler is three chances to disagree about one document, and this
       # repository has been bitten by exactly that shape of bug three times already. `test_agreement.py`
       # compiles every fixture through both the CLI and Python and compares the bytes.
@@ -282,36 +319,14 @@ jobs:
           pip install .
           python -m pytest tests -q
 
-      # `pnpm audit` gates the JavaScript dependencies; nothing gated the Rust ones, which is the
-      # larger surface. Found RUSTSEC-2026-0177 (a missing `Sync` bound in pyo3) on its first run.
       # A real client speaks newline-delimited JSON-RPC over stdio; so does this. Catches the failure
       # that unit tests cannot see — a server that works and that no client can talk to.
       - name: MCP server conformance
         run: node scripts/check-mcp.mjs
 
+      # `pnpm audit` gates the JavaScript dependencies; nothing gated the Rust ones, which is the
+      # larger surface. Found RUSTSEC-2026-0177 (a missing `Sync` bound in pyo3) on its first run.
       - name: Rust dependency review
         run: |
           cargo install cargo-deny --locked
           cargo deny check
-
-      - name: The packages the docs name exist, at the sizes they claim
-        run: pnpm --filter docs check:packages
-
-      - name: Docs site builds
-        run: |
-          pnpm --filter docs typecheck
-          pnpm --filter docs build
-        env:
-          DEMO_COOKIE_SECRET: ci-build-only-not-a-deployment-secret
-
-      # The compiler checks accessibility in the HTML it emits; until this ran, the site documenting
-      # that compiler had never been checked at all. Found two pages carrying a second `<main>`.
-      - name: Docs site accessibility
-        run: |
-          cd docs
-          pnpm start &
-          npx --yes wait-on http://localhost:3000/docs -t 60000
-          pnpm check:a11y
-        env:
-          A11Y_BASE: http://localhost:3000
-          DEMO_COOKIE_SECRET: ci-build-only-not-a-deployment-secret

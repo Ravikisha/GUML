@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { DocPage } from "@/components/doc-page";
 import { NumberTicker } from "@/components/motion-bits";
-import { A, C, H2, LI, Note, P, Table, UL } from "@/components/prose";
+import { C, H2, LI, Note, P, Table, UL } from "@/components/prose";
 import { FIXTURES } from "@/lib/fixtures.generated";
 import { commas, reduction } from "@/lib/utils";
 

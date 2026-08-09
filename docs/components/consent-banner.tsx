@@ -1,7 +1,48 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { CONSENT_KEY } from "@/lib/inline-scripts";
+
+/**
+ * `localStorage` as an external store, which is what it is.
+ *
+ * The obvious shape — `useState(null)` plus an effect that reads storage — sets state synchronously
+ * during the effect, so every reader pays a second render before the first paint. `useSyncExternalStore`
+ * is the API for exactly this: React uses `serverSnapshot` for SSR *and for the hydration render*, then
+ * re-renders with the client value, so the no-flash property the effect version was written for is kept
+ * without the cascading render.
+ *
+ * `dismissed` is not redundant with the stored key. If storage throws — private mode, a locked-down
+ * browser — the write in `choose` silently does nothing, and a snapshot reading only storage would put
+ * the banner straight back on screen the moment someone answered it.
+ */
+let dismissed = false;
+let listeners: Array<() => void> = [];
+
+function subscribe(onChange: () => void) {
+  listeners.push(onChange);
+  return () => {
+    listeners = listeners.filter((l) => l !== onChange);
+  };
+}
+
+/** True when the banner should stay hidden. */
+function snapshot(): boolean {
+  if (dismissed) return true;
+  try {
+    return localStorage.getItem(CONSENT_KEY) !== null;
+  } catch {
+    // Storage disabled. Treat it as undecided rather than as consent, and accept that the banner
+    // reappears — the alternative is measuring someone who never agreed because their browser would
+    // not let us remember that they didn't.
+    return false;
+  }
+}
+
+/** The server cannot see the decision, so it renders nothing rather than flashing at someone who answered. */
+function serverSnapshot(): boolean {
+  return true;
+}
 
 /**
  * The analytics consent gate.
@@ -30,18 +71,7 @@ import { CONSENT_KEY } from "@/lib/inline-scripts";
  * component.
  */
 export function ConsentBanner() {
-  const [decided, setDecided] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    try {
-      setDecided(localStorage.getItem(CONSENT_KEY) !== null);
-    } catch {
-      // Storage disabled (private mode, or a locked-down browser). Treat it as undecided rather than
-      // as consent, and accept that the banner will reappear — the alternative is measuring someone
-      // who never agreed because their browser would not let us remember that they didn't.
-      setDecided(false);
-    }
-  }, []);
+  const decided = useSyncExternalStore(subscribe, snapshot, serverSnapshot);
 
   const choose = (granted: boolean) => {
     try {
@@ -54,10 +84,11 @@ export function ConsentBanner() {
     // throws on click would be worse than no banner.
     const w = window as typeof window & { gtag?: (...args: unknown[]) => void };
     w.gtag?.("consent", "update", { analytics_storage: granted ? "granted" : "denied" });
-    setDecided(true);
+    dismissed = true;
+    for (const l of listeners) l();
   };
 
-  if (decided !== false) return null;
+  if (decided) return null;
 
   return (
     <div

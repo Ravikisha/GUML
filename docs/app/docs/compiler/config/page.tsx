@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { CodeBlock } from "@/components/code-block";
 import { DocPage } from "@/components/doc-page";
-import { A, C, H2, H3, LI, Note, P, Pkg, Table, UL } from "@/components/prose";
+import { A, C, H2, LI, Note, P, Pkg, Table, UL } from "@/components/prose";
 
 export const metadata: Metadata = {
   title: "Configuration and plugins",
